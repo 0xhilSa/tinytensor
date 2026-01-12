@@ -1,5 +1,5 @@
-#ifndef ARRAY_H
-#define ARRAY_H
+#ifndef TEN_H
+#define TEN_H
 
 #include <stddef.h>
 
