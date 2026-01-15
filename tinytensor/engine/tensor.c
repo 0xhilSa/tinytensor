@@ -1,9 +1,11 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+#include <stdint.h>
 #include "dtypes.h"
 
 typedef enum {
+  BOOL,
   UINT8,
   UINT16,
   UINT32,
@@ -27,10 +29,11 @@ typedef struct {
   size_t length;
   size_t elem_size;
   dtype_t dtype;
-} array_t;
+} tensor_t;
 
 static size_t dtype_size(dtype_t dtype){
   switch(dtype){
+    case BOOL: return sizeof(bool);
     case UINT8: return sizeof(u8);
     case UINT16: return sizeof(u16);
     case UINT32: return sizeof(u32);
@@ -49,25 +52,24 @@ static size_t dtype_size(dtype_t dtype){
   }
 }
 
-array_t create(size_t ndim, const size_t *shape, dtype_t dtype){
-  array_t arr;
+tensor_t create(size_t ndim, const size_t *shape, dtype_t dtype){
+  tensor_t arr = {0};
+  if(ndim == 0 || !shape) return arr;
+  arr.elem_size = dtype_size(dtype);
+  if(arr.elem_size == 0) return arr;
   arr.ndim = ndim;
   arr.dtype = dtype;
-  arr.elem_size = dtype_size(dtype);
-  if(arr.elem_size == 0){
-    arr.ndim = 0;
-    arr.dtype = 0;
-    return arr;
-  }
-  if(ndim == 0 || arr.elem_size == 0){
-    arr.data = NULL;
-    arr.shape = NULL;
-    arr.length = 0;
-    return arr;
-  }
   arr.shape = malloc(ndim * sizeof(size_t));
+  if(!arr.shape) return arr;
   arr.length = 1;
-  for(int i = 0; i < ndim; i++){
+  for(size_t i = 0; i < ndim; i++){
+    if(shape[i] == 0 ||
+       arr.length > SIZE_MAX / shape[i]){
+      free(arr.shape);
+      arr.shape = NULL;
+      arr.length = 0;
+      return arr;
+    }
     arr.shape[i] = shape[i];
     arr.length *= shape[i];
   }
@@ -80,17 +82,42 @@ array_t create(size_t ndim, const size_t *shape, dtype_t dtype){
   return arr;
 }
 
-void destroy(array_t *arr){
+void destroy(tensor_t *arr){
   if(!arr) return;
-
   free(arr->data);
   free(arr->shape);
-
   arr->data = NULL;
   arr->shape = NULL;
-
   arr->ndim = 0;
   arr->length = 0;
   arr->elem_size = 0;
   arr->dtype = 0;
+}
+
+void *get(const tensor_t *tensor, const size_t *indices){
+  if(!tensor || !tensor->data || !indices) return NULL;
+  size_t linear_index = 0;
+  size_t stride = 1;
+  for(size_t i = tensor->ndim; i-- > 0;){
+    if(indices[i] >= tensor->shape[i]) return NULL;
+    linear_index += indices[i] * stride;
+    stride *= tensor->shape[i];
+  }
+  return (char *)tensor->data + linear_index * tensor->elem_size;
+}
+
+void set(tensor_t *tensor, const size_t *indices, void *value){
+  if(!tensor || !tensor->data || !indices) return;
+  size_t linear_index = 0;
+  size_t stride = 1;
+  for(size_t i = tensor->ndim; i-- >0;){
+    if(indices[i] >= tensor->shape[i]) return;
+    linear_index += indices[i] * stride;
+    stride *= tensor->shape[i];
+  }
+  memcpy(
+    (char *)tensor->data + linear_index * tensor->elem_size,
+    value,
+    tensor->elem_size
+  );
 }
