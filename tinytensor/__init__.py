@@ -22,3 +22,12 @@ class Tensor:
     if self.device.type == "CPU": self.buf = cpu.tocpu(buf, self.shape.shape, self.dtype.fmt)
     elif self.device.type == "CUDA": self.buf = gpu_cuda.tocuda(buf, self.shape.shape, self.dtype.fmt)
   def __repr__(self): return f"Tensor(shape={self.shape.shape}, dtype='{self.dtype.ctype}', device='{self.device.type}:{self.device.index}', const={self.const})"
+
+
+
+def tensor(
+  buf:List,
+  dtype:Optional[Union[dtypes.DType,dtypes.ConstType]]=None,
+  device:str="cpu",
+  const:bool=False
+): return Tensor(buf=buf, dtype=dtype, device=device, const=const)
