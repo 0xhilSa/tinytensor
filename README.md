@@ -24,3 +24,10 @@ print(y)
 print(y.buf)
 print(y.device)
 ```
+
+## TODOs
+- [ ] Implement function to convert pointers/pycapsule into the list (cpu & gpu)
+- [ ] CUDA device selection
+- [ ] Basic arithmetic operation (`__add__`, `__sub__`, and so on)
+- [ ] Relational operation (`__eq__`, `__ne__`, and so on)
+- [ ] Vectorize the whole tensor operation
