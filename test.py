@@ -1,6 +1,4 @@
 import tinytensor as tt
-from tinytensor.engine import gpu_cuda
-
 
 x = tt.Tensor([[1,2,3,4],[5,6,7,8]], dtype=tt.dtypes.int8, device="cpu", const=True)
 y = tt.Tensor([[1,2,3,4],[5,6,7,8]], dtype=tt.dtypes.int8, device="cuda", const=True)
