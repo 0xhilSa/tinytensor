@@ -6,7 +6,7 @@ tending towards the tiny python tensor computation library
 ```bash
 git clone https://github.com/0xhilSa/tinytensor
 cd tinytensor
-bash compile
+bash compile.sh
 ```
 
 ## Testing
