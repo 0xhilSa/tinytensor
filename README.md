@@ -26,8 +26,9 @@ print(y.device)
 ```
 
 ## TODOs
-- [ ] Implement function to convert pointers/pycapsule into the list (cpu & gpu)
-- [ ] CUDA device selection
-- [ ] Basic arithmetic operation (`__add__`, `__sub__`, and so on)
-- [ ] Relational operation (`__eq__`, `__ne__`, and so on)
-- [ ] Vectorize the whole tensor operation
+- [X] Implement conversion from raw pointers / PyCapsules to Python lists (CPU & CUDA)
+- [ ] Extend `.cuda()` and `.cpu()` to support `copy`, `dtype`, `const`, and related parameters
+- [ ] Add CUDA device selection and device indexing support
+- [ ] Implement basic arithmetic operations (`__add__`, `__sub__`, etc.)
+- [ ] Implement relational operations (`__eq__`, `__ne__`, etc.)
+- [ ] Vectorize tensor operations for performance
