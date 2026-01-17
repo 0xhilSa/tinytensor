@@ -1,6 +1,5 @@
 # TinyTensor
-tending towards the tiny python tensor computation library
-
+a tiny Python tensor computation library
 
 ## Install from the source
 ```bash
