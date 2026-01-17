@@ -16,7 +16,7 @@ class Device:
     if dev_type not in DEVICES: raise ValueError(f"Unknown device type: {dev_type}")
     if index < 0: raise ValueError(f"device index must be non-negative")
     self.type = dev_type
-    if self.type == "CPU": warnings.warn(f"CPU device index must be 0 (got {index}) defaulting to 0"); index = 0
+    if self.type == "CPU" and index != 0: warnings.warn(f"CPU device index must be 0 (got {index}) defaulting to 0"); index = 0
     self.index = index
   def __repr__(self): return f"Device('{self.type.lower()}:{self.index}')"
   def __eq__(self, other):
