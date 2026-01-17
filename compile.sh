@@ -8,6 +8,8 @@ PY_LIB=$(python${PYTHON_VERSION} -c "import sysconfig; print(sysconfig.get_confi
 SRC_DIR=./tinytensor/engine
 OUT_DIR=$SRC_DIR
 
+echo -ne "Compiling..."
+
 # .c compile
 gcc -O3 -fPIC -shared \
     -I"$PY_INC" \
@@ -23,4 +25,5 @@ nvcc -gencode arch=compute_75,code=sm_75 -O3 -Xcompiler -fPIC -shared \
     "$SRC_DIR/gpu_cuda.cu" \
     "$SRC_DIR/tensor.c" \
     -o "$OUT_DIR/gpu_cuda.so"
-echo "Build successful"
+
+echo -ne "\rCompiled!   \n"
