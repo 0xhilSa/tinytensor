@@ -1,5 +1,5 @@
 from tinytensor import dtypes
-from typing import List, Union, Optional
+from typing import List, Tuple, Union, Optional, Any
 
 _CAST = {
   dtypes.bool_: bool,
@@ -55,3 +55,17 @@ def has_uniform_shape(lst):
   if len(set(lengths)) != 1: return False
   return all(has_uniform_shape(x) for x in lst)
 
+def reshape(data: List[Any], shape: Tuple[int, ...]) -> List[Any]:
+  if not shape: raise ValueError("shape must be non-empty")
+  total = 1
+  for d in shape: total *= d
+  if total != len(data): raise ValueError("shape does not match data length")
+  def _reshape(flat, shp):
+    if len(shp) == 1: return flat[:shp[0]]
+    step = 1
+    for d in shp[1:]: step *= d
+    return [
+      _reshape(flat[i * step:(i + 1) * step], shp[1:])
+      for i in range(shp[0])
+    ]
+  return _reshape(data, shape)
