@@ -84,7 +84,7 @@ tensor_t create(size_t ndim, const size_t *shape, dtype_t dtype){
 
 void destroy(tensor_t *arr){
   if(!arr) return;
-  free(arr->data);
+  free(arr->data); // WARNING: use when that pointer is at the host/CPU/DISK *CUDA allocated memory won't be free*
   free(arr->shape);
   arr->data = NULL;
   arr->shape = NULL;
