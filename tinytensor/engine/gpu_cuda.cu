@@ -1,7 +1,6 @@
 #include <cuda_runtime.h>
 #include <cuComplex.h>
 #include <python3.10/Python.h>
-#include <stdlib.h>
 #include "tensor.h"
 
 static void capsule_destructor(PyObject *capsule){
@@ -11,6 +10,13 @@ static void capsule_destructor(PyObject *capsule){
     cudaFree(t->data);
     t->data = NULL;
   }
+  destroy(t);
+  free(t);
+}
+
+static void cpu_capsule_destructor(PyObject *capsule){
+  tensor_t *t = (tensor_t *)PyCapsule_GetPointer(capsule, "tensor_t on CPU");
+  if(!t) return;
   destroy(t);
   free(t);
 }
@@ -156,8 +162,117 @@ static PyObject *tocuda(PyObject *self, PyObject *args){
     return NULL;
 }
 
+static PyObject *tocpu(PyObject *self, PyObject *args){
+  PyObject *capsule;
+  if(!PyArg_ParseTuple(args, "O", &capsule)) return NULL;
+  tensor_t *src = (tensor_t *)PyCapsule_GetPointer(capsule, "tensor_t on CUDA");
+  if(!src){
+    PyErr_SetString(PyExc_ValueError, "Invalid CUDA tensor capsule");
+    return NULL;
+  }
+  tensor_t *dst = (tensor_t *)malloc(sizeof(tensor_t));
+  if(!dst){
+    PyErr_NoMemory();
+    return NULL;
+  }
+  *dst = create(src->ndim, src->shape, src->dtype);
+  size_t bytes = src->length * src->elem_size;
+  dst->data = malloc(bytes);
+  if(!dst->data){
+    destroy(dst);
+    free(dst);
+    PyErr_NoMemory();
+    return NULL;
+  }
+  cudaError_t err = cudaMemcpy(
+    dst->data,
+    src->data,
+    bytes,
+    cudaMemcpyDeviceToHost
+  );
+  if(err != cudaSuccess){
+    free(dst->data);
+    destroy(dst);
+    free(dst);
+    PyErr_SetString(PyExc_RuntimeError, cudaGetErrorString(err));
+    return NULL;
+  }
+  return PyCapsule_New(dst, "tensor_t on CPU", cpu_capsule_destructor);
+}
+
+static PyObject *device_count(PyObject *self, PyObject *args){
+  int count = 0;
+  cudaError_t err = cudaGetDeviceCount(&count);
+  if(err != cudaSuccess){
+    PyErr_SetString(PyExc_RuntimeError, cudaGetErrorString(err) );
+    return NULL;
+  }
+  return PyLong_FromLong((long)count);
+}
+
+static PyObject *device_name(PyObject *self, PyObject *args){
+  int device;
+  if(!PyArg_ParseTuple(args, "i", &device)) return NULL;
+  int device_count = 0;
+  cudaGetDeviceCount(&device_count);
+  if(device < 0 || device >= device_count){
+    PyErr_SetString(PyExc_ValueError, "Invalid CUDA device index");
+    return NULL;
+  }
+  cudaDeviceProp prop;
+  cudaError_t err = cudaGetDeviceProperties(&prop, device);
+  if(err != cudaSuccess){
+    PyErr_SetString(PyExc_RuntimeError, cudaGetErrorString(err));
+    return NULL;
+  }
+  return PyUnicode_FromString(prop.name);
+}
+
+static PyObject *is_available(PyObject *self, PyObject *args){
+  int count = 0;
+  cudaError_t err = cudaGetDeviceCount(&count);
+  if(err == cudaErrorNoDevice) Py_RETURN_FALSE;
+  if(err != cudaSuccess) Py_RETURN_FALSE;
+  if(count > 0) Py_RETURN_TRUE;
+  else Py_RETURN_FALSE;
+}
+
+static PyObject *device_prop(PyObject *self, PyObject *args){
+  int device;
+  if(!PyArg_ParseTuple(args, "i", &device)) return NULL;
+  cudaDeviceProp prop;
+  cudaError_t err = cudaGetDeviceProperties(&prop, device);
+  if(err != cudaSuccess){
+    PyErr_SetString(PyExc_RuntimeError, cudaGetErrorString(err));
+    return NULL;
+  }
+  PyObject *dict = PyDict_New();
+  if(!dict) return NULL;
+  PyDict_SetItemString(dict, "name", PyUnicode_FromString(prop.name));
+  PyDict_SetItemString(dict, "totalGlobalMem", PyLong_FromUnsignedLongLong(prop.totalGlobalMem));
+  PyDict_SetItemString(dict, "sharedMemPerBlock", PyLong_FromUnsignedLongLong(prop.sharedMemPerBlock));
+  PyDict_SetItemString(dict, "regsPerBlock", PyLong_FromLong(prop.regsPerBlock));
+  PyDict_SetItemString(dict, "warpSize", PyLong_FromLong(prop.warpSize));
+  PyDict_SetItemString(dict, "memPitch", PyLong_FromUnsignedLongLong(prop.memPitch));
+  PyDict_SetItemString(dict, "maxThreadsPerBlock", PyLong_FromLong(prop.maxThreadsPerBlock));
+  PyDict_SetItemString(dict, "multiProcessorCount", PyLong_FromLong(prop.multiProcessorCount));
+  PyDict_SetItemString(dict, "clockRate", PyLong_FromLong(prop.clockRate));
+  PyDict_SetItemString(dict, "major", PyLong_FromLong(prop.major));
+  PyDict_SetItemString(dict, "minor", PyLong_FromLong(prop.minor));
+  PyDict_SetItemString(dict, "integrated", PyBool_FromLong(prop.integrated));
+  PyDict_SetItemString(dict, "canMapHostMemory", PyBool_FromLong(prop.canMapHostMemory));
+  PyDict_SetItemString(dict, "concurrentKernels", PyBool_FromLong(prop.concurrentKernels));
+  PyDict_SetItemString(dict, "ECCEnabled", PyBool_FromLong(prop.ECCEnabled));
+  return dict;
+}
+
 static PyMethodDef methods[] = {
   {"tocuda", tocuda, METH_VARARGS, "store tensor on CUDA"},
+  {"tocpu", tocpu, METH_VARARGS, "copy tensor from CUDA to CPU"},
+  {"device_count", device_count, METH_NOARGS, "return the number of CUDA device"},
+  {"device_name", device_name, METH_VARARGS, "return the name of the CUDA device"},
+  {"device_prop", device_prop, METH_VARARGS, "return device properties"},
+  {"is_available", is_available, METH_NOARGS, "return if the CUDA device is present or not?"},
   {NULL, NULL, 0, NULL}
 };
 
