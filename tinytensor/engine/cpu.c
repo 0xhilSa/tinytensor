@@ -170,8 +170,61 @@ static PyObject *tocpu(PyObject *self, PyObject *args){
     return NULL;
 }
 
+static PyObject *tolist(PyObject *self, PyObject *args){
+  PyObject *capsule;
+  if(!PyArg_ParseTuple(args, "O", &capsule)) return NULL;
+  tensor_t *t = PyCapsule_GetPointer(capsule, "tensor_t on CPU");
+  if(!t){
+    PyErr_SetString(PyExc_ValueError, "Invalid CPU tensor capsule");
+    return NULL;
+  }
+  if(!t->data){
+    PyErr_SetString(PyExc_RuntimeError, "Tensor has no data");
+    return NULL;
+  }
+  PyObject *list = PyList_New(t->length);
+  if(!list) return NULL;
+  for(size_t i = 0; i < t->length; i++){
+    PyObject *item = NULL;
+    dtype_t dtype= t->dtype;
+    if(dtype == BOOL) item = PyBool_FromLong(((u8 *)t->data)[i]);
+    else if(dtype == INT8) item = PyLong_FromLong(((i8 *)t->data)[i]);
+    else if(dtype == UINT8) item = PyLong_FromUnsignedLong(((u8 *)t->data)[i]);
+    else if(dtype == INT16) item = PyLong_FromLong(((i16 *)t->data)[i]);
+    else if(dtype == UINT16) item = PyLong_FromUnsignedLong(((u16 *)t->data)[i]);
+    else if(dtype == INT32) item = PyLong_FromLong(((i32 *)t->data)[i]);
+    else if(dtype == UINT32) item = PyLong_FromUnsignedLong(((u32 *)t->data)[i]);
+    else if(dtype == INT64) item = PyLong_FromLong(((i64 *)t->data)[i]);
+    else if(dtype == UINT64) item = PyLong_FromUnsignedLong(((u64 *)t->data)[i]);
+    else if(dtype == FP32) item = PyFloat_FromDouble((f64)((f32 *)t->data)[i]);
+    else if(dtype == FP64) item = PyFloat_FromDouble(((f64 *)t->data)[i]);
+    else if(dtype == FP128) item = PyFloat_FromDouble((f64)((f128 *)t->data)[i]);
+    else if(dtype == CMPX64){
+      c64 v = ((c64 *)t->data)[i];
+      item = PyComplex_FromDoubles(crealf(v), cimagf(v));
+    }else if(dtype == CMPX128){
+      c128 v = ((c128 *)t->data)[i];
+      item = PyComplex_FromDoubles(creal(v), cimag(v));
+    }else if(dtype == CMPX256){
+      c256 v = ((c256 *)t->data)[i];
+      item = PyComplex_FromDoubles((double)creall(v), (double)cimagl(v));
+    }else{
+      Py_DECREF(list);
+      PyErr_SetString(PyExc_RuntimeError, "Unknown dtype");
+      return NULL;
+    }
+    if(!item){
+      Py_DECREF(list);
+      return NULL;
+    }
+    PyList_SET_ITEM(list, i, item);
+  }
+  return list;
+}
+
 static PyMethodDef methods[] = {
   {"tocpu", tocpu, METH_VARARGS, "store tensor"},
+  {"tolist", tolist, METH_VARARGS, "return tensor into the python list"},
   {NULL, NULL, 0, NULL}
 };
 
