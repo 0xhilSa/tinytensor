@@ -21,7 +21,8 @@ static PyObject *tocuda(PyObject *self, PyObject *args){
   PyObject *list;
   PyObject *shape_obj;
   const char *fmt;
-  if(!PyArg_ParseTuple(args, "OOs", &list, &shape_obj, &fmt)) return NULL;
+  int device_index;
+  if(!PyArg_ParseTuple(args, "OOsi", &list, &shape_obj, &fmt, &device_index)) return NULL;
   if(!PyList_Check(list)){
     PyErr_SetString(PyExc_TypeError, "data must be a list");
     return NULL;
@@ -74,7 +75,7 @@ static PyObject *tocuda(PyObject *self, PyObject *args){
     return NULL;
   }
   device_t device = CUDA;
-  *t = create((size_t)ndim, shape, device, dtype);
+  *t = create((size_t)ndim, shape, device, device_index, dtype);
   free(shape);
   if(PyList_Size(list) != (Py_ssize_t)t->length){
     destroy(t);
@@ -84,7 +85,23 @@ static PyObject *tocuda(PyObject *self, PyObject *args){
   }
   size_t bytes = t->length * t->elem_size;
   void *dptr = NULL;
-  cudaError_t err = cudaMalloc(&dptr, bytes);
+  int cu_device_index = t->device_index;
+  int count = 0;
+  cudaError_t err = cudaGetDeviceCount(&count);
+  if(err != cudaSuccess){
+    destroy(t);
+    free(t);
+    PyErr_SetString(PyExc_RuntimeError, cudaGetErrorString(err));
+    return NULL;
+  }
+  if(cu_device_index >= 0 && cu_device_index < count) cudaSetDevice(cu_device_index);
+  else{
+    destroy(t);
+    free(t);
+    PyErr_Format(PyExc_RuntimeError, "Invalid device index: %i", cu_device_index);
+    return NULL;
+  }
+  err = cudaMalloc(&dptr, bytes);
   if(err != cudaSuccess){
     destroy(t);
     free(t);
@@ -173,7 +190,8 @@ static PyObject *tocpu(PyObject *self, PyObject *args){
     return NULL;
   }
   device_t device = CPU;
-  *dst = create(src->ndim, src->shape, device, src->dtype);
+  int device_index = 0; // switching to CPU
+  *dst = create(src->ndim, src->shape, device, device_index, src->dtype);
   size_t bytes = src->length * src->elem_size;
   dst->data = malloc(bytes);
   if(!dst->data){
@@ -182,7 +200,23 @@ static PyObject *tocpu(PyObject *self, PyObject *args){
     PyErr_NoMemory();
     return NULL;
   }
-  cudaError_t err = cudaMemcpy(
+  int cu_device_index = src->device_index;
+  int count = 0;
+  cudaError_t err = cudaGetDeviceCount(&count);
+  if (err != cudaSuccess) {
+      destroy(dst);
+      free(dst);
+      PyErr_SetString(PyExc_RuntimeError, cudaGetErrorString(err));
+      return NULL;
+  }
+  if(cu_device_index >= 0 && cu_device_index < count) cudaSetDevice(cu_device_index);
+  else{
+    destroy(dst);
+    free(dst);
+    PyErr_Format(PyExc_RuntimeError, "Invalid device index: %i", cu_device_index);
+    return NULL;
+  }
+  err = cudaMemcpy(
     dst->data,
     src->data,
     bytes,
