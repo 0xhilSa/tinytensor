@@ -69,7 +69,7 @@ static PyObject *tocpu(PyObject *self, PyObject *args){
     return NULL;
   }
   device_t device = CPU;
-  int device_index = -1;
+  int device_index = 0;
   *t = create((size_t)ndim, shape, device, device_index, dtype);
   free(shape);
   if(!t->data){
