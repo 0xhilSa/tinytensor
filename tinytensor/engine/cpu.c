@@ -68,7 +68,8 @@ static PyObject *tocpu(PyObject *self, PyObject *args){
     PyErr_NoMemory();
     return NULL;
   }
-  *t = create((size_t)ndim, shape, dtype);
+  device_t device = CPU;
+  *t = create((size_t)ndim, shape, device, dtype);
   free(shape);
   if(!t->data){
     free(t);
