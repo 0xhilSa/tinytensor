@@ -29,19 +29,20 @@ OUT_DIR=$SRC_DIR
 
 
 # .c compile
-echo "building cpu.so"
-run_with_spinner gcc -O3 -fPIC -shared \
-    -I"$PY_INC" \
-    -I"$SRC_DIR" \
-    "$SRC_DIR/cpu.c" \
-    "$SRC_DIR/tensor.c" \
-    -o "$OUT_DIR/cpu.so"
+echo "building $SRC_DIR/cpu.so"
+run_with_spinner nvcc -gencode arch=compute_75,code=sm_75 -O3 -Xcompiler -fPIC -shared \
+  -I"$PY_INC" \
+  -I"$SRC_DIR" \
+  "$SRC_DIR/cpu.c" \
+  "$SRC_DIR/tensor.c" \
+  -lcudart \
+  -o "$OUT_DIR/cpu.so"
 
 # .cu compile
-echo "building gpu_cuda.so"
+echo "building $SRC_DIR/gpu_cuda.so"
 run_with_spinner nvcc -gencode arch=compute_75,code=sm_75 -O3 -Xcompiler -fPIC -shared \
-    -I"$PY_INC" \
-    -I"$SRC_DIR" \
-    "$SRC_DIR/gpu_cuda.cu" \
-    "$SRC_DIR/tensor.c" \
-    -o "$OUT_DIR/gpu_cuda.so"
+  -I"$PY_INC" \
+  -I"$SRC_DIR" \
+  "$SRC_DIR/gpu_cuda.cu" \
+  "$SRC_DIR/tensor.c" \
+  -o "$OUT_DIR/gpu_cuda.so"
