@@ -1,3 +1,4 @@
+#include <cuda_runtime.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
@@ -22,12 +23,18 @@ typedef enum {
   CMPX256
 } dtype_t;
 
+typedef enum {
+  CPU,
+  CUDA
+} device_t;
+
 typedef struct {
   void *data;
   size_t ndim;
   size_t *shape;
   size_t length;
   size_t elem_size;
+  device_t device; // CPU=0, CUDA=1
   dtype_t dtype;
 } tensor_t;
 
@@ -52,7 +59,7 @@ static size_t dtype_size(dtype_t dtype){
   }
 }
 
-tensor_t create(size_t ndim, const size_t *shape, dtype_t dtype){
+tensor_t create(size_t ndim, const size_t *shape, device_t device, dtype_t dtype){
   tensor_t arr = {0};
   if(ndim == 0 || !shape) return arr;
   arr.elem_size = dtype_size(dtype);
@@ -79,19 +86,24 @@ tensor_t create(size_t ndim, const size_t *shape, dtype_t dtype){
     arr.shape = NULL;
     arr.length = 0;
   }
+  arr.device = device;
   return arr;
 }
 
 void destroy(tensor_t *arr){
   if(!arr) return;
-  free(arr->data); // WARNING: use when that pointer is at the host/CPU/DISK *CUDA allocated memory won't be free*
   free(arr->shape);
+  if(arr->data){
+    if(arr->device == CPU) free(arr->data);
+    else if(arr->device == CUDA) cudaFree(arr->data);
+  }
   arr->data = NULL;
   arr->shape = NULL;
   arr->ndim = 0;
   arr->length = 0;
   arr->elem_size = 0;
   arr->dtype = 0;
+  arr->device = 0;
 }
 
 void *get(const tensor_t *tensor, const size_t *indices){
