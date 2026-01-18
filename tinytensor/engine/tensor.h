@@ -38,10 +38,11 @@ typedef struct {
   size_t length;
   size_t elem_size;
   device_t device;
+  int device_index;
   dtype_t dtype;
 } tensor_t;
 
-tensor_t create(size_t ndim, const size_t *shape, device_t device, dtype_t dtype);
+tensor_t create(size_t ndim, const size_t *shape, device_t device, size_t device_index, dtype_t dtype);
 void destroy(tensor_t *arr);
 void *get(const tensor_t *tensor, const size_t *indices);
 void set(const tensor_t *tensor, const size_t *indices, void *value);

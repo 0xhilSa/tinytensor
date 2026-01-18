@@ -35,6 +35,7 @@ typedef struct {
   size_t length;
   size_t elem_size;
   device_t device; // CPU=0, CUDA=1
+  int device_index; // device index depends on which device selected (CPU/CUDA)
   dtype_t dtype;
 } tensor_t;
 
@@ -59,7 +60,7 @@ static size_t dtype_size(dtype_t dtype){
   }
 }
 
-tensor_t create(size_t ndim, const size_t *shape, device_t device, dtype_t dtype){
+tensor_t create(size_t ndim, const size_t *shape, device_t device, int device_index, dtype_t dtype){
   tensor_t arr = {0};
   if(ndim == 0 || !shape) return arr;
   arr.elem_size = dtype_size(dtype);
@@ -87,6 +88,8 @@ tensor_t create(size_t ndim, const size_t *shape, device_t device, dtype_t dtype
     arr.length = 0;
   }
   arr.device = device;
+  if(arr.device == CUDA) arr.device_index = device_index;
+  else arr.device_index = 0;
   return arr;
 }
 
@@ -102,8 +105,9 @@ void destroy(tensor_t *arr){
   arr->ndim = 0;
   arr->length = 0;
   arr->elem_size = 0;
-  arr->dtype = 0;
   arr->device = 0;
+  arr->device_index = 0;
+  arr->dtype = 0;
 }
 
 void *get(const tensor_t *tensor, const size_t *indices){
