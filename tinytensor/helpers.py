@@ -1,5 +1,5 @@
-from tinytensor import dtypes
 from typing import List, Tuple, Union, Optional, Any
+from tinytensor import dtypes
 
 _CAST = {
   dtypes.bool_: bool,
@@ -45,8 +45,8 @@ def flatten(buf:list|dtypes.ConstType):
   return flat
 
 def infer_shape(lst) -> tuple:
-  if not isinstance(lst, list):return ()
-  if len(lst) == 0:return (0,)
+  if not isinstance(lst, list): return ()
+  if len(lst) == 0: return (0,)
   return (len(lst),) + infer_shape(lst[0])
 
 def has_uniform_shape(lst):
