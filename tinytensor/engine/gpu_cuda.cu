@@ -6,10 +6,6 @@
 static void capsule_destructor(PyObject *capsule){
   tensor_t *t = (tensor_t *)PyCapsule_GetPointer(capsule, "tensor_t on CUDA");
   if(!t) return;
-  if(t->data){
-    cudaFree(t->data);
-    t->data = NULL;
-  }
   destroy(t);
   free(t);
 }
@@ -77,7 +73,8 @@ static PyObject *tocuda(PyObject *self, PyObject *args){
     PyErr_NoMemory();
     return NULL;
   }
-  *t = create((size_t)ndim, shape, dtype);
+  device_t device = CUDA;
+  *t = create((size_t)ndim, shape, device, dtype);
   free(shape);
   if(PyList_Size(list) != (Py_ssize_t)t->length){
     destroy(t);
@@ -175,7 +172,8 @@ static PyObject *tocpu(PyObject *self, PyObject *args){
     PyErr_NoMemory();
     return NULL;
   }
-  *dst = create(src->ndim, src->shape, src->dtype);
+  device_t device = CPU;
+  *dst = create(src->ndim, src->shape, device, src->dtype);
   size_t bytes = src->length * src->elem_size;
   dst->data = malloc(bytes);
   if(!dst->data){
@@ -191,7 +189,6 @@ static PyObject *tocpu(PyObject *self, PyObject *args){
     cudaMemcpyDeviceToHost
   );
   if(err != cudaSuccess){
-    free(dst->data);
     destroy(dst);
     free(dst);
     PyErr_SetString(PyExc_RuntimeError, cudaGetErrorString(err));
