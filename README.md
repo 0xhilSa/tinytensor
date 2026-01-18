@@ -31,4 +31,4 @@ print(y.device)
 - [ ] Implement basic arithmetic operations (`__add__`, `__sub__`, etc.)
 - [ ] Implement relational operations (`__eq__`, `__ne__`, etc.)
 - [ ] Vectorize tensor operations for performance
-- [ ] Enable cuda device selection
+- [X] Enable cuda device selection
