@@ -12,21 +12,22 @@ class Tensor:
     self,
     buf:Union[List,dtypes.ConstType],
     dtype:Optional[Union[dtypes.DType,dtypes.ConstType]]=None,
-    device:str="cpu",
+    device:Union[str,Device]="cpu",
     const:bool=False
   ):
     if isinstance(buf, dtypes.ConstType): buf = [buf]
     self.shape = Shape(infer_shape(buf))
     buf = flatten(buf)
     buf, self.dtype = infer_dtype(buf, dtype)
-    self.device = Device(device)
+    self.device = Device(device) if not isinstance(device, Device) else device
     self.const = const
     if self.device.type == "CPU": self.buf = cpu.tocpu(buf, self.shape.shape, self.dtype.fmt)
-    elif self.device.type == "CUDA": self.buf =cuda.tocuda(buf, self.shape.shape, self.dtype.fmt, self.device.index)
+    elif self.device.type == "CUDA": self.buf = cuda.tocuda(buf, self.shape.shape, self.dtype.fmt, self.device.index)
   def __repr__(self): return f"Tensor(shape={self.shape.shape}, dtype='{self.dtype.ctype}', device='{self.device.type}:{self.device.index}', const={self.const})"
   def cpu(self): return Tensor(reshape(cpu.tolist(cuda.tocpu(self.buf)), self.shape.shape), dtype=self.dtype) if self.device.type == "CUDA" else self
   def cuda(self): return Tensor(reshape(cpu.tolist(self.buf), self.shape.shape), dtype=self.dtype, device="cuda:0") if self.device.type == "CPU" else self
   def tolist(self): return reshape(cpu.tolist(self.buf), self.shape.shape) if self.device.is_cpu() else reshape(cpu.tolist(cuda.tocpu(self.buf)), self.shape.shape)
+  def dev(self, device:Union[str,Device]): return Tensor(self.tolist(), device="cpu:0") if self.device.type == "cuda" else Tensor(self.tolist(), device=device)
   def __add__(self, other:Union[Tensor,dtypes.ConstType]): # prototype
     if isinstance(other, dtypes.ConstType): other = Tensor(other, dtype=self.dtype, device=f"{self.device.type}:{self.device.index}")
     elif isinstance(other, Tensor):
