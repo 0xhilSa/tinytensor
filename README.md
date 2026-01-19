@@ -31,7 +31,7 @@ print(y.device)
 - [ ] Implement basic arithmetic operations (`__add__`, `__sub__`, etc.)
 - [ ] Implement relational operations (`__eq__`, `__ne__`, etc.)
 - [ ] Vectorize tensor operations for performance
-- [ ] Time elapsed in cpu/cuda based tensor
+- [ ] Profiler for cpu/cuda based tensors
 - [ ] Supports cross dtypes tensor operation
 - [ ] Implement `Tensor` dtype casting
 - [X] Enable cuda device selection
