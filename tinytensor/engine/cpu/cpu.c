@@ -1,14 +1,14 @@
+#include <python3.10/Python.h>
+#include <stdint.h>
+#include <complex.h>
 #include "../tensor.h"
 #include "../dtypes.h"
-#include <complex.h>
-#include <stdint.h>
-#include <python3.10/Python.h>
 
 void capsule_destructor(PyObject *capsule){
   tensor_t *t = PyCapsule_GetPointer(capsule, "tensor_t on CPU");
   if(t){
     destroy(t);
-    free(t);
+    if(t->data) free(t);
   }
 }
 
