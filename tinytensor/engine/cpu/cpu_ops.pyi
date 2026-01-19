@@ -1,0 +1,3 @@
+import ctypes
+
+def add(x:ctypes.c_void_p, y:ctypes.c_void_p) -> ctypes.c_void_p: ...
