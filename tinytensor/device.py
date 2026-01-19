@@ -26,7 +26,5 @@ class Device:
       and self.index == other.index
     )
   def __ne__(self, other): return not self.__eq__(other)
-  @property
   def is_cpu(self): return self.type == "CPU"
-  @property
   def is_cuda(self): return self.type == "CUDA"
