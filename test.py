@@ -14,9 +14,13 @@ print(y)
 print(z)
 print(a, a.tolist())
 
-print(x+v)
+print("=====ADD=====")
 print(x+y, (x+y).tolist())
 print(x+z, (x+z).tolist())
+
+print("=====SUB=====")
+print(x-y, (x-y).tolist())
+print(x-z, (x-z).tolist())
 
 #print(x)
 #print(x.device)
