@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -e
 
+#hilsa:/mnt/d/fun/tinytensor/tinytensor/engine$ ls
+#__init__.py  __pycache__  cpu  cuda  dtypes.h  tensor.c  tensor.h
+
 spinner() {
   local pid=$1
   local spin='|/-\'
@@ -24,25 +27,28 @@ PYTHON_VERSION=3.10
 PY_INC=$(python${PYTHON_VERSION} -c "import sysconfig; print(sysconfig.get_paths()['include'])")
 PY_LIB=$(python${PYTHON_VERSION} -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))")
 
-SRC_DIR=./tinytensor/engine
-OUT_DIR=$SRC_DIR
+TEN_SRC=./tinytensor/engine/
+C_SRC_DIR=./tinytensor/engine/cpu
+C_OUT_DIR=$C_SRC_DIR
+CU_SRC_DIR=./tinytensor/engine/cuda
+CU_OUT_DIR=$CU_SRC_DIR
 
 
 # .c compile
-echo "building $SRC_DIR/cpu.so"
+echo "building $C_SRC_DIR/cpu.so"
 run_with_spinner nvcc -gencode arch=compute_75,code=sm_75 -O3 -Xcompiler -fPIC -shared \
   -I"$PY_INC" \
-  -I"$SRC_DIR" \
-  "$SRC_DIR/cpu.c" \
-  "$SRC_DIR/tensor.c" \
+  -I"$C_SRC_DIR" \
+  "$C_SRC_DIR/cpu.c" \
+  "$TEN_SRC/tensor.c" \
   -lcudart \
-  -o "$OUT_DIR/cpu.so"
+  -o "$C_OUT_DIR/cpu.so"
 
 # .cu compile
-echo "building $SRC_DIR/gpu_cuda.so"
+echo "building $CU_SRC_DIR/gpu_cuda.so"
 run_with_spinner nvcc -gencode arch=compute_75,code=sm_75 -O3 -Xcompiler -fPIC -shared \
   -I"$PY_INC" \
-  -I"$SRC_DIR" \
-  "$SRC_DIR/gpu_cuda.cu" \
-  "$SRC_DIR/tensor.c" \
-  -o "$OUT_DIR/gpu_cuda.so"
+  -I"$CU_SRC_DIR" \
+  "$CU_SRC_DIR/gpu_cuda.cu" \
+  "$TEN_SRC/tensor.c" \
+  -o "$CU_OUT_DIR/gpu_cuda.so"

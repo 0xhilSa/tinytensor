@@ -1,7 +1,7 @@
 #include <cuda_runtime.h>
 #include <cuComplex.h>
 #include <python3.10/Python.h>
-#include "tensor.h"
+#include "../tensor.h"
 
 static void capsule_destructor(PyObject *capsule){
   tensor_t *t = (tensor_t *)PyCapsule_GetPointer(capsule, "tensor_t on CUDA");

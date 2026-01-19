@@ -1,5 +1,5 @@
-#include "tensor.h"
-#include "dtypes.h"
+#include "../tensor.h"
+#include "../dtypes.h"
 #include <complex.h>
 #include <stdint.h>
 #include <python3.10/Python.h>

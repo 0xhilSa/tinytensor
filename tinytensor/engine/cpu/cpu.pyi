@@ -1,5 +1,6 @@
 from typing import List, Tuple, Any
 import ctypes
 
+# defined at ./tinytensor/engine/cpu/cpu.c
 def tocpu(pylist:List[Any], shape:Tuple[int,...], fmt:str) -> ctypes.c_void_p: ...
 def tolist(capsule:ctypes.c_void_p) -> List: ...
