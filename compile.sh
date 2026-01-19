@@ -54,10 +54,10 @@ run_with_spinner nvcc -gencode arch=compute_75,code=sm_75 -O3 -Xcompiler -fPIC -
   -o "$C_OUT_DIR/cpu_ops.so"
 
 # compile gpu_cuda.cu
-echo "compiling $CU_SRC_DIR/gpu_cuda.cu -> $CU_SRC_DIR/gpu_cuda.so"
+echo "compiling $CU_SRC_DIR/cuda.cu -> $CU_SRC_DIR/cuda.so"
 run_with_spinner nvcc -gencode arch=compute_75,code=sm_75 -O3 -Xcompiler -fPIC -shared \
   -I"$PY_INC" \
   -I"$CU_SRC_DIR" \
-  "$CU_SRC_DIR/gpu_cuda.cu" \
+  "$CU_SRC_DIR/cuda.cu" \
   "$TEN_SRC/tensor.c" \
-  -o "$CU_OUT_DIR/gpu_cuda.so"
+  -o "$CU_OUT_DIR/cuda.so"
