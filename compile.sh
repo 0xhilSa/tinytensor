@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 set -e
 
-#hilsa:/mnt/d/fun/tinytensor/tinytensor/engine$ ls
-#__init__.py  __pycache__  cpu  cuda  dtypes.h  tensor.c  tensor.h
-
 spinner() {
   local pid=$1
   local spin='|/-\'
