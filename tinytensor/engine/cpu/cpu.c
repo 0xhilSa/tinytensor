@@ -61,7 +61,6 @@ static PyObject *tocpu(PyObject *self, PyObject *args){
   else if(strcmp(fmt, "D") == 0) dtype = CMPX128;
   else if(strcmp(fmt, "G") == 0) dtype = CMPX256;
   else { free(shape); PyErr_Format(PyExc_TypeError, "Invalid DType: %s", fmt); return NULL; }
-
   tensor_t *t = malloc(sizeof(tensor_t));
   if(!t){
     free(t);

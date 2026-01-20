@@ -1,5 +1,4 @@
 #include <python3.10/Python.h>
-#include <python3.10/floatobject.h>
 #include <stdbool.h>
 #include "../tensor.h"
 
@@ -161,7 +160,6 @@ static PyObject *add(PyObject *self, PyObject *args){
   return PyCapsule_New(out, "tensor_t on CPU", capsule_destructor);
 }
 
-
 static PyObject *sub(PyObject *self, PyObject *args){
   PyObject *x, *y;
   if(!PyArg_ParseTuple(args, "OO", &x, &y)) return NULL;
@@ -204,7 +202,6 @@ static PyObject *sub(PyObject *self, PyObject *args){
   else __sub_tensor__(tx, ty, out);
   return PyCapsule_New(out, "tensor_t on CPU", capsule_destructor);
 }
-
 
 static PyMethodDef methods[] = {
   {"add", add, METH_VARARGS, "add 2 tensors"},
