@@ -13,6 +13,10 @@ def tensor(
 ): return Tensor(buf=buf, dtype=dtype, device=device, const=const)
 
 __all__ = [
+  "tensor",
+  "Tensor",
+  "Device",
+  "dtypes",
   "cpu",
   "cuda"
 ]
