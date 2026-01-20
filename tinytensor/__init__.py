@@ -25,7 +25,7 @@ class Tensor:
     elif self.__device.type == "CUDA": self.__buf = cuda.tocuda(buf, self.__shape.shape, self.__dtype.fmt, self.__device.index)
   def __repr__(self): return f"Tensor(shape={self.__shape.shape}, dtype='{self.__dtype.ctype}', device='{self.__device.type}:{self.__device.index}', const={self.__const})"
   def cpu(self): return Tensor(reshape(cpu.tolist(cuda.tocpu(self.__buf)), self.__shape.shape), dtype=self.__dtype) if self.__device.type == "CUDA" else self
-  def cuda(self): return Tensor(reshape(cpu.tolist(self.__buf), self.__shape.shape), dtype=self.__dtype, device="cuda:0") if self.__device.type == "CPU" else self
+  def cuda(self, index:int=0): return Tensor(reshape(cpu.tolist(self.__buf), self.__shape.shape), dtype=self.__dtype, device=f"cuda:{index}") if self.__device.type == "CPU" else self
   def tolist(self): return reshape(cpu.tolist(self.__buf), self.__shape.shape) if self.__device.is_cpu() else reshape(cpu.tolist(cuda.tocpu(self.__buf)), self.__shape.shape)
   def dev(self, device:Union[str,Device]): return Tensor(self.tolist(), device="cpu:0") if self.__device.type == "cuda" else Tensor(self.tolist(), device=device)
   def typecast(self, dtype:Union[dtypes.DType,dtypes.ConstType]): return Tensor(cpu.tolist(self.__buf), dtype=dtype) if dtype != self.__dtype else self
