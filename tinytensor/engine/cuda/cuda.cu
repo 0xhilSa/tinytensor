@@ -309,12 +309,12 @@ static PyMethodDef methods[] = {
 
 static struct PyModuleDef module = {
   PyModuleDef_HEAD_INIT,
-  "gpu_cuda",
+  "cuda",
   NULL,
   -1,
   methods
 };
 
-PyMODINIT_FUNC PyInit_gpu_cuda(void){
+PyMODINIT_FUNC PyInit_cuda(void){
   return PyModule_Create(&module);
 }
