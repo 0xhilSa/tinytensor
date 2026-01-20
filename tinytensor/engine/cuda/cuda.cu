@@ -268,6 +268,16 @@ static PyObject *is_available(PyObject *self, PyObject *args){
   else Py_RETURN_FALSE;
 }
 
+static PyObject *get_device(PyObject *self, PyObject *args){
+  int device;
+  cudaError_t err = cudaGetDevice(&device);
+  if(err != cudaSuccess){
+    PyErr_SetString(PyExc_RuntimeError, cudaGetErrorString(err));
+    return NULL;
+  }
+  return PyLong_FromLong(device);
+}
+
 static PyObject *device_prop(PyObject *self, PyObject *args){
   int device;
   if(!PyArg_ParseTuple(args, "i", &device)) return NULL;
@@ -302,8 +312,9 @@ static PyMethodDef methods[] = {
   {"tocpu", tocpu, METH_VARARGS, "copy tensor from CUDA to CPU"},
   {"device_count", device_count, METH_NOARGS, "return the number of CUDA device"},
   {"device_name", device_name, METH_VARARGS, "return the name of the CUDA device"},
-  {"device_prop", device_prop, METH_VARARGS, "return device properties"},
   {"is_available", is_available, METH_NOARGS, "return if the CUDA device is present or not?"},
+  {"get_device", get_device, METH_NOARGS, "get CUDA device"},
+  {"device_prop", device_prop, METH_VARARGS, "return device properties"},
   {NULL, NULL, 0, NULL}
 };
 
