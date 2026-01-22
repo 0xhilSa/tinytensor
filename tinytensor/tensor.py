@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Optional, Union
+from typing import List, Optional, Tuple, Union
 from tinytensor import dtypes
 from tinytensor.shape import Shape
 from tinytensor.engine import cpu, cuda
@@ -27,8 +27,23 @@ class Tensor:
   def cpu(self): return Tensor(reshape(cpu.tolist(cuda.tocpu(self.__buf)), self.__shape.shape), dtype=self.__dtype) if self.__device.type == "CUDA" else self
   def cuda(self, index:int=0): return Tensor(reshape(cpu.tolist(self.__buf), self.__shape.shape), dtype=self.__dtype, device=f"cuda:{index}") if self.__device.type == "CPU" else self
   def tolist(self): return reshape(cpu.tolist(self.__buf), self.__shape.shape) if self.__device.is_cpu() else reshape(cpu.tolist(cuda.tocpu(self.__buf)), self.__shape.shape)
-  def dev(self, device:Union[str,Device]): return Tensor(self.tolist(), device="cpu:0") if self.__device.type == "cuda" else Tensor(self.tolist(), device=device)
+  def dev(self, device:Union[str,Device]): return Tensor(self.tolist(), device="cpu:0") if self.__device.type == "CUDA" else Tensor(self.tolist(), dtype=self.dtype, device=device)
   def typecast(self, dtype:Union[dtypes.DType,dtypes.ConstType]): return Tensor(cpu.tolist(self.__buf), dtype=dtype) if dtype != self.__dtype else self
+  @staticmethod
+  def ones(shape:Tuple[int,...], dtype:Optional[Union[dtypes.DType,dtypes.ConstType]]=None, device:Union[str,Device]="cpu", const:bool=False):
+    length = 1
+    for x in shape: length *= x
+    return Tensor(reshape([1 for _ in range(length)], shape), dtype=dtype, device=device, const=const)
+  @staticmethod
+  def zeros(shape:Tuple[int,...], dtype:Optional[Union[dtypes.DType,dtypes.ConstType]]=None, device:Union[str,Device]="cpu", const:bool=False):
+    length = 1
+    for x in shape: length *= x
+    return Tensor(reshape([0 for _ in range(length)], shape), dtype=dtype, device=device, const=const)
+  @staticmethod
+  def fill(value, shape:Tuple[int,...], dtype:Optional[Union[dtypes.DType,dtypes.ConstType]]=None, device:Union[str,Device]="cpu", const:bool=False):
+    length = 1
+    for x in shape: length *= x
+    return Tensor(reshape([value for _ in range(length)], shape), dtype=dtype, device=device, const=const)
   def __add__(self, other:Union[Tensor,dtypes.ConstType]): # prototype
     if isinstance(other, dtypes.ConstType): other = Tensor(other, dtype=self.__dtype, device=f"{self.__device.type}:{self.__device.index}")
     elif isinstance(other, Tensor):
@@ -65,3 +80,7 @@ class Tensor:
   def device(self): return self.__device
   @property
   def dtype(self): return self.__dtype
+  def const(self):
+    if self.device.type == "CUDA" and not self.is_const(): return Tensor(reshape(cpu.tolist(cuda.tocpu(self.__buf)), self.__shape.shape), dtype=self.dtype, device=f"cuda:{self.device.index}", const=True)
+    elif self.device.type == "CPU" and not self.is_const(): return Tensor(reshape(cpu.tolist(self.__buf), self.__shape.shape), dtype=self.dtype, device="cpu", const=True)
+  def is_const(self): return self.__const
