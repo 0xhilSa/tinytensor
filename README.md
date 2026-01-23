@@ -1,5 +1,7 @@
-<img src="./docs/tt-logo.png" alt="tt-logo.png" align="center">
-a tiny Python tensor computation library
+<p align="center">
+  <img src="./docs/tt-logo.png" alt="tt-logo.png">
+  a tiny Python tensor computation library
+</p>
 
 ## Install from the source
 ```bash
