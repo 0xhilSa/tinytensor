@@ -5,6 +5,9 @@ from tinytensor.engine import cpu, cuda
 from tinytensor import dtypes
 from tinytensor.device import Device
 
+
+def cuda_available(): return hasattr(cuda, "device_count") and cuda.device_count() > 0
+
 def tensor(
   buf:List,
   dtype:Optional[Union[dtypes.DType,dtypes.ConstType]]=None,
@@ -13,6 +16,7 @@ def tensor(
 ): return Tensor(buf=buf, dtype=dtype, device=device, const=const)
 
 __all__ = [
+  "cuda_available",
   "tensor",
   "Tensor",
   "Device",
