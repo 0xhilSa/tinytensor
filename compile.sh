@@ -30,7 +30,7 @@ C_OUT_DIR=$C_SRC_DIR
 CU_SRC_DIR=./tinytensor/engine/cuda
 CU_OUT_DIR=$CU_SRC_DIR
 
-# compile cpu.c
+# compile ./tinytensor/engine/cpu/cpu.c
 echo "compiling $C_SRC_DIR/cpu.c -> $C_SRC_DIR/cpu.so"
 run_with_spinner nvcc -gencode arch=compute_75,code=sm_75 -O3 -Xcompiler -fPIC -shared \
   -I"$PY_INC" \
@@ -40,7 +40,7 @@ run_with_spinner nvcc -gencode arch=compute_75,code=sm_75 -O3 -Xcompiler -fPIC -
   -lcudart \
   -o "$C_OUT_DIR/cpu.so"
 
-# compile cpu_ops.c
+# compile ./tinytensor/engine/cpu/cpu_ops.c
 echo "compiling $C_SRC_DIR/cpu_ops.c -> $C_SRC_DIR/cpu_ops.so"
 run_with_spinner nvcc -gencode arch=compute_75,code=sm_75 -O3 -Xcompiler -fPIC -shared \
   -I"$PY_INC" \
@@ -50,7 +50,7 @@ run_with_spinner nvcc -gencode arch=compute_75,code=sm_75 -O3 -Xcompiler -fPIC -
   -lcudart \
   -o "$C_OUT_DIR/cpu_ops.so"
 
-# compile gpu_cuda.cu
+# compile ./tinytensor/engine/cuda/cuda.cu
 echo "compiling $CU_SRC_DIR/cuda.cu -> $CU_SRC_DIR/cuda.so"
 run_with_spinner nvcc -gencode arch=compute_75,code=sm_75 -O3 -Xcompiler -fPIC -shared \
   -I"$PY_INC" \
