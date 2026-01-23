@@ -1,6 +1,7 @@
 #include <cuda_runtime.h>
 #include <cuComplex.h>
 #include <python3.10/Python.h>
+#include <nvml.h>
 #include "../tensor.h"
 
 static void capsule_destructor(PyObject *capsule){
@@ -307,6 +308,46 @@ static PyObject *device_prop(PyObject *self, PyObject *args){
   return dict;
 }
 
+static PyObject *runtime_version(PyObject *self, PyObject *args){
+  int v = 0;
+  cudaError_t err = cudaRuntimeGetVersion(&v);
+  if(err != cudaSuccess){
+    PyErr_SetString(PyExc_RuntimeError, cudaGetErrorString(err));
+    return NULL;
+  }
+  int major = v / 1000;
+  int minor = (v % 1000) / 10;
+  return Py_BuildValue("(ii)", major, minor);
+}
+
+static PyObject *driver_version(PyObject *self, PyObject *args){
+  int v = 0;
+  cudaError_t err = cudaDriverGetVersion(&v);
+  if(err != cudaSuccess){
+    PyErr_SetString(PyExc_RuntimeError, cudaGetErrorString(err));
+    return NULL;
+  }
+  int major = v / 1000;
+  int minor = (v % 1000) / 10;
+  return Py_BuildValue("(ii)", major, minor);
+}
+
+static PyObject *driver_package(PyObject *self, PyObject *args){
+  nvmlReturn_t res = nvmlInit();
+  if(res != NVML_SUCCESS){
+    PyErr_SetString(PyExc_RuntimeError, nvmlErrorString(res));
+    return NULL;
+  }
+  char version[NVML_SYSTEM_DRIVER_VERSION_BUFFER_SIZE];
+  res = nvmlSystemGetDriverVersion(version, NVML_SYSTEM_DRIVER_VERSION_BUFFER_SIZE);
+  nvmlShutdown();
+  if(res != NVML_SUCCESS){
+    PyErr_SetString(PyExc_RuntimeError, nvmlErrorString(res));
+    return NULL;
+  }
+  return PyUnicode_FromString(version);
+}
+
 static PyMethodDef methods[] = {
   {"tocuda", tocuda, METH_VARARGS, "store tensor on CUDA"},
   {"tocpu", tocpu, METH_VARARGS, "copy tensor from CUDA to CPU"},
@@ -315,6 +356,9 @@ static PyMethodDef methods[] = {
   {"is_available", is_available, METH_NOARGS, "return if the CUDA device is present or not?"},
   {"get_device", get_device, METH_NOARGS, "get CUDA device"},
   {"device_prop", device_prop, METH_VARARGS, "return device properties"},
+  {"runtime_version", runtime_version, METH_NOARGS, "return cuda runtime version"},
+  {"driver_version", driver_version, METH_NOARGS, "return cuda driver version"},
+  {"driver_package", driver_package, METH_NOARGS, "return cuda driver package"},
   {NULL, NULL, 0, NULL}
 };
 
