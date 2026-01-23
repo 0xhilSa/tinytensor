@@ -1,4 +1,4 @@
-# TinyTensor
+<img src="./docs/tt-logo.png" alt="tt-logo.png">
 a tiny Python tensor computation library
 
 ## Install from the source
