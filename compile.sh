@@ -57,4 +57,5 @@ run_with_spinner nvcc -gencode arch=compute_75,code=sm_75 -O3 -Xcompiler -fPIC -
   -I"$CU_SRC_DIR" \
   "$CU_SRC_DIR/cuda.cu" \
   "$TEN_SRC/tensor.c" \
+  -lnvidia-ml \
   -o "$CU_OUT_DIR/cuda.so"
