@@ -51,7 +51,7 @@ class Tensor:
       assert other.dtype == self.__dtype, "addition cannot be perform on tensors with different dtypes"
     if isinstance(other, dtypes.ConstType): other = Tensor(other, dtype=self.__dtype, device=f"{self.__device.type}:{self.__device.index}")
     if self.__device.is_cpu(): return Tensor(reshape(cpu.tolist(cpu.add(self.__buf, other.buf)), self.__shape.shape), dtype=self.__dtype)
-    raise NotImplementedError("__add__ not implemented for tensors on CUDA device")
+    else: return Tensor(reshape(cpu.tolist(cuda.tocpu(cuda.add(self.__buf, other.buf))), self.shape.shape), dtype=self.dtype, device=f"cuda:{self.device.index}")
   def __radd__(self, other:Union[Tensor,dtypes.ConstType]): # prototype
     if isinstance(other, dtypes.ConstType): other = Tensor(other, dtype=self.__dtype, device=f"{self.__device.type}:{self.__device.index}")
     elif isinstance(other, Tensor):
@@ -78,6 +78,8 @@ class Tensor:
   def buf(self): return self.__buf
   @property
   def device(self): return self.__device
+  @property
+  def shape(self): return self.__shape
   @property
   def dtype(self): return self.__dtype
   def const(self):
