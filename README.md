@@ -35,5 +35,6 @@ print(y.device)
 - [ ] Vectorize tensor operations for performance
 - [ ] Profiler for cpu/cuda based tensors
 - [ ] Supports cross dtypes tensor operation
+- [ ] Add `copy` method
 - [X] Implement `Tensor` dtype casting
 - [X] Enable cuda device selection
