@@ -59,3 +59,14 @@ run_with_spinner nvcc -gencode arch=compute_75,code=sm_75 -O3 -Xcompiler -fPIC -
   "$TEN_SRC/tensor.c" \
   -lnvidia-ml \
   -o "$CU_OUT_DIR/cuda.so"
+
+# compile ./tinytensor/engine/cuda/cuda_ops.cu
+echo "compiling $CU_SRC_DIR/cuda_ops.cu -> $CU_SRC_DIR/cuda_ops.so"
+run_with_spinner nvcc -gencode arch=compute_86,code=sm_86 \
+  -gencode arch=compute_86,code=compute_86 \
+  -O3 -Xcompiler -fPIC -shared \
+  -I"$PY_INC" \
+  -I"$CU_SRC_DIR" \
+  "$CU_SRC_DIR/cuda_ops.cu" \
+  "$TEN_SRC/tensor.c" \
+  -o "$CU_OUT_DIR/cuda_ops.so"
