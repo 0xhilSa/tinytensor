@@ -130,6 +130,10 @@ static PyObject *add(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
     return NULL;
   }
+  if(tx->dtype != ty->dtype){
+    PyErr_SetString(PyExc_RuntimeError, "Tensor dtype mismatch");
+    return NULL;
+  }
   tensor_t *tensor = NULL;
   tensor_t *scalar = NULL;
   if(tx->length == ty->length){
@@ -143,10 +147,6 @@ static PyObject *add(PyObject *self, PyObject *args){
     scalar = ty;
   }else{
     PyErr_SetString(PyExc_RuntimeError, "Tensor shape mismatch");
-    return NULL;
-  }
-  if(tx->dtype != ty->dtype){
-    PyErr_SetString(PyExc_RuntimeError, "Tensor dtype mismatch");
     return NULL;
   }
   tensor_t *out = malloc(sizeof(tensor_t));
