@@ -223,9 +223,24 @@ static PyObject *tolist(PyObject *self, PyObject *args){
   return list;
 }
 
+static PyObject *clone_(PyObject *self, PyObject *args){
+  PyObject *capsule;
+  if(!PyArg_ParseTuple(args, "O", &capsule)) return NULL;
+  if(!PyCapsule_CheckExact(capsule)){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule");
+    return NULL;
+  }
+  tensor_t *ptr = PyCapsule_GetPointer(capsule, "tensor_t on CPU");
+  tensor_t *out = malloc(sizeof(tensor_t));
+  *out = create(ptr->ndim, ptr->shape, ptr->device, 0, ptr->dtype);
+  memcpy(out->data, ptr->data, ptr->length * ptr->elem_size);
+  return PyCapsule_New(out, "tensor_t on CPU", capsule_destructor);
+}
+
 static PyMethodDef methods[] = {
   {"tocpu", tocpu, METH_VARARGS, "store tensor"},
   {"tolist", tolist, METH_VARARGS, "return tensor into the python list"},
+  {"clone", clone_, METH_VARARGS, "return the clone of a tensor"},
   {NULL, NULL, 0, NULL}
 };
 
