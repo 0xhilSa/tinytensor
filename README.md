@@ -3,6 +3,11 @@
   <p align="center">a tiny Python tensor computation library</p>
 </p>
 
+## OS(es)
+tinytensor runs on
+- [X] Linux/MacOS
+- [ ] Windows
+
 ## Install from the source
 ```bash
 git clone https://github.com/0xhilSa/tinytensor
