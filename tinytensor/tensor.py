@@ -92,3 +92,6 @@ class Tensor:
     if self.device.type == "CUDA" and not self.is_const(): return Tensor(reshape(cpu.tolist(cuda.tocpu(self.__buf)), self.__shape.shape), dtype=self.dtype, device=f"cuda:{self.device.index}", const=True)
     elif self.device.type == "CPU" and not self.is_const(): return Tensor(reshape(cpu.tolist(self.__buf), self.__shape.shape), dtype=self.dtype, device="cpu", const=True)
   def is_const(self): return self.__const
+  def clone(self):
+    if self.device.type == "CPU": return Tensor(reshape(cpu.tolist(cpu.clone(self.buf)), self.shape.shape), dtype=self.dtype, device=self.device, const=self.is_const())
+    return Tensor(reshape(cpu.tolist(cuda.tocpu(cuda.clone(self.buf))), self.shape.shape), dtype=self.dtype, device=self.device, const=self.is_const())
