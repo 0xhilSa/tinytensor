@@ -52,3 +52,5 @@ tinytensor runs on
 - [X] Linux/MacOS
 - [ ] Windows
 
+## LICENSE
+[MIT](./LICENSE)
