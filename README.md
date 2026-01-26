@@ -3,10 +3,12 @@
   <p align="center">a tiny Python tensor computation library</p>
 </p>
 
-## OS(es)
-tinytensor runs on
-- [X] Linux/MacOS
-- [ ] Windows
+
+## What is TinyTensor?
+a tinytensor is a tiny implementation of tensor computation library, focused on how tensor ops works bts.
+kernel launch, fusion ops, memory allocation, free(ing).
+The goal is to implement tensor library from scratch using Python, C, & CUDA, avoiding using external libraries like
+numpy, scipy, matplotlib, etc.
 
 ## Install from the source
 ```bash
@@ -44,3 +46,9 @@ print(y.device)
 - [ ] Implement tensor broadcasting
 - [X] Implement `Tensor` dtype casting
 - [X] Enable cuda device selection
+
+## OS(es)
+tinytensor runs on
+- [X] Linux/MacOS
+- [ ] Windows
+
