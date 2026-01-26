@@ -50,15 +50,21 @@ class Tensor:
       assert other.device == self.__device, "addition cannot be perform on tensors with different devices"
       assert other.dtype == self.__dtype, "addition cannot be perform on tensors with different dtypes"
     if isinstance(other, dtypes.ConstType): other = Tensor(other, dtype=self.__dtype, device=f"{self.__device.type}:{self.__device.index}")
+    if self.shape.shape == (1,): shape = other.shape.shape
+    elif other.shape.shape == (1,): shape = self.shape.shape
+    else: shape = self.shape.shape
     if self.__device.is_cpu(): return Tensor(reshape(cpu.tolist(cpu.add(self.__buf, other.buf)), self.__shape.shape), dtype=self.__dtype)
-    else: return Tensor(reshape(cpu.tolist(cuda.tocpu(cuda.add(self.__buf, other.buf))), self.shape.shape), dtype=self.dtype, device=f"cuda:{self.device.index}")
+    else: return Tensor(reshape(cpu.tolist(cuda.tocpu(cuda.add(self.__buf, other.buf))), shape), dtype=self.dtype, device=f"cuda:{self.device.index}")
   def __radd__(self, other:Union[Tensor,dtypes.ConstType]): # prototype
     if isinstance(other, dtypes.ConstType): other = Tensor(other, dtype=self.__dtype, device=f"{self.__device.type}:{self.__device.index}")
     elif isinstance(other, Tensor):
       assert other.device == self.__device, "addition cannot be perform on tensors with different devices"
       assert other.dtype == self.__dtype, "addition cannot be perform on tensors with different dtypes"
+    if self.shape.shape == (1,): shape = other.shape.shape
+    elif other.shape.shape == (1,): shape = self.shape.shape
+    else: shape = self.shape.shape
     if self.__device.is_cpu(): return Tensor(reshape(cpu.tolist(cpu.add(self.__buf, other.buf)), self.__shape.shape), dtype=self.__dtype)
-    raise NotImplementedError("__add__ not implemented for tensors on CUDA device")
+    else: return Tensor(reshape(cpu.tolist(cuda.tocpu(cuda.add(self.__buf, other.buf))), shape), dtype=self.dtype, device=f"cuda:{self.device.index}")
   def __sub__(self, other:Union[Tensor,dtypes.ConstType]): # prototype
     if isinstance(other, dtypes.ConstType): other = Tensor(other, dtype=self.__dtype, device=f"{self.__device.type}:{self.__device.index}")
     elif isinstance(other, Tensor):
