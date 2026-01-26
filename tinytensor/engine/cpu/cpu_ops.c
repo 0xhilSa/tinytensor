@@ -127,7 +127,7 @@ static PyObject *add(PyObject *self, PyObject *args){
   tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
   tensor_t *ty = PyCapsule_GetPointer(y, "tensor_t on CPU");
   if(!tx || !ty){
-    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule");
     return NULL;
   }
   if(tx->dtype != ty->dtype){
@@ -170,7 +170,7 @@ static PyObject *sub(PyObject *self, PyObject *args){
   tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
   tensor_t *ty = PyCapsule_GetPointer(y, "tensor_t on CPU");
   if(!tx || !ty){
-    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule");
     return NULL;
   }
   tensor_t *tensor = NULL;
