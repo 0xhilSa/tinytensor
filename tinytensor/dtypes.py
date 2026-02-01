@@ -19,7 +19,7 @@ class DType:
   @property
   def nbit(self): return self.nbyte * 8
 
-bool_:Final = DType("?", "bool", 1, False)
+bool:Final = DType("?", "bool", 1, False)
 int8:Final = DType.new("b", "char", 1, True)
 uint8:Final = DType.new("B", "unsigned char", 1, False)
 int16:Final = DType.new("h", "short", 2, True)
@@ -35,7 +35,7 @@ complex64:Final = DType.new("F", "float _Complex", 8, None)
 complex128:Final = DType.new("D", "double _Complex", 16, None)
 complex256:Final = DType.new("G", "long double _Complex", 32, None)
 
-BOOLEAN = [bool_]
+BOOLEAN = [bool]
 INT = [int8, int16, int32, int64]
 UINT = [uint8, uint16, uint32, uint64]
 FLOAT = [float32, float64, float128]
