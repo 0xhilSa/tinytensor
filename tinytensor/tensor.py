@@ -3,7 +3,7 @@ from typing import List, Optional, Tuple, Union
 from tinytensor import dtypes
 from tinytensor.shape import Shape
 from tinytensor.engine import cpu, cuda
-from tinytensor.helpers import infer_dtype, shape_of, flatten, reshape
+from tinytensor.helpers import dtype_of, shape_of, flatten, reshape
 from tinytensor.device import Device
 
 
@@ -18,7 +18,7 @@ class Tensor:
     self.__shape = Shape(shape_of(buf))
     self.__ndim = self.__shape.ndim
     buf = flatten(buf)
-    buf, self.__dtype = infer_dtype(buf, dtype)
+    buf, self.__dtype = dtype_of(buf, dtype)
     self.__device = Device(device) if not isinstance(device, Device) else device
     self.__const = const
     if self.__device.type == "CPU": self.__buf = cpu.tocpu(buf, self.__shape.shape, self.__dtype.fmt)
