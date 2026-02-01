@@ -23,7 +23,7 @@ class Tensor:
     self.__const = const
     if self.__device.type == "CPU": self.__buf = cpu.tocpu(buf, self.__shape.shape, self.__dtype.fmt)
     elif self.__device.type == "CUDA": self.__buf = cuda.tocuda(buf, self.__shape.shape, self.__dtype.fmt, self.__device.index)
-  def __repr__(self): return f"Tensor(shape={self.__shape}, dtype='{self.__dtype.ctype}', device={self.__device}), const={self.__const})"
+  def __repr__(self): return f"Tensor(shape={self.__shape}, dtype='{self.__dtype.ctype}', device={self.__device}, const={self.__const})"
   @property
   def ndim(self): return self.__ndim
   @property
