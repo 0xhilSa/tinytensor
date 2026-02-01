@@ -1,218 +1,228 @@
 #include <python3.10/Python.h>
-#include <stdbool.h>
 #include "../tensor.h"
 
-
-static void __add_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
-  size_t length = tx->length;
-  dtype_t dtype = tx->dtype;
-  switch(dtype){
-    case BOOL: for(size_t i = 0; i < length; i++){ ((bool *)tz->data)[i] = ((bool *)tx->data)[i] | ((bool *)ty->data)[i]; } break;
-    case INT8: for(size_t i = 0; i < length; i++){ ((i8 *)tz->data)[i] = ((i8 *)tx->data)[i] + ((i8 *)ty->data)[i]; } break;
-    case UINT8: for(size_t i = 0; i < length; i++){ ((u8 *)tz->data)[i] = ((u8 *)tx->data)[i] + ((u8 *)ty->data)[i]; } break;
-    case INT16: for(size_t i = 0; i < length; i++){ ((i16 *)tz->data)[i] = ((i16 *)tx->data)[i] + ((i16 *)ty->data)[i]; } break;
-    case UINT16: for(size_t i = 0; i < length; i++){ ((u16 *)tz->data)[i] = ((u16 *)tx->data)[i] + ((u16 *)ty->data)[i]; } break;
-    case INT32: for(size_t i = 0; i < length; i++){ ((i32 *)tz->data)[i] = ((i32 *)tx->data)[i] + ((i32 *)ty->data)[i]; } break;
-    case UINT32: for(size_t i = 0; i < length; i++){ ((u32 *)tz->data)[i] = ((u32 *)tx->data)[i] + ((u32 *)ty->data)[i]; } break;
-    case INT64: for(size_t i = 0; i < length; i++){ ((i64 *)tz->data)[i] = ((i64 *)tx->data)[i] + ((i64 *)ty->data)[i]; } break;
-    case UINT64: for(size_t i = 0; i < length; i++){ ((u64 *)tz->data)[i] = ((u64 *)tx->data)[i] + ((u64 *)ty->data)[i]; } break;
-    case FP32: for(size_t i = 0; i < length; i++){ ((f32 *)tz->data)[i] = ((f32 *)tx->data)[i] + ((f32 *)ty->data)[i]; } break;
-    case FP64: for(size_t i = 0; i < length; i++){ ((f64 *)tz->data)[i] = ((f64 *)tx->data)[i] + ((f64 *)ty->data)[i]; } break;
-    case FP128: for(size_t i = 0; i < length; i++){ ((f128 *)tz->data)[i] = ((f128 *)tx->data)[i] + ((f128 *)ty->data)[i]; } break;
-    case CMPX64: for(size_t i = 0; i < length; i++){ ((c64 *)tz->data)[i] = ((c64 *)tx->data)[i] + ((c64 *)ty->data)[i]; } break;
-    case CMPX128: for(size_t i = 0; i < length; i++){ ((c128 *)tz->data)[i] = ((c128 *)tx->data)[i] + ((c128 *)ty->data)[i]; } break;
-    case CMPX256: for(size_t i = 0; i < length; i++){ ((c256 *)tz->data)[i] = ((c256 *)tx->data)[i] + ((c256 *)ty->data)[i]; } break;
-    default: {
-               PyErr_SetString(PyExc_RuntimeError, "Something is wrong I can feel it");
-               return;
-             }
-  }
-}
-
-static void __add_tensor_scalar__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
-  size_t length = tx->length;
-  dtype_t dtype = tx->dtype;
-  switch(dtype){
-    case BOOL: for(size_t i = 0; i < length; i++){ ((bool *)tz->data)[i] = ((bool *)tx->data)[i] | ((bool *)ty->data)[0]; } break;
-    case INT8: for(size_t i = 0; i < length; i++){ ((i8 *)tz->data)[i] = ((i8 *)tx->data)[i] + ((i8 *)ty->data)[0]; } break;
-    case UINT8: for(size_t i = 0; i < length; i++){ ((u8 *)tz->data)[i] = ((u8 *)tx->data)[i] + ((u8 *)ty->data)[0]; } break;
-    case INT16: for(size_t i = 0; i < length; i++){ ((i16 *)tz->data)[i] = ((i16 *)tx->data)[i] + ((i16 *)ty->data)[0]; } break;
-    case UINT16: for(size_t i = 0; i < length; i++){ ((u16 *)tz->data)[i] = ((u16 *)tx->data)[i] + ((u16 *)ty->data)[0]; } break;
-    case INT32: for(size_t i = 0; i < length; i++){ ((i32 *)tz->data)[i] = ((i32 *)tx->data)[i] + ((i32 *)ty->data)[0]; } break;
-    case UINT32: for(size_t i = 0; i < length; i++){ ((u32 *)tz->data)[i] = ((u32 *)tx->data)[i] + ((u32 *)ty->data)[0]; } break;
-    case INT64: for(size_t i = 0; i < length; i++){ ((i64 *)tz->data)[i] = ((i64 *)tx->data)[i] + ((i64 *)ty->data)[0]; } break;
-    case UINT64: for(size_t i = 0; i < length; i++){ ((u64 *)tz->data)[i] = ((u64 *)tx->data)[i] + ((u64 *)ty->data)[0]; } break;
-    case FP32: for(size_t i = 0; i < length; i++){ ((f32 *)tz->data)[i] = ((f32 *)tx->data)[i] + ((f32 *)ty->data)[0]; } break;
-    case FP64: for(size_t i = 0; i < length; i++){ ((f64 *)tz->data)[i] = ((f64 *)tx->data)[i] + ((f64 *)ty->data)[0]; } break;
-    case FP128: for(size_t i = 0; i < length; i++){ ((f128 *)tz->data)[i] = ((f128 *)tx->data)[i] + ((f128 *)ty->data)[0]; } break;
-    case CMPX64: for(size_t i = 0; i < length; i++){ ((c64 *)tz->data)[i] = ((c64 *)tx->data)[i] + ((c64 *)ty->data)[0]; } break;
-    case CMPX128: for(size_t i = 0; i < length; i++){ ((c128 *)tz->data)[i] = ((c128 *)tx->data)[i] + ((c128 *)ty->data)[0]; } break;
-    case CMPX256: for(size_t i = 0; i < length; i++){ ((c256 *)tz->data)[i] = ((c256 *)tx->data)[i] + ((c256 *)ty->data)[0]; } break;
-    default: {
-               PyErr_SetString(PyExc_RuntimeError, "Something is wrong I can feel it");
-               return;
-             }
-  }
-}
-
-static void __sub_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
-  size_t length = tx->length;
-  dtype_t dtype = tx->dtype;
-  switch(dtype){
-    case BOOL: for(size_t i = 0; i < length; i++){ ((bool *)tz->data)[i] = ((bool *)tx->data)[i] - ((bool *)ty->data)[i]; } break;
-    case INT8: for(size_t i = 0; i < length; i++){ ((i8 *)tz->data)[i] = ((i8 *)tx->data)[i] - ((i8 *)ty->data)[i]; } break;
-    case UINT8: for(size_t i = 0; i < length; i++){ ((u8 *)tz->data)[i] = ((u8 *)tx->data)[i] - ((u8 *)ty->data)[i]; } break;
-    case INT16: for(size_t i = 0; i < length; i++){ ((i16 *)tz->data)[i] = ((i16 *)tx->data)[i] - ((i16 *)ty->data)[i]; } break;
-    case UINT16: for(size_t i = 0; i < length; i++){ ((u16 *)tz->data)[i] = ((u16 *)tx->data)[i] - ((u16 *)ty->data)[i]; } break;
-    case INT32: for(size_t i = 0; i < length; i++){ ((i32 *)tz->data)[i] = ((i32 *)tx->data)[i] - ((i32 *)ty->data)[i]; } break;
-    case UINT32: for(size_t i = 0; i < length; i++){ ((u32 *)tz->data)[i] = ((u32 *)tx->data)[i] - ((u32 *)ty->data)[i]; } break;
-    case INT64: for(size_t i = 0; i < length; i++){ ((i64 *)tz->data)[i] = ((i64 *)tx->data)[i] - ((i64 *)ty->data)[i]; } break;
-    case UINT64: for(size_t i = 0; i < length; i++){ ((u64 *)tz->data)[i] = ((u64 *)tx->data)[i] - ((u64 *)ty->data)[i]; } break;
-    case FP32: for(size_t i = 0; i < length; i++){ ((f32 *)tz->data)[i] = ((f32 *)tx->data)[i] - ((f32 *)ty->data)[i]; } break;
-    case FP64: for(size_t i = 0; i < length; i++){ ((f64 *)tz->data)[i] = ((f64 *)tx->data)[i] - ((f64 *)ty->data)[i]; } break;
-    case FP128: for(size_t i = 0; i < length; i++){ ((f128 *)tz->data)[i] = ((f128 *)tx->data)[i] - ((f128 *)ty->data)[i]; } break;
-    case CMPX64: for(size_t i = 0; i < length; i++){ ((c64 *)tz->data)[i] = ((c64 *)tx->data)[i] - ((c64 *)ty->data)[i]; } break;
-    case CMPX128: for(size_t i = 0; i < length; i++){ ((c128 *)tz->data)[i] = ((c128 *)tx->data)[i] - ((c128 *)ty->data)[i]; } break;
-    case CMPX256: for(size_t i = 0; i < length; i++){ ((c256 *)tz->data)[i] = ((c256 *)tx->data)[i] - ((c256 *)ty->data)[i]; } break;
-    default: {
-               PyErr_SetString(PyExc_RuntimeError, "Something is wrong I can feel it");
-               return;
-             }
-  }
-}
-
-static void __sub_tensor_scalar__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
-  size_t length = tx->length;
-  dtype_t dtype = tx->dtype;
-  switch(dtype){
-    case BOOL: for(size_t i = 0; i < length; i++){ ((bool *)tz->data)[i] = ((bool *)tx->data)[i] - ((bool *)ty->data)[0]; } break;
-    case INT8: for(size_t i = 0; i < length; i++){ ((i8 *)tz->data)[i] = ((i8 *)tx->data)[i] - ((i8 *)ty->data)[0]; } break;
-    case UINT8: for(size_t i = 0; i < length; i++){ ((u8 *)tz->data)[i] = ((u8 *)tx->data)[i] - ((u8 *)ty->data)[0]; } break;
-    case INT16: for(size_t i = 0; i < length; i++){ ((i16 *)tz->data)[i] = ((i16 *)tx->data)[i] - ((i16 *)ty->data)[0]; } break;
-    case UINT16: for(size_t i = 0; i < length; i++){ ((u16 *)tz->data)[i] = ((u16 *)tx->data)[i] - ((u16 *)ty->data)[0]; } break;
-    case INT32: for(size_t i = 0; i < length; i++){ ((i32 *)tz->data)[i] = ((i32 *)tx->data)[i] - ((i32 *)ty->data)[0]; } break;
-    case UINT32: for(size_t i = 0; i < length; i++){ ((u32 *)tz->data)[i] = ((u32 *)tx->data)[i] - ((u32 *)ty->data)[0]; } break;
-    case INT64: for(size_t i = 0; i < length; i++){ ((i64 *)tz->data)[i] = ((i64 *)tx->data)[i] - ((i64 *)ty->data)[0]; } break;
-    case UINT64: for(size_t i = 0; i < length; i++){ ((u64 *)tz->data)[i] = ((u64 *)tx->data)[i] - ((u64 *)ty->data)[0]; } break;
-    case FP32: for(size_t i = 0; i < length; i++){ ((f32 *)tz->data)[i] = ((f32 *)tx->data)[i] - ((f32 *)ty->data)[0]; } break;
-    case FP64: for(size_t i = 0; i < length; i++){ ((f64 *)tz->data)[i] = ((f64 *)tx->data)[i] - ((f64 *)ty->data)[0]; } break;
-    case FP128: for(size_t i = 0; i < length; i++){ ((f128 *)tz->data)[i] = ((f128 *)tx->data)[i] - ((f128 *)ty->data)[0]; } break;
-    case CMPX64: for(size_t i = 0; i < length; i++){ ((c64 *)tz->data)[i] = ((c64 *)tx->data)[i] - ((c64 *)ty->data)[0]; } break;
-    case CMPX128: for(size_t i = 0; i < length; i++){ ((c128 *)tz->data)[i] = ((c128 *)tx->data)[i] - ((c128 *)ty->data)[0]; } break;
-    case CMPX256: for(size_t i = 0; i < length; i++){ ((c256 *)tz->data)[i] = ((c256 *)tx->data)[i] - ((c256 *)ty->data)[0]; } break;
-    default: {
-               PyErr_SetString(PyExc_RuntimeError, "Something is wrong I can feel it");
-               return;
-             }
-  }
-}
-
-void capsule_destructor(PyObject *capsule){
+void capsule_destroyer(PyObject *capsule){
   tensor_t *t = PyCapsule_GetPointer(capsule, "tensor_t on CPU");
   if(t){
     destroy(t);
-    if(t->data){
-      free(t->data);
+  }
+}
+
+typedef enum {L, R} side_t;
+
+static tensor_t *alloc_result_tensor(const tensor_t *t){
+  tensor_t *tz = malloc(sizeof(tensor_t));
+  if(!tz){
+    PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
+    return NULL;
+  }
+  tz->dtype = t->dtype;
+  tz->size = t->size;
+  tz->ndim = t->ndim;
+  tz->element_size = t->element_size;
+  tz->device = t->device;
+  tz->stride = NULL;
+  if(t->ndim > 0 && t->shape){
+    tz->shape = malloc(sizeof(size_t) * tz->ndim);
+    if(!tz->shape){
+      free(tz);
+      PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape allocation failed!");
+      return NULL;
+    }
+    for(size_t i = 0; i < tz->ndim; i++){
+      tz->shape[i] = t->shape[i];
+    }
+  } else {
+    tz->shape = NULL;
+  }
+  tz->storage = malloc(sizeof(storage_t));
+  if(!tz->storage){
+    if(tz->shape) free(tz->shape);
+    free(tz);
+    PyErr_SetString(PyExc_RuntimeError, "tensor_t.storage allocation failed!");
+    return NULL;
+  }
+  tz->storage->bytes = tz->size * tz->element_size;
+  tz->storage->device = tz->device;
+  tz->storage->refcount = 1;
+  tz->storage->ptr = malloc(tz->storage->bytes);
+  if(!tz->storage->ptr){
+    if(tz->shape) free(tz->shape);
+    free(tz->storage);
+    free(tz);
+    PyErr_SetString(PyExc_RuntimeError, "tensor_t.storage.ptr allocation failed!");
+    return NULL;
+  }
+  tz->buf = tz->storage->ptr;
+  return tz;
+}
+
+static PyObject *__add_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
+  size_t length = tx->size;
+  dtype_t dtype = tx->dtype;
+  char *px = (char *)tx->buf;
+  char *py = (char *)ty->buf;
+  char *pz = (char *)tz->buf;
+  size_t elem_size = tx->element_size;
+  for(size_t i = 0; i < length; i++){
+    char *x_ptr = px + i * elem_size;
+    char *y_ptr = py + i * elem_size;
+    char *z_ptr = pz + i * elem_size;
+    switch(dtype){
+      case BOOL: *(bool *)z_ptr = *(bool *)x_ptr || *(bool *)y_ptr; break;
+      case INT8: *(int8 *)z_ptr = *(int8 *)x_ptr + *(int8 *)y_ptr; break;
+      case UINT8: *(uint8 *)z_ptr = *(uint8 *)x_ptr + *(uint8 *)y_ptr; break;
+      case INT16: *(int16 *)z_ptr = *(int16 *)x_ptr + *(int16 *)y_ptr; break;
+      case UINT16: *(uint16 *)z_ptr = *(uint16 *)x_ptr + *(uint16 *)y_ptr; break;
+      case INT32: *(int32 *)z_ptr = *(int32 *)x_ptr + *(int32 *)y_ptr; break;
+      case UINT32: *(uint32 *)z_ptr = *(uint32 *)x_ptr + *(uint32 *)y_ptr; break;
+      case INT64: *(int64 *)z_ptr = *(int64 *)x_ptr + *(int64 *)y_ptr; break;
+      case UINT64: *(uint64 *)z_ptr = *(uint64 *)x_ptr + *(uint64 *)y_ptr; break;
+      case FP32: *(float32 *)z_ptr = *(float32 *)x_ptr + *(float32 *)y_ptr; break;
+      case FP64: *(float64 *)z_ptr = *(float64 *)x_ptr + *(float64 *)y_ptr; break;
+      case FP128: *(float128 *)z_ptr = *(float128 *)x_ptr + *(float128 *)y_ptr; break;
+      case CMPX64: {
+        complex64 *cx = (complex64 *)x_ptr;
+        complex64 *cy = (complex64 *)y_ptr;
+        complex64 *cz = (complex64 *)z_ptr;
+        cz->real = cx->real + cy->real;
+        cz->imag = cx->imag + cy->imag;
+        break;
+      }
+      case CMPX128: {
+        complex128 *cx = (complex128 *)x_ptr;
+        complex128 *cy = (complex128 *)y_ptr;
+        complex128 *cz = (complex128 *)z_ptr;
+        cz->real = cx->real + cy->real;
+        cz->imag = cx->imag + cy->imag;
+        break;
+      }
+      case ERROR: {
+        PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
+        return NULL;
+      }
     }
   }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+static PyObject *__add_scalar_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz, side_t side){
+  const tensor_t *tensor = (side == L) ? ty : tx;
+  const tensor_t *scalar = (side == L) ? tx : ty;
+  dtype_t dtype = tensor->dtype;
+  size_t length = tensor->size;
+  char *pt = (char *)tensor->buf;
+  char *ps = (char *)scalar->buf;
+  char *pz = (char *)tz->buf;
+  size_t elem_size = tensor->element_size;
+  for(size_t i = 0; i < length; i++){
+    char *t_ptr = pt + i * elem_size;
+    char *z_ptr = pz + i * elem_size;
+    switch(dtype){
+      case BOOL: *(bool *)z_ptr = *(bool *)t_ptr || *(bool *)ps; break;
+      case INT8: *(int8 *)z_ptr = *(int8 *)t_ptr + *(int8 *)ps; break;
+      case UINT8: *(uint8 *)z_ptr = *(uint8 *)t_ptr + *(uint8 *)ps; break;
+      case INT16: *(int16 *)z_ptr = *(int16 *)t_ptr + *(int16 *)ps; break;
+      case UINT16: *(uint16 *)z_ptr = *(uint16 *)t_ptr + *(uint16 *)ps; break;
+      case INT32: *(int32 *)z_ptr = *(int32 *)t_ptr + *(int32 *)ps; break;
+      case UINT32: *(uint32 *)z_ptr = *(uint32 *)t_ptr + *(uint32 *)ps; break;
+      case INT64: *(int64 *)z_ptr = *(int64 *)t_ptr + *(int64 *)ps; break;
+      case UINT64: *(uint64 *)z_ptr = *(uint64 *)t_ptr + *(uint64 *)ps; break;
+      case FP32: *(float32 *)z_ptr = *(float32 *)t_ptr + *(float32 *)ps; break;
+      case FP64: *(float64 *)z_ptr = *(float64 *)t_ptr + *(float64 *)ps; break;
+      case FP128: *(float128 *)z_ptr = *(float128 *)t_ptr + *(float128 *)ps; break;
+      case CMPX64: {
+        complex64 *ct = (complex64 *)t_ptr;
+        complex64 *cs = (complex64 *)ps;
+        complex64 *cz = (complex64 *)z_ptr;
+        cz->real = ct->real + cs->real;
+        cz->imag = ct->imag + cs->imag;
+        break;
+      }
+      case CMPX128: {
+        complex128 *ct = (complex128 *)t_ptr;
+        complex128 *cs = (complex128 *)ps;
+        complex128 *cz = (complex128 *)z_ptr;
+        cz->real = ct->real + cs->real;
+        cz->imag = ct->imag + cs->imag;
+        break;
+      }
+      case ERROR: {
+        PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
+        return NULL;
+      }
+    }
+  }
+
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+static int shapes_match(const tensor_t *tx, const tensor_t *ty){
+  if(tx->ndim != ty->ndim) return 0;
+  if(!tx->shape || !ty->shape) return 0;
+  for(size_t i = 0; i < tx->ndim; i++){
+    if(tx->shape[i] != ty->shape[i]) return 0;
+  }
+  return 1;
 }
 
 static PyObject *add(PyObject *self, PyObject *args){
   PyObject *x, *y;
   if(!PyArg_ParseTuple(args, "OO", &x, &y)) return NULL;
   if(!PyCapsule_CheckExact(x) || !PyCapsule_CheckExact(y)){
-    PyErr_SetString(PyExc_RuntimeError, "Both operands must be tensor capsules");
+    PyErr_SetString(PyExc_RuntimeError, "operands must be the tensor capsule");
     return NULL;
   }
   tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
   tensor_t *ty = PyCapsule_GetPointer(y, "tensor_t on CPU");
   if(!tx || !ty){
-    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule");
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
     return NULL;
   }
   if(tx->dtype != ty->dtype){
-    PyErr_SetString(PyExc_RuntimeError, "Tensor dtype mismatch");
+    PyErr_SetString(PyExc_TypeError, "Both tensor_t(s) must have the same dtype");
     return NULL;
   }
-  tensor_t *tensor = NULL;
-  tensor_t *scalar = NULL;
-  if(tx->length == ty->length){
-    tensor = tx;
-    scalar = NULL;
-  }else if(tx->length == 1){
-    tensor = ty;
-    scalar = tx;
-  }else if(ty->length == 1){
-    tensor = tx;
-    scalar = ty;
-  }else{
-    PyErr_SetString(PyExc_RuntimeError, "Tensor shape mismatch");
+  if(tx->device.type != ty->device.type || tx->device.type != CPU){
+    PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CPU)");
     return NULL;
   }
-  tensor_t *out = malloc(sizeof(tensor_t));
-  if(!out){
-    PyErr_NoMemory();
-    return NULL;
-  }
-  *out = create(tensor->ndim, tensor->shape, CPU, 0, tensor->dtype);
-  if(scalar) __add_tensor_scalar__(tensor, scalar, out);
-  else __add_tensor__(tx, ty, out);
-  return PyCapsule_New(out, "tensor_t on CPU", capsule_destructor);
-}
+  int x_is_scalar = (tx->size == 1 && tx->ndim == 0);
+  int y_is_scalar = (ty->size == 1 && ty->ndim == 0);
+  tensor_t *tz = NULL;
+  if(!x_is_scalar && !y_is_scalar){
+    if(!shapes_match(tx, ty)){
+      PyErr_SetString(PyExc_ValueError, "Tensor shapes do not match for element-wise addition");
+      return NULL;
+    }
 
-static PyObject *sub(PyObject *self, PyObject *args){
-  PyObject *x, *y;
-  if(!PyArg_ParseTuple(args, "OO", &x, &y)) return NULL;
-  if(!PyCapsule_CheckExact(x) || !PyCapsule_CheckExact(y)){
-    PyErr_SetString(PyExc_RuntimeError, "Both operands must be tensor capsules");
-    return NULL;
+    tz = alloc_result_tensor(tx);
+    if(!tz) return NULL;
+    return __add_tensor__(tx, ty, tz);
+  } else if(x_is_scalar && !y_is_scalar){
+    tz = alloc_result_tensor(ty);
+    if(!tz) return NULL;
+    return __add_scalar_tensor__(tx, ty, tz, L);
+  } else if(!x_is_scalar && y_is_scalar){
+    tz = alloc_result_tensor(tx);
+    if(!tz) return NULL;
+    return __add_scalar_tensor__(tx, ty, tz, R);
+  } else {
+    tz = alloc_result_tensor(tx);
+    if(!tz) return NULL;
+    return __add_tensor__(tx, ty, tz);
   }
-  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
-  tensor_t *ty = PyCapsule_GetPointer(y, "tensor_t on CPU");
-  if(!tx || !ty){
-    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule");
-    return NULL;
-  }
-  tensor_t *tensor = NULL;
-  tensor_t *scalar = NULL;
-  if(tx->length == ty->length){
-    tensor = tx;
-    scalar = NULL;
-  }else if(tx->length == 1){
-    tensor = ty;
-    scalar = tx;
-  }else if(ty->length == 1){
-    tensor = tx;
-    scalar = ty;
-  }else{
-    PyErr_SetString(PyExc_RuntimeError, "Tensor shape mismatch");
-    return NULL;
-  }
-  if(tx->dtype != ty->dtype){
-    PyErr_SetString(PyExc_RuntimeError, "Tensor dtype mismatch");
-    return NULL;
-  }
-  tensor_t *out = malloc(sizeof(tensor_t));
-  if(!out){
-    PyErr_NoMemory();
-    return NULL;
-  }
-  *out = create(tensor->ndim, tensor->shape, CPU, 0, tensor->dtype);
-  if(scalar) __sub_tensor_scalar__(tensor, scalar, out);
-  else __sub_tensor__(tx, ty, out);
-  return PyCapsule_New(out, "tensor_t on CPU", capsule_destructor);
 }
 
 static PyMethodDef methods[] = {
-  {"add", add, METH_VARARGS, "add 2 tensors"},
-  {"sub", sub, METH_VARARGS, "sub 2 tensors"},
+  {"add", add, METH_VARARGS, "element-wise addition of two tensors or tensor with scalar"},
   {NULL, NULL, 0, NULL}
 };
 
 static struct PyModuleDef module = {
   PyModuleDef_HEAD_INIT,
   "cpu_ops",
-  NULL,
+  "CPU tensor operations module",
   -1,
   methods
 };

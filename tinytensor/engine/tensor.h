@@ -1,51 +1,76 @@
 #ifndef TENSOR_H
 #define TENSOR_H
 
-#include <stddef.h>
-#include "dtypes.h"
+#include <cuda_runtime.h>
+#include <stdlib.h>
+#include "complex.h"
+
+#define bool unsigned char
+#define int8 char
+#define uint8 unsigned char
+#define int16 short
+#define uint16 unsigned short
+#define int32 int
+#define uint32 unsigned int
+#define int64 long
+#define uint64 unsigned long
+#define float32 float
+#define float64 double
+#define float128 long double
+#define complex64 complex64_t
+#define complex128 complex128_t
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+typedef enum { CPU, CUDA } DEVICES_t;
+
 typedef enum {
+  ERROR, // error
   BOOL,
-  UINT8,
-  UINT16,
-  UINT32,
-  UINT64,
   INT8,
+  UINT8,
   INT16,
+  UINT16,
   INT32,
+  UINT32,
   INT64,
+  UINT64,
   FP32,
   FP64,
   FP128,
   CMPX64,
   CMPX128,
-  CMPX256
 } dtype_t;
 
-typedef enum {
-  CPU,
-  CUDA
+size_t getsize(dtype_t dtype);
+
+typedef struct {
+  DEVICES_t type;
+  unsigned short index;
 } device_t;
 
 typedef struct {
-  void *data;
+  void *ptr;
+  size_t bytes;
+  device_t device;
+  int refcount;
+} storage_t;
+
+typedef struct {
+  storage_t *storage;
+  void *buf;
+  dtype_t dtype;
+  size_t element_size;
+  size_t size; // length
   size_t ndim;
   size_t *shape;
-  size_t length;
-  size_t elem_size;
+  size_t *stride;
   device_t device;
-  int device_index;
-  dtype_t dtype;
 } tensor_t;
 
-tensor_t create(size_t ndim, const size_t *shape, device_t device, size_t device_index, dtype_t dtype);
-void destroy(tensor_t *arr);
-void *get(const tensor_t *tensor, const size_t *indices);
-void set(const tensor_t *tensor, const size_t *indices, void *value);
+void destroy(tensor_t *tensor);
 
 #ifdef __cplusplus
 }

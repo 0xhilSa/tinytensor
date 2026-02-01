@@ -1,246 +1,305 @@
 #include <python3.10/Python.h>
-#include <stdint.h>
-#include <complex.h>
 #include "../tensor.h"
-#include "../dtypes.h"
 
-void capsule_destructor(PyObject *capsule){
+void capsule_destroyer(PyObject *capsule){
   tensor_t *t = PyCapsule_GetPointer(capsule, "tensor_t on CPU");
   if(t){
     destroy(t);
-    if(t->data) free(t);
   }
+}
+
+static inline long long py_to_int(PyObject *o){ return PyLong_AsLongLong(o); }
+static inline unsigned long long py_to_uint(PyObject *o){ return PyLong_AsUnsignedLongLongMask(o); }
+static inline double py_to_float(PyObject *o){ return PyFloat_AsDouble(o); }
+
+dtype_t get_dtype(const char fmt){
+  switch(fmt){
+    case '?': return BOOL;
+    case 'b': return INT8;
+    case 'B': return UINT8;
+    case 'h': return INT16;
+    case 'H': return UINT16;
+    case 'i': return INT32;
+    case 'I': return UINT32;
+    case 'l': return INT64;
+    case 'L': return UINT64;
+    case 'f': return FP32;
+    case 'd': return FP64;
+    case 'g': return FP128;
+    case 'F': return CMPX64;
+    case 'D': return CMPX128;
+    default: return ERROR;
+  }
+}
+
+static PyObject *__list__(PyObject *list, PyObject *shape, Py_ssize_t length, const char fmt){
+  dtype_t dtype = get_dtype(fmt);
+  if(dtype == ERROR){
+    PyErr_Format(PyExc_TypeError, "Invalid dtype fmt: '%c'", fmt);
+    return NULL;
+  }
+  tensor_t *t = malloc(sizeof(tensor_t));
+  if(!t){
+    PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
+    return NULL;
+  }
+  t->dtype = dtype;
+  t->size = length;
+  t->ndim = PyTuple_Size(shape);
+  t->shape = malloc(sizeof(size_t) * t->ndim);
+  if(!t->shape){
+    free(t);
+    PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape allocation failed!");
+    return NULL;
+  }
+  size_t expected = 1;
+  for(size_t i = 0; i < t->ndim; i++){
+    PyObject *dim = PyTuple_GetItem(shape, i);
+    if(!PyLong_Check(dim)){
+      PyErr_SetString(PyExc_TypeError, "shape must contain integers");
+      free(t->shape);
+      free(t);
+      return NULL;
+    }
+    t->shape[i] = PyLong_AsSize_t(dim);
+    expected *= t->shape[i];
+  }
+  if(expected != (size_t)length){
+    PyErr_SetString(PyExc_ValueError, "shape does not match number of elements");
+    free(t->shape);
+    free(t);
+    return NULL;
+  }
+  t->stride = NULL; // not implemented yet
+  t->element_size = getsize(dtype);
+  t->device = (device_t){CPU, 0};
+  t->storage = malloc(sizeof(storage_t));
+  if(!t->storage){
+    free(t->shape);
+    free(t);
+    PyErr_SetString(PyExc_RuntimeError, "tensor_t.storage allocation failed!");
+    return NULL;
+  }
+  t->storage->bytes = t->size * t->element_size;
+  t->storage->device = t->device;
+  t->storage->refcount = 1;
+  t->storage->ptr = malloc(t->storage->bytes);
+  if(!t->storage->ptr){
+    free(t->shape);
+    free(t->storage);
+    free(t);
+    PyErr_SetString(PyExc_RuntimeError, "tensor_t.storage.ptr allocation failed!");
+    return NULL;
+  }
+  t->buf = t->storage->ptr;
+  void *dest = t->storage->ptr;
+  for(Py_ssize_t i = 0; i < length; i++){
+    PyObject *item = PyList_GetItem(list, i);
+    char *p = (char *)dest + i * t->element_size;
+    switch(t->dtype){
+      case BOOL: *(bool *)p = PyObject_IsTrue(item); break;
+      case INT8: *(int8 *)p = (int8)py_to_int(item); break;
+      case UINT8: *(uint8 *)p = (uint8)py_to_uint(item); break;
+      case INT16: *(int16 *)p = (int16)py_to_int(item); break;
+      case UINT16: *(uint16 *)p = (uint16)py_to_uint(item); break;
+      case INT32: *(int32 *)p = (int32)py_to_int(item); break;
+      case UINT32: *(uint32 *)p = (uint32)py_to_uint(item); break;
+      case INT64: *(int64 *)p = (int64)py_to_int(item); break;
+      case UINT64: *(uint64 *)p = (uint64)py_to_uint(item); break;
+      case FP32: *(float32 *)p = (float32)py_to_float(item); break;
+      case FP64: *(float64 *)p = (float64)py_to_float(item); break;
+      case FP128: *(float128 *)p = (float128)py_to_float(item); break;
+      case CMPX64: {
+        Py_complex c = PyComplex_AsCComplex(item);
+        if(PyErr_Occurred()){
+          destroy(t);
+          return NULL;
+        }
+        ((complex64 *)p)->real = (float32)c.real;
+        ((complex64 *)p)->imag = (float32)c.imag;
+        break;
+      }
+      case CMPX128: {
+        Py_complex c = PyComplex_AsCComplex(item);
+        if(PyErr_Occurred()){
+          destroy(t);
+          return NULL;
+        }
+        ((complex128 *)p)->real = (float64)c.real;
+        ((complex128 *)p)->imag = (float64)c.imag;
+        break;
+      }
+      case ERROR: {
+        destroy(t);
+        PyErr_Format(PyExc_TypeError, "Invalid dtype fmt: '%c'", fmt);
+        return NULL;
+      }
+    }
+  }
+  return PyCapsule_New(t, "tensor_t on CPU", capsule_destroyer);
+}
+
+static PyObject *__scalar__(PyObject *scalar, const char fmt){
+  dtype_t dtype = get_dtype(fmt);
+  if(dtype == ERROR){
+    PyErr_Format(PyExc_TypeError, "Invalid dtype fmt: '%c'", fmt);
+    return NULL;
+  }
+  tensor_t *t = malloc(sizeof(tensor_t));
+  if(!t){
+    PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
+    return NULL;
+  }
+  if(!t){ PyErr_NoMemory(); return NULL; }
+  t->dtype = dtype;
+  t->size = 1;
+  t->ndim = 0;
+  t->shape = NULL;
+  t->stride = NULL; // not implemented yet
+  t->element_size = getsize(dtype);
+  t->device = (device_t){CPU, 0};
+  t->storage = malloc(sizeof(storage_t));
+  if(!t->storage){
+    free(t->storage);
+    PyErr_SetString(PyExc_RuntimeError, "tensor_t.storage allocation failed!");
+    return NULL;
+  }
+  t->storage->bytes = t->element_size;
+  t->storage->device = t->device;
+  t->storage->refcount = 1;
+  t->storage->ptr = malloc(t->storage->bytes);
+  if(!t->storage->ptr){
+    free(t->storage->ptr);
+    PyErr_SetString(PyExc_RuntimeError, "tensor_t.storage.ptr allocation failed!");
+    return NULL;
+  }
+  t->buf = t->storage->ptr;
+  void *p = t->buf;
+  switch(t->dtype){
+    case BOOL: *(bool *)p = PyObject_IsTrue(scalar); break;
+    case INT8: *(int8 *)p = (int8)PyLong_AsLongLong(scalar); break;
+    case UINT8: *(uint8 *)p = (uint8)PyLong_AsUnsignedLongLongMask(scalar); break;
+    case INT16: *(int16 *)p = (int16)PyLong_AsLongLong(scalar); break;
+    case UINT16: *(uint16 *)p = (uint16)PyLong_AsUnsignedLongLongMask(scalar); break;
+    case INT32: *(int32 *)p = (int32)PyLong_AsLongLong(scalar); break;
+    case UINT32: *(uint32 *)p = (uint32)PyLong_AsUnsignedLongLongMask(scalar); break;
+    case INT64: *(int64 *)p = (int64)PyLong_AsLongLong(scalar); break;
+    case UINT64: *(uint64 *)p = (uint64)PyLong_AsUnsignedLongLongMask(scalar); break;
+    case FP32: *(float32 *)p = (float32)PyFloat_AsDouble(scalar); break;
+    case FP64: *(float64 *)p = (float64)PyFloat_AsDouble(scalar); break;
+    case FP128: *(float128 *)p = (float128)PyFloat_AsDouble(scalar); break;
+    case CMPX64: {
+      Py_complex c = PyComplex_AsCComplex(scalar);
+      if(PyErr_Occurred()){ destroy(t); return NULL; }
+      ((complex64 *)p)->real = (float32)c.real;
+      ((complex64 *)p)->imag = (float32)c.imag;
+      break;
+    }
+    case CMPX128: {
+      Py_complex c = PyComplex_AsCComplex(scalar);
+      if(PyErr_Occurred()){ destroy(t); return NULL; }
+      ((complex128 *)p)->real = (float64)c.real;
+      ((complex128 *)p)->imag = (float64)c.imag;
+      break;
+    }
+    case ERROR: {
+      destroy(t);
+      PyErr_Format(PyExc_TypeError, "Invalid dtype fmt: '%c'", fmt);
+      return NULL;
+    }
+  }
+  return PyCapsule_New(t, "tensor_t on CPU", capsule_destroyer);
 }
 
 static PyObject *tocpu(PyObject *self, PyObject *args){
-  PyObject *list;
-  PyObject *shape_obj;
+  PyObject *pyobj;
+  PyObject *shape; // empty if scalar
   const char *fmt;
-  if(!PyArg_ParseTuple(args, "OOs", &list, &shape_obj, &fmt)) return NULL;
-  if(!PyList_Check(list)){
-    PyErr_SetString(PyExc_TypeError, "data must be a list");
-    return NULL;
-  }
-  if(!PyTuple_Check(shape_obj)){
-    PyErr_SetString(PyExc_TypeError, "shape must be a tuple");
-    return NULL;
-  }
-  Py_ssize_t ndim = PyTuple_Size(shape_obj);
-  if(ndim <= 0){
-    PyErr_SetString(PyExc_ValueError, "shape must be non-empty");
-    return NULL;
-  }
-  size_t *shape = malloc(ndim * sizeof(size_t));
-  if(!shape){
-  PyErr_NoMemory();
-  return NULL;
-  }
-  for(Py_ssize_t i = 0; i < ndim; i++){
-    PyObject *item = PyTuple_GetItem(shape_obj, i);
-    if(!PyLong_Check(item)){
-      free(shape);
-      PyErr_SetString(PyExc_TypeError, "shape must contain ints");
-      return NULL;
-    }
-    shape[i] = (size_t)PyLong_AsUnsignedLong(item);
-  }
-  dtype_t dtype;
-  if(strcmp(fmt, "?") == 0) dtype = BOOL;
-  else if(strcmp(fmt, "b") == 0) dtype = INT8;
-  else if(strcmp(fmt, "B") == 0) dtype = UINT8;
-  else if(strcmp(fmt, "h") == 0) dtype = INT16;
-  else if(strcmp(fmt, "H") == 0) dtype = UINT16;
-  else if(strcmp(fmt, "i") == 0) dtype = INT32;
-  else if(strcmp(fmt, "I") == 0) dtype = UINT32;
-  else if(strcmp(fmt, "l") == 0) dtype = INT64;
-  else if(strcmp(fmt, "L") == 0) dtype = UINT64;
-  else if(strcmp(fmt, "f") == 0) dtype = FP32;
-  else if(strcmp(fmt, "d") == 0) dtype = FP64;
-  else if(strcmp(fmt, "g") == 0) dtype = FP128;
-  else if(strcmp(fmt, "F") == 0) dtype = CMPX64;
-  else if(strcmp(fmt, "D") == 0) dtype = CMPX128;
-  else if(strcmp(fmt, "G") == 0) dtype = CMPX256;
-  else { free(shape); PyErr_Format(PyExc_TypeError, "Invalid DType: %s", fmt); return NULL; }
-  tensor_t *t = malloc(sizeof(tensor_t));
-  if(!t){
-    free(t);
-    PyErr_NoMemory();
-    return NULL;
-  }
-  device_t device = CPU;
-  int device_index = 0;
-  *t = create((size_t)ndim, shape, device, device_index, dtype);
-  free(shape);
-  if(!t->data){
-    free(t);
-    PyErr_SetString(PyExc_RuntimeError, "tensor allocation failed");
-    return NULL;
-  }
-  if(PyList_Size(list) != (Py_ssize_t)t->length){
-    destroy(t);
-    free(t);
-    PyErr_SetString(PyExc_ValueError, "data size does not match shape");
-    return NULL;
-  }
-  for(Py_ssize_t i = 0; i < (Py_ssize_t)t->length; i++){
-    PyObject *item = PyList_GetItem(list, i);
-    if(dtype == BOOL){
-      i32 v = PyObject_IsTrue(item);
-      if(v < 0) goto error;
-      ((u8 *)t->data)[i] = (u8)v;
-    }else if(dtype == INT8){
-      i64 v = PyLong_AsLong(item);
-      if(PyErr_Occurred()) goto error;
-      ((i8 *)t->data)[i] = (i8)v;
-    }else if(dtype == UINT8){
-      u64 v = PyLong_AsUnsignedLongMask(item);
-      if(PyErr_Occurred()) goto error;
-      ((u8 *)t->data)[i] = (u8)v;
-    }else if(dtype == INT16){
-      i64 v = PyLong_AsLong(item);
-      if(PyErr_Occurred()) goto error;
-      ((i16 *)t->data)[i] = (i16)v;
-    }else if(dtype == UINT16){
-      u64 v = PyLong_AsUnsignedLongMask(item);
-      if(PyErr_Occurred()) goto error;
-      ((u16 *)t->data)[i] = (u16)v;
-    }else if(dtype == INT32){
-      i64 v = PyLong_AsLong(item);
-      if(PyErr_Occurred()) goto error;
-      ((i32 *)t->data)[i] = (i32)v;
-    }else if(dtype == UINT32){
-      u64 v = PyLong_AsUnsignedLongMask(item);
-      if(PyErr_Occurred()) goto error;
-      ((u32 *)t->data)[i] = (u32)v;
-    }else if(dtype == INT64){
-      i64 v = PyLong_AsLong(item);
-      if(PyErr_Occurred()) goto error;
-      ((i64 *)t->data)[i] = (i64)v;
-    }else if(dtype == UINT64){
-      u64 v = PyLong_AsUnsignedLongMask(item);
-      if(PyErr_Occurred()) goto error;
-      ((u64 *)t->data)[i] = (u64)v;
-    }else if(dtype == FP32){
-      f64 v = PyFloat_AsDouble(item);
-      if(PyErr_Occurred()) goto error;
-      ((f32 *)t->data)[i] = (f32)v;
-    }else if(dtype == FP64){
-      f64 v = PyFloat_AsDouble(item);
-      if(PyErr_Occurred()) goto error;
-      ((f64 *)t->data)[i] = (f64)v;
-    }else if(dtype == FP128){
-      f128 v = PyFloat_AsDouble(item);
-      if(PyErr_Occurred()) goto error;
-      ((f128 *)t->data)[i] = (f128)v;
-    }else if(dtype == CMPX64){
-      if(!PyComplex_Check(item)){
-        PyErr_SetString(PyExc_TypeError, "expected a complex number");
-        goto error;
-      }
-      f64 real = PyComplex_RealAsDouble(item);
-      f64 imag = PyComplex_ImagAsDouble(item);
-      if(PyErr_Occurred()) goto error;
-      ((c64 *)t->data)[i] = (f32)real + (f32)imag * I;
-    }else if(dtype == CMPX128){
-      if(!PyComplex_Check(item)){
-        PyErr_SetString(PyExc_TypeError, "expected a complex number");
-        goto error;
-      }
-      f64 real = PyComplex_RealAsDouble(item);
-      f64 imag = PyComplex_ImagAsDouble(item);
-      if(PyErr_Occurred()) goto error;
-      ((c128 *)t->data)[i] = real + imag * I;
-    }else if(dtype == CMPX256){
-      if(!PyComplex_Check(item)){
-        PyErr_SetString(PyExc_TypeError, "expected a complex number");
-        goto error;
-      }
-      f128 real = (f128)PyComplex_RealAsDouble(item);
-      f128 imag = (f128)PyComplex_ImagAsDouble(item);
-      if(PyErr_Occurred()) goto error;
-      ((c256 *)t->data)[i] = real + imag * I;
-    }else { free(shape); PyErr_Format(PyExc_TypeError, "Invalid DType: %s", fmt); return NULL; }
-  }
-  return PyCapsule_New(t, "tensor_t on CPU", capsule_destructor);
-  error:
-    if(shape) free(shape);
-    if(t){
-      destroy(t);
-      free(t);
-    }
-    return NULL;
+  if(!PyArg_ParseTuple(args, "OOs", &pyobj, &shape, &fmt)) return NULL;
+  if(PyList_Check(pyobj) && PyTuple_Check(shape)){
+    Py_ssize_t length = PyList_Size(pyobj);
+    return __list__(pyobj, shape, length, *fmt);
+  }else return __scalar__(pyobj, *fmt);
 }
 
-static PyObject *tolist(PyObject *self, PyObject *args){
+static PyObject *topyobj(PyObject *self, PyObject *args){
   PyObject *capsule;
   if(!PyArg_ParseTuple(args, "O", &capsule)) return NULL;
   tensor_t *t = PyCapsule_GetPointer(capsule, "tensor_t on CPU");
   if(!t){
-    PyErr_SetString(PyExc_ValueError, "Invalid CPU tensor capsule");
+    PyErr_SetString(PyExc_TypeError, "Invalid tensor capsule");
     return NULL;
   }
-  if(!t->data){
-    PyErr_SetString(PyExc_RuntimeError, "Tensor has no data");
-    return NULL;
+  if(t->size == 1 && !t->shape){
+    char *p = (char *)t->buf;
+    switch(t->dtype){
+      case BOOL:   return PyBool_FromLong(*(bool *)p);
+      case INT8:   return PyLong_FromLong(*(int8 *)p);
+      case UINT8:  return PyLong_FromUnsignedLong(*(uint8 *)p);
+      case INT16:  return PyLong_FromLong(*(int16 *)p);
+      case UINT16: return PyLong_FromUnsignedLong(*(uint16 *)p);
+      case INT32:  return PyLong_FromLong(*(int32 *)p);
+      case UINT32: return PyLong_FromUnsignedLong(*(uint32 *)p);
+      case INT64:  return PyLong_FromLongLong(*(int64 *)p);
+      case UINT64: return PyLong_FromUnsignedLongLong(*(uint64 *)p);
+      case FP32:   return PyFloat_FromDouble(*(float32 *)p);
+      case FP64:   return PyFloat_FromDouble(*(float64 *)p);
+      case FP128:  return PyFloat_FromDouble((double)*(float128 *)p);
+      case CMPX64: {
+        complex64 *c = (complex64 *)p;
+        return PyComplex_FromDoubles(c->real, c->imag);
+      }
+      case CMPX128: {
+        complex128 *c = (complex128 *)p;
+        return PyComplex_FromDoubles(c->real, c->imag);
+      }
+      default:
+        PyErr_SetString(PyExc_TypeError, "Unsupported dtype");
+        return NULL;
+    }
   }
-  PyObject *list = PyList_New(t->length);
+  PyObject *list = PyList_New(t->size);
   if(!list) return NULL;
-  for(size_t i = 0; i < t->length; i++){
+  for(Py_ssize_t i = 0; i < t->size; i++){
+    char *p = (char *)t->buf + i * t->element_size;
     PyObject *item = NULL;
-    dtype_t dtype= t->dtype;
-    if(dtype == BOOL) item = PyBool_FromLong(((u8 *)t->data)[i]);
-    else if(dtype == INT8) item = PyLong_FromLong(((i8 *)t->data)[i]);
-    else if(dtype == UINT8) item = PyLong_FromUnsignedLong(((u8 *)t->data)[i]);
-    else if(dtype == INT16) item = PyLong_FromLong(((i16 *)t->data)[i]);
-    else if(dtype == UINT16) item = PyLong_FromUnsignedLong(((u16 *)t->data)[i]);
-    else if(dtype == INT32) item = PyLong_FromLong(((i32 *)t->data)[i]);
-    else if(dtype == UINT32) item = PyLong_FromUnsignedLong(((u32 *)t->data)[i]);
-    else if(dtype == INT64) item = PyLong_FromLong(((i64 *)t->data)[i]);
-    else if(dtype == UINT64) item = PyLong_FromUnsignedLong(((u64 *)t->data)[i]);
-    else if(dtype == FP32) item = PyFloat_FromDouble((f64)((f32 *)t->data)[i]);
-    else if(dtype == FP64) item = PyFloat_FromDouble(((f64 *)t->data)[i]);
-    else if(dtype == FP128) item = PyFloat_FromDouble((f64)((f128 *)t->data)[i]);
-    else if(dtype == CMPX64){
-      c64 v = ((c64 *)t->data)[i];
-      item = PyComplex_FromDoubles(crealf(v), cimagf(v));
-    }else if(dtype == CMPX128){
-      c128 v = ((c128 *)t->data)[i];
-      item = PyComplex_FromDoubles(creal(v), cimag(v));
-    }else if(dtype == CMPX256){
-      c256 v = ((c256 *)t->data)[i];
-      item = PyComplex_FromDoubles((double)creall(v), (double)cimagl(v));
-    }else{
-      Py_DECREF(list);
-      PyErr_SetString(PyExc_RuntimeError, "Unknown dtype");
-      return NULL;
+    switch(t->dtype){
+      case BOOL: item = PyBool_FromLong(*(bool *)p); break;
+      case INT8: item = PyLong_FromLong(*(int8 *)p); break;
+      case UINT8: item = PyLong_FromUnsignedLong(*(uint8 *)p); break;
+      case INT16: item = PyLong_FromLong(*(int16 *)p); break;
+      case UINT16: item = PyLong_FromUnsignedLong(*(uint16 *)p); break;
+      case INT32: item = PyLong_FromLong(*(int32 *)p); break;
+      case UINT32: item = PyLong_FromUnsignedLong(*(uint32 *)p); break;
+      case INT64: item = PyLong_FromLongLong(*(int64 *)p); break;
+      case UINT64: item = PyLong_FromUnsignedLongLong(*(uint64 *)p); break;
+      case FP32: item = PyFloat_FromDouble(*(float32 *)p); break;
+      case FP64: item = PyFloat_FromDouble(*(float64 *)p); break;
+      case FP128: item = PyFloat_FromDouble((double)*(float128 *)p); break;
+      case CMPX64: {
+        complex64 *c = (complex64 *)p;
+        item = PyComplex_FromDoubles(c->real, c->imag);
+        break;
+      }
+      case CMPX128: {
+        complex128 *c = (complex128 *)p;
+        item = PyComplex_FromDoubles(c->real, c->imag);
+        break;
+      }
+      default:
+        Py_DECREF(list);
+        PyErr_SetString(PyExc_TypeError, "Unsupported dtype");
+        return NULL;
     }
-    if(!item){
-      Py_DECREF(list);
-      return NULL;
-    }
-    PyList_SET_ITEM(list, i, item);
+    PyList_SET_ITEM(list, i, item);  /* steals ref */
   }
   return list;
 }
 
-static PyObject *clone_(PyObject *self, PyObject *args){
-  PyObject *capsule;
-  if(!PyArg_ParseTuple(args, "O", &capsule)) return NULL;
-  if(!PyCapsule_CheckExact(capsule)){
-    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule");
-    return NULL;
-  }
-  tensor_t *ptr = PyCapsule_GetPointer(capsule, "tensor_t on CPU");
-  tensor_t *out = malloc(sizeof(tensor_t));
-  *out = create(ptr->ndim, ptr->shape, ptr->device, 0, ptr->dtype);
-  memcpy(out->data, ptr->data, ptr->length * ptr->elem_size);
-  return PyCapsule_New(out, "tensor_t on CPU", capsule_destructor);
-}
 
 static PyMethodDef methods[] = {
-  {"tocpu", tocpu, METH_VARARGS, "store tensor"},
-  {"tolist", tolist, METH_VARARGS, "return tensor into the python list"},
-  {"clone", clone_, METH_VARARGS, "return the clone of a tensor"},
+  {"tocpu", tocpu, METH_VARARGS, "store tensor in tensor_t"},
+  {"topyobj", topyobj, METH_VARARGS, "returns python list"},
   {NULL, NULL, 0, NULL}
 };
 

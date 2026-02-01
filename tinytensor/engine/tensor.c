@@ -1,139 +1,102 @@
+// ======================================================
+//
+// trying to implement the tinytensor engine from scratch
+//
+// ======================================================
+
 #include <cuda_runtime.h>
 #include <stdlib.h>
-#include <stdbool.h>
-#include <string.h>
-#include <stdint.h>
-#include "dtypes.h"
+#include "complex.h"
+
+#define bool unsigned char
+#define int8 char
+#define uint8 unsigned char
+#define int16 short
+#define uint16 unsigned short
+#define int32 int
+#define uint32 unsigned int
+#define int64 long
+#define uint64 unsigned long
+#define float32 float
+#define float64 double
+#define float128 long double
+#define complex64 complex64_t
+#define complex128 complex128_t
+
+typedef enum { CPU, CUDA } DEVICES_t;
 
 typedef enum {
+  ERROR, // error
   BOOL,
-  UINT8,
-  UINT16,
-  UINT32,
-  UINT64,
   INT8,
+  UINT8,
   INT16,
+  UINT16,
   INT32,
+  UINT32,
   INT64,
+  UINT64,
   FP32,
   FP64,
   FP128,
   CMPX64,
   CMPX128,
-  CMPX256
 } dtype_t;
 
-typedef enum {
-  CPU,
-  CUDA
-} device_t;
-
-typedef struct {
-  void *data;
-  size_t ndim;
-  size_t *shape;
-  size_t length;
-  size_t elem_size;
-  device_t device; // CPU=0, CUDA=1
-  int device_index; // device index depends on which device selected (CPU/CUDA)
-  dtype_t dtype;
-} tensor_t;
-
-static size_t dtype_size(dtype_t dtype){
+size_t getsize(dtype_t dtype){
   switch(dtype){
     case BOOL: return sizeof(bool);
-    case UINT8: return sizeof(u8);
-    case UINT16: return sizeof(u16);
-    case UINT32: return sizeof(u32);
-    case UINT64: return sizeof(u64);
-    case INT8: return sizeof(i8);
-    case INT16: return sizeof(i16);
-    case INT32: return sizeof(i32);
-    case INT64: return sizeof(i64);
-    case FP32: return sizeof(f32);
-    case FP64: return sizeof(f64);
-    case FP128: return sizeof(f128);
-    case CMPX64: return sizeof(c64);
-    case CMPX128: return sizeof(c128);
-    case CMPX256: return sizeof(c256);
+    case INT8: return sizeof(int8);
+    case UINT8: return sizeof(uint8);
+    case INT16: return sizeof(int16);
+    case UINT16: return sizeof(uint16);
+    case INT32: return sizeof(int32);
+    case UINT32: return sizeof(uint32);
+    case INT64: return sizeof(int64);
+    case UINT64: return sizeof(uint64);
+    case FP32: return sizeof(float32);
+    case FP64: return sizeof(float64);
+    case FP128: return sizeof(float128);
+    case CMPX64: return sizeof(complex64);
+    case CMPX128: return sizeof(complex128);
     default: return 0;
   }
 }
 
-tensor_t create(size_t ndim, const size_t *shape, device_t device, int device_index, dtype_t dtype){
-  tensor_t arr = {0};
-  if(ndim == 0 || !shape) return arr;
-  arr.elem_size = dtype_size(dtype);
-  if(arr.elem_size == 0) return arr;
-  arr.ndim = ndim;
-  arr.dtype = dtype;
-  arr.shape = malloc(ndim * sizeof(size_t));
-  if(!arr.shape) return arr;
-  arr.length = 1;
-  for(size_t i = 0; i < ndim; i++){
-    if(shape[i] == 0 ||
-       arr.length > SIZE_MAX / shape[i]){
-      free(arr.shape);
-      arr.shape = NULL;
-      arr.length = 0;
-      return arr;
+typedef struct {
+  DEVICES_t type;
+  unsigned short index;
+} device_t;
+
+typedef struct {
+  void *ptr;
+  size_t bytes;
+  device_t device;
+  int refcount;
+} storage_t;
+
+typedef struct {
+  storage_t *storage;
+  void *buf;
+  dtype_t dtype;
+  size_t element_size;
+  size_t size; // length
+  size_t ndim;
+  size_t *shape;
+  size_t *stride;
+  device_t device;
+} tensor_t;
+
+void destroy(tensor_t *t){
+  if(!t) return;
+  if(t->shape) free(t->shape);
+  if(t->stride) free(t->stride);
+  if(t->storage){
+    if(--t->storage->refcount == 0){
+      if(t->storage->device.type == CUDA) cudaFree(t->storage->ptr);
+      else free(t->storage->ptr);
+      free(t->storage);
     }
-    arr.shape[i] = shape[i];
-    arr.length *= shape[i];
   }
-  arr.data = malloc(arr.length * arr.elem_size);
-  if(!arr.data){
-    free(arr.shape);
-    arr.shape = NULL;
-    arr.length = 0;
-  }
-  arr.device = device;
-  if(arr.device == CUDA) arr.device_index = device_index;
-  else arr.device_index = 0;
-  return arr;
-}
-
-void destroy(tensor_t *arr){
-  if(!arr) return;
-  free(arr->shape);
-  if(arr->data){
-    if(arr->device == CPU) free(arr->data);
-    else if(arr->device == CUDA) cudaFree(arr->data);
-  }
-  arr->data = NULL;
-  arr->shape = NULL;
-  arr->ndim = 0;
-  arr->length = 0;
-  arr->elem_size = 0;
-  arr->device = 0;
-  arr->device_index = 0;
-  arr->dtype = 0;
-}
-
-void *get(const tensor_t *tensor, const size_t *indices){
-  if(!tensor || !tensor->data || !indices) return NULL;
-  size_t linear_index = 0;
-  size_t stride = 1;
-  for(size_t i = tensor->ndim; i-- > 0;){
-    if(indices[i] >= tensor->shape[i]) return NULL;
-    linear_index += indices[i] * stride;
-    stride *= tensor->shape[i];
-  }
-  return (char *)tensor->data + linear_index * tensor->elem_size;
-}
-
-void set(tensor_t *tensor, const size_t *indices, void *value){
-  if(!tensor || !tensor->data || !indices) return;
-  size_t linear_index = 0;
-  size_t stride = 1;
-  for(size_t i = tensor->ndim; i-- >0;){
-    if(indices[i] >= tensor->shape[i]) return;
-    linear_index += indices[i] * stride;
-    stride *= tensor->shape[i];
-  }
-  memcpy(
-    (char *)tensor->data + linear_index * tensor->elem_size,
-    value,
-    tensor->elem_size
-  );
+  free(t);
 }
