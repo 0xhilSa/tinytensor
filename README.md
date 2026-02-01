@@ -43,7 +43,7 @@ print(y.device)
 - [ ] Profiler for cpu/cuda based tensors
 - [ ] Supports cross dtypes tensor operation
 - [X] Implement `copy` method
-- [ ] Implement tensor broadcasting
+- [X] Implement tensor broadcasting
 - [X] Implement `Tensor` dtype casting
 - [X] Enable cuda device selection
 
