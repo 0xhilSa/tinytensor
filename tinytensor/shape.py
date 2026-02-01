@@ -2,7 +2,6 @@ from typing import Tuple, Union
 
 class Shape:
   def __init__(self, shape:Tuple[int,...]):
-    if not shape: raise RuntimeError(f"shape can't be empty")
     self.shape = shape
     self.ndim = len(shape)
     self.size = 1
