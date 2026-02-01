@@ -2,7 +2,7 @@ from typing import List, Tuple, Union, Optional, Any
 from tinytensor import dtypes
 
 _CAST = {
-  dtypes.bool_: bool,
+  dtypes.bool: bool,
   dtypes.int8: int,
   dtypes.int16: int,
   dtypes.int32: int,
@@ -26,13 +26,13 @@ def infer_dtype(
   if dtype is None:
     if any(isinstance(x, complex) for x in buf): dtype = dtypes.complex128
     elif any(isinstance(x, float) for x in buf): dtype = dtypes.float64
-    elif all(isinstance(x, bool) for x in buf): dtype = dtypes.bool_
+    elif all(isinstance(x, bool) for x in buf): dtype = dtypes.bool
     elif all(isinstance(x, int) for x in buf): dtype = dtypes.int64
     else: raise TypeError("Unsupported buf types")
   if dtype is int: dtype = dtypes.int64
   elif dtype is float: dtype = dtypes.float64
   elif dtype is complex: dtype = dtypes.complex128
-  elif dtype is bool: dtype = dtypes.bool_
+  elif dtype is bool: dtype = dtypes.bool
   if not isinstance(dtype, dtypes.DType): raise TypeError("dtype must be a DType or a Python scalar type")
   caster = _CAST.get(dtype)
   if caster is None: raise TypeError(f"No caster defined for dtype {dtype}")
@@ -44,10 +44,9 @@ def flatten(buf:list|dtypes.ConstType):
   for x in buf: flat.extend(flatten(x))
   return flat
 
-def infer_shape(lst) -> tuple:
-  if not isinstance(lst, list): return ()
-  if len(lst) == 0: return (0,)
-  return (len(lst),) + infer_shape(lst[0])
+def shape_of(x):
+  if not isinstance(x, list): return ()
+  return (len(x),) + shape_of(x[0])
 
 def has_uniform_shape(lst):
   if not isinstance(lst, list): return True
@@ -56,7 +55,7 @@ def has_uniform_shape(lst):
   return all(has_uniform_shape(x) for x in lst)
 
 def reshape(data: List[Any], shape: Tuple[int, ...]) -> List[Any]:
-  if not shape: raise ValueError("shape must be non-empty")
+  if not shape: return data
   total = 1
   for d in shape: total *= d
   if total != len(data): raise ValueError("shape does not match data length")
