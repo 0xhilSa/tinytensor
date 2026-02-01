@@ -36,10 +36,10 @@ print(y.device)
 ## TODOs
 - [X] Implement conversion from raw pointers / PyCapsules to Python lists (CPU & CUDA)
 - [ ] Extend `.cuda()` and `.cpu()` to support `copy`, `dtype`, `const`, and related parameters
-- [ ] Add CUDA device selection and device indexing support
+- [X] Add CUDA device selection and device indexing support
 - [ ] Implement basic arithmetic operations (`__add__`, `__sub__`, etc.)
 - [ ] Implement relational operations (`__eq__`, `__ne__`, etc.)
-- [ ] Vectorize tensor operations for performance
+- [X] Vectorize tensor operations for performance
 - [ ] Profiler for cpu/cuda based tensors
 - [ ] Supports cross dtypes tensor operation
 - [X] Implement `copy` method
