@@ -19,7 +19,7 @@ _CAST = {
   dtypes.complex256: complex,
 }
 
-def infer_dtype(
+def dtype_of(
   buf: List,
   dtype: Optional[Union[dtypes.ConstType,dtypes.DType]] = None
 ):
