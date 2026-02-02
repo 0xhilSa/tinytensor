@@ -1,5 +1,5 @@
 from tinytensor.engine.cpu.cpu import tocpu, topyobj
-from tinytensor.engine.cpu.cpu_ops import add, sub, mul
+from tinytensor.engine.cpu.cpu_ops import add, sub, mul, eq, ne
 
 __all__ = [
   "tocpu",
@@ -7,4 +7,6 @@ __all__ = [
   "add",
   "sub",
   "mul",
+  "eq",
+  "ne",
 ]
