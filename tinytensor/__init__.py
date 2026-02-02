@@ -16,8 +16,8 @@ def tensor(
 
 from tinytensor.dtypes import (bool, int8, uint8, int16, uint16,
                                int32, uint32, int64, uint64,
-                               float32, float64, float128,
-                               complex64, complex128, complex256)
+                               float32, float64, longdouble,
+                               complex64, complex128)
 
 __all__ = [
   "cuda_available",
@@ -38,8 +38,7 @@ __all__ = [
   "uint64",
   "float32",
   "float64",
-  "float128",
+  "longdouble",
   "complex64",
   "complex128",
-  "complex256"
 ]
