@@ -1,6 +1,8 @@
 from __future__ import annotations
 from typing import List, Optional, Tuple, Union
 from tinytensor import dtypes
+from tinytensor.engine.cpu.cpu import topyobj
+from tinytensor.engine.cuda.cuda import tocuda
 from tinytensor.shape import Shape
 from tinytensor.engine import cpu, cuda
 from tinytensor.helpers import dtype_of, shape_of, flatten, reshape
@@ -17,7 +19,7 @@ class Tensor:
   ):
     self.__shape = Shape(shape_of(buf))
     self.__ndim = self.__shape.ndim
-    buf = flatten(buf)
+    buf = flatten(buf) if isinstance(buf, list) else buf
     buf, self.__dtype = dtype_of(buf, dtype)
     self.__device = Device(device) if not isinstance(device, Device) else device
     self.__const = const
@@ -154,7 +156,31 @@ class Tensor:
       out = cpu.topyobj(cpu.ne(x.buf,y.buf)) if self.__device.type == "CPU" else cuda.topyobj(cuda.ne(x.buf, y.buf))
     else: out = cpu.topyobj(cpu.ne(self.buf, other.buf)) if self.__device.type == "CPU" else cuda.topyobj(cuda.ne(self.buf, other.buf))
     return Tensor(reshape(out, self.__shape.shape), dtype=dtypes.bool, device=f"{self.__device.type}:{self.__device.index}") # type: ignore
-  def __gt__(self, other:Union[dtypes.ConstType,Tensor,List]): raise NotImplementedError
-  def __ge__(self, other:Union[dtypes.ConstType,Tensor,List]): raise NotImplementedError
-  def __lt__(self, other:Union[dtypes.ConstType,Tensor,List]): raise NotImplementedError
-  def __le__(self, other:Union[dtypes.ConstType,Tensor,List]): raise NotImplementedError
+  def __gt__(self, other:Union[dtypes.ConstType,Tensor,List]) -> Tensor: # type: ignore
+    if not isinstance(other, Tensor): other = Tensor(other, dtype=self.__dtype, device=f"{self.__device.type}:{self.__device.index}")
+    if self.__shape != other.__shape:
+      x, y = Tensor.broadcast(self, other)
+      out = cpu.topyobj(cpu.gt(x.buf, y.buf)) if self.__device.type == "CPU" else cuda.topyobj(cuda.gt(x.buf, y.buf))
+    else: out = cpu.topyobj(cpu.gt(self.buf, other.buf)) if self.__device.type == "CPU" else cuda.topyobj(cuda.gt(self.buf, other.buf))
+    return Tensor(reshape(out, self.__shape.shape), dtype=dtypes.bool, device=f"{self.__device.type}:{self.__device.index}") # type: ignore
+  def __ge__(self, other:Union[dtypes.ConstType,Tensor,List]) -> Tensor: # type: ignore
+    if not isinstance(other, Tensor): other = Tensor(other, dtype=self.__dtype, device=f"{self.__device.type}:{self.__device.index}")
+    if self.__shape != other.__shape:
+      x, y = Tensor.broadcast(self, other)
+      out = cpu.topyobj(cpu.ge(x.buf, y.buf)) if self.__device.type == "CPU" else cuda.topyobj(cuda.ge(x.buf, y.buf))
+    else: out = cpu.topyobj(cpu.ge(self.buf, other.buf)) if self.__device.type == "CPU" else cuda.topyobj(cuda.ge(self.buf, other.buf))
+    return Tensor(reshape(out, self.__shape.shape), dtype=dtypes.bool, device=f"{self.__device.type}:{self.__device.index}") # type: ignore
+  def __lt__(self, other:Union[dtypes.ConstType,Tensor,List]) -> Tensor: # type: ignore
+    if not isinstance(other, Tensor): other = Tensor(other, dtype=self.__dtype, device=f"{self.__device.type}:{self.__device.index}")
+    if self.__shape != other.__shape:
+      x, y = Tensor.broadcast(self, other)
+      out = cpu.topyobj(cpu.lt(x.buf, y.buf)) if self.__device.type == "CPU" else cuda.topyobj(cuda.lt(x.buf, y.buf))
+    else: out = cpu.topyobj(cpu.lt(self.buf, other.buf)) if self.__device.type == "CPU" else cuda.topyobj(cuda.lt(self.buf, other.buf))
+    return Tensor(reshape(out, self.__shape.shape), dtype=dtypes.bool, device=f"{self.__device.type}:{self.__device.index}") # type: ignore
+  def __le__(self, other:Union[dtypes.ConstType,Tensor,List]) -> Tensor: # type: ignore
+    if not isinstance(other, Tensor): other = Tensor(other, dtype=self.__dtype, device=f"{self.__device.type}:{self.__device.index}")
+    if self.__shape != other.__shape:
+      x, y = Tensor.broadcast(self, other)
+      out = cpu.topyobj(cpu.le(x.buf, y.buf)) if self.__device.type == "CPU" else cuda.topyobj(cuda.le(x.buf, y.buf))
+    else: out = cpu.topyobj(cpu.le(self.buf, other.buf)) if self.__device.type == "CPU" else cuda.topyobj(cuda.le(self.buf, other.buf))
+    return Tensor(reshape(out, self.__shape.shape), dtype=dtypes.bool, device=f"{self.__device.type}:{self.__device.index}") # type: ignore
