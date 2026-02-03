@@ -216,7 +216,7 @@ static PyObject *tocpu(PyObject *self, PyObject *args){
   PyObject *shape; // empty if scalar
   const char *fmt;
   if(!PyArg_ParseTuple(args, "OOs", &pyobj, &shape, &fmt)) return NULL;
-  if(PyList_Check(pyobj) && PyTuple_Check(shape)){
+  if(PyTuple_Size(shape) != 0){
     Py_ssize_t length = PyList_Size(pyobj);
     return __list__(pyobj, shape, length, *fmt);
   }else return __scalar__(pyobj, *fmt);
