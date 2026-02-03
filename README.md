@@ -38,7 +38,7 @@ print(y.device)
 - [ ] Extend `.cuda()` and `.cpu()` to support `copy`, `dtype`, `const`, and related parameters
 - [X] Add CUDA device selection and device indexing support
 - [ ] Implement basic arithmetic operations (`__add__`, `__sub__`, etc.)
-- [ ] Implement relational operations (`__eq__`, `__ne__`, etc.)
+- [X] Implement relational operations (`__eq__`, `__ne__`, etc.)
 - [X] Vectorize tensor operations for performance
 - [ ] Profiler for cpu/cuda based tensors
 - [ ] Supports cross dtypes tensor operation
@@ -46,6 +46,7 @@ print(y.device)
 - [X] Implement tensor broadcasting
 - [X] Implement `Tensor` dtype casting
 - [X] Enable cuda device selection
+- [ ] Implement Tensor operation graph(s)
 
 ## OS(es)
 tinytensor runs on
