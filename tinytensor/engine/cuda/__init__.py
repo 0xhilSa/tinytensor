@@ -1,5 +1,5 @@
 from tinytensor.engine.cuda.cuda import device_count, get_device_prop, device_name, is_available, get_device, topyobj, tocuda, runtime_version, driver_version, driver_package
-from tinytensor.engine.cuda.cuda_ops import add, sub, mul, eq, ne
+from tinytensor.engine.cuda.cuda_ops import add, sub, mul, eq, ne, gt, ge, lt, le
 
 __all__ = [
   "driver_package",
@@ -16,5 +16,9 @@ __all__ = [
   "sub",
   "mul",
   "eq",
-  "ne"
+  "ne",
+  "gt",
+  "ge",
+  "lt",
+  "le",
 ]

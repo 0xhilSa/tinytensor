@@ -1,10 +1,6 @@
 #include <cuda_runtime.h>
 #include <python3.10/Python.h>
 #include <nvml.h>
-#include <python3.10/methodobject.h>
-#include <python3.10/modsupport.h>
-#include <python3.10/pyerrors.h>
-#include <python3.10/tupleobject.h>
 #include "../tensor.h"
 
 #define CUDA_CHECK(call) \

@@ -63,14 +63,41 @@ __global__ void ne_tensor_kernel(const T *x, const T *y, bool *z, size_t length)
   }
 }
 
-// CUDA kernel for element-wise tensor non-equivalence
-//template<typename T>
-//__global__ void ne_tensor_kernel(const T *x, const T *y, T *z, size_t length){
-//  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-//  if(idx < length){
-//    z[idx] = x[idx] != y[idx];
-//  }
-//}
+// CUDA kernel for element-wise tensor greater than
+template<typename T>
+__global__ void gt_tensor_kernel(const T *x, const T *y, bool *z, size_t length){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx < length){
+    z[idx] = (x[idx] > y[idx]);
+  }
+}
+
+// CUDA kernel for element-wise tensor greater than equal
+template<typename T>
+__global__ void ge_tensor_kernel(const T *x, const T *y, bool *z, size_t length){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx < length){
+    z[idx] = (x[idx] > y[idx]);
+  }
+}
+
+// CUDA kernel for element-wise tensor less than
+template<typename T>
+__global__ void lt_tensor_kernel(const T *x, const T *y, bool *z, size_t length){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx < length){
+    z[idx] = (x[idx] < y[idx]);
+  }
+}
+
+// CUDA kernel for element-wise tensor less than equal
+template<typename T>
+__global__ void le_tensor_kernel(const T *x, const T *y, bool *z, size_t length){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx < length){
+    z[idx] = (x[idx] <= y[idx]);
+  }
+}
 
 // Specialized kernel for boolean OR operation
 __global__ void add_bool_kernel(const bool *x, const bool *y, bool *z, size_t length){
@@ -87,6 +114,7 @@ __global__ void sub_bool_kernel(const bool *x, const bool *y, bool *z, size_t le
   }
 }
 
+// CUDA kernel for boolean AND op
 __global__ void mul_bool_kernel(const bool *x, const bool *y, bool *z, size_t length){
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   if(idx < length){
@@ -376,13 +404,144 @@ static PyObject *__ne_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t 
   return PyCapsule_New(tz, "tensor_t on CUDA", capsule_destroyer);
 }
 
-static int shapes_match(const tensor_t *tx, const tensor_t *ty){
-  if(tx->ndim != ty->ndim) return 0;
-  if(!tx->shape || !ty->shape) return 0;
-  for(size_t i = 0; i < tx->ndim; i++){
-    if(tx->shape[i] != ty->shape[i]) return 0;
+static PyObject *__gt_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
+  size_t length = tx->size;
+  dtype_t dtype = tx->dtype;
+  int blockSize = 256;
+  int gridSize = (length + blockSize - 1) / blockSize;
+  switch(dtype){
+    case BOOL: gt_tensor_kernel<<<gridSize, blockSize>>>((bool *)tx->buf, (bool *)ty->buf, (bool *)tz->buf, length); break;
+    case INT8: gt_tensor_kernel<int8><<<gridSize, blockSize>>>((int8 *)tx->buf, (int8 *)ty->buf, (bool *)tz->buf, length); break;
+    case UINT8: gt_tensor_kernel<uint8><<<gridSize, blockSize>>>((uint8 *)tx->buf, (uint8 *)ty->buf, (bool *)tz->buf, length); break;
+    case INT16: gt_tensor_kernel<int16><<<gridSize, blockSize>>>((int16 *)tx->buf, (int16 *)ty->buf, (bool *)tz->buf, length); break;
+    case UINT16: gt_tensor_kernel<uint16><<<gridSize, blockSize>>>((uint16 *)tx->buf, (uint16 *)ty->buf, (bool *)tz->buf, length); break;
+    case INT32: gt_tensor_kernel<int32><<<gridSize, blockSize>>>((int32 *)tx->buf, (int32 *)ty->buf, (bool *)tz->buf, length); break;
+    case UINT32: gt_tensor_kernel<uint32><<<gridSize, blockSize>>>((uint32 *)tx->buf, (uint32 *)ty->buf, (bool *)tz->buf, length); break;
+    case INT64: gt_tensor_kernel<int64><<<gridSize, blockSize>>>((int64 *)tx->buf, (int64 *)ty->buf, (bool *)tz->buf, length); break;
+    case UINT64: gt_tensor_kernel<uint64><<<gridSize, blockSize>>>((uint64 *)tx->buf, (uint64 *)ty->buf, (bool *)tz->buf, length); break;
+    case FP32: gt_tensor_kernel<float32><<<gridSize, blockSize>>>((float32 *)tx->buf, (float32 *)ty->buf, (bool *)tz->buf, length); break;
+    case FP64: gt_tensor_kernel<float64><<<gridSize, blockSize>>>((float64 *)tx->buf, (float64 *)ty->buf, (bool *)tz->buf, length); break;
+    case FP128: gt_tensor_kernel<float128><<<gridSize, blockSize>>>((float128 *)tx->buf, (float128 *)ty->buf, (bool *)tz->buf, length); break;
+    case ERROR:
+      PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
+      return NULL;
   }
-  return 1;
+  cudaError_t err = cudaGetLastError();
+  if(err != cudaSuccess){
+    PyErr_Format(PyExc_RuntimeError, "CUDA kernel launch failed: %s", cudaGetErrorString(err));
+    return NULL;
+  }
+  err = cudaDeviceSynchronize();
+  if(err != cudaSuccess){
+    PyErr_Format(PyExc_RuntimeError, "CUDA synchronization failed: %s", cudaGetErrorString(err));
+    return NULL;
+  }
+  return PyCapsule_New(tz, "tensor_t on CUDA", capsule_destroyer);
+}
+
+static PyObject *__ge_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
+  size_t length = tx->size;
+  dtype_t dtype = tx->dtype;
+  int blockSize = 256;
+  int gridSize = (length + blockSize - 1) / blockSize;
+  switch(dtype){
+    case BOOL: ge_tensor_kernel<<<gridSize, blockSize>>>((bool *)tx->buf, (bool *)ty->buf, (bool *)tz->buf, length); break;
+    case INT8: ge_tensor_kernel<int8><<<gridSize, blockSize>>>((int8 *)tx->buf, (int8 *)ty->buf, (bool *)tz->buf, length); break;
+    case UINT8: ge_tensor_kernel<uint8><<<gridSize, blockSize>>>((uint8 *)tx->buf, (uint8 *)ty->buf, (bool *)tz->buf, length); break;
+    case INT16: ge_tensor_kernel<int16><<<gridSize, blockSize>>>((int16 *)tx->buf, (int16 *)ty->buf, (bool *)tz->buf, length); break;
+    case UINT16: ge_tensor_kernel<uint16><<<gridSize, blockSize>>>((uint16 *)tx->buf, (uint16 *)ty->buf, (bool *)tz->buf, length); break;
+    case INT32: ge_tensor_kernel<int32><<<gridSize, blockSize>>>((int32 *)tx->buf, (int32 *)ty->buf, (bool *)tz->buf, length); break;
+    case UINT32: ge_tensor_kernel<uint32><<<gridSize, blockSize>>>((uint32 *)tx->buf, (uint32 *)ty->buf, (bool *)tz->buf, length); break;
+    case INT64: ge_tensor_kernel<int64><<<gridSize, blockSize>>>((int64 *)tx->buf, (int64 *)ty->buf, (bool *)tz->buf, length); break;
+    case UINT64: ge_tensor_kernel<uint64><<<gridSize, blockSize>>>((uint64 *)tx->buf, (uint64 *)ty->buf, (bool *)tz->buf, length); break;
+    case FP32: ge_tensor_kernel<float32><<<gridSize, blockSize>>>((float32 *)tx->buf, (float32 *)ty->buf, (bool *)tz->buf, length); break;
+    case FP64: ge_tensor_kernel<float64><<<gridSize, blockSize>>>((float64 *)tx->buf, (float64 *)ty->buf, (bool *)tz->buf, length); break;
+    case FP128: ge_tensor_kernel<float128><<<gridSize, blockSize>>>((float128 *)tx->buf, (float128 *)ty->buf, (bool *)tz->buf, length); break;
+    case ERROR:
+      PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
+      return NULL;
+  }
+  cudaError_t err = cudaGetLastError();
+  if(err != cudaSuccess){
+    PyErr_Format(PyExc_RuntimeError, "CUDA kernel launch failed: %s", cudaGetErrorString(err));
+    return NULL;
+  }
+  err = cudaDeviceSynchronize();
+  if(err != cudaSuccess){
+    PyErr_Format(PyExc_RuntimeError, "CUDA synchronization failed: %s", cudaGetErrorString(err));
+    return NULL;
+  }
+  return PyCapsule_New(tz, "tensor_t on CUDA", capsule_destroyer);
+}
+
+static PyObject *__lt_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
+  size_t length = tx->size;
+  dtype_t dtype = tx->dtype;
+  int blockSize = 256;
+  int gridSize = (length + blockSize - 1) / blockSize;
+  switch(dtype){
+    case BOOL: lt_tensor_kernel<<<gridSize, blockSize>>>((bool *)tx->buf, (bool *)ty->buf, (bool *)tz->buf, length); break;
+    case INT8: lt_tensor_kernel<int8><<<gridSize, blockSize>>>((int8 *)tx->buf, (int8 *)ty->buf, (bool *)tz->buf, length); break;
+    case UINT8: lt_tensor_kernel<uint8><<<gridSize, blockSize>>>((uint8 *)tx->buf, (uint8 *)ty->buf, (bool *)tz->buf, length); break;
+    case INT16: lt_tensor_kernel<int16><<<gridSize, blockSize>>>((int16 *)tx->buf, (int16 *)ty->buf, (bool *)tz->buf, length); break;
+    case UINT16: lt_tensor_kernel<uint16><<<gridSize, blockSize>>>((uint16 *)tx->buf, (uint16 *)ty->buf, (bool *)tz->buf, length); break;
+    case INT32: lt_tensor_kernel<int32><<<gridSize, blockSize>>>((int32 *)tx->buf, (int32 *)ty->buf, (bool *)tz->buf, length); break;
+    case UINT32: lt_tensor_kernel<uint32><<<gridSize, blockSize>>>((uint32 *)tx->buf, (uint32 *)ty->buf, (bool *)tz->buf, length); break;
+    case INT64: lt_tensor_kernel<int64><<<gridSize, blockSize>>>((int64 *)tx->buf, (int64 *)ty->buf, (bool *)tz->buf, length); break;
+    case UINT64: lt_tensor_kernel<uint64><<<gridSize, blockSize>>>((uint64 *)tx->buf, (uint64 *)ty->buf, (bool *)tz->buf, length); break;
+    case FP32: lt_tensor_kernel<float32><<<gridSize, blockSize>>>((float32 *)tx->buf, (float32 *)ty->buf, (bool *)tz->buf, length); break;
+    case FP64: lt_tensor_kernel<float64><<<gridSize, blockSize>>>((float64 *)tx->buf, (float64 *)ty->buf, (bool *)tz->buf, length); break;
+    case FP128: lt_tensor_kernel<float128><<<gridSize, blockSize>>>((float128 *)tx->buf, (float128 *)ty->buf, (bool *)tz->buf, length); break;
+    case ERROR:
+      PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
+      return NULL;
+  }
+  cudaError_t err = cudaGetLastError();
+  if(err != cudaSuccess){
+    PyErr_Format(PyExc_RuntimeError, "CUDA kernel launch failed: %s", cudaGetErrorString(err));
+    return NULL;
+  }
+  err = cudaDeviceSynchronize();
+  if(err != cudaSuccess){
+    PyErr_Format(PyExc_RuntimeError, "CUDA synchronization failed: %s", cudaGetErrorString(err));
+    return NULL;
+  }
+  return PyCapsule_New(tz, "tensor_t on CUDA", capsule_destroyer);
+}
+
+static PyObject *__le_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
+  size_t length = tx->size;
+  dtype_t dtype = tx->dtype;
+  int blockSize = 256;
+  int gridSize = (length + blockSize - 1) / blockSize;
+  switch(dtype){
+    case BOOL: le_tensor_kernel<<<gridSize, blockSize>>>((bool *)tx->buf, (bool *)ty->buf, (bool *)tz->buf, length); break;
+    case INT8: le_tensor_kernel<int8><<<gridSize, blockSize>>>((int8 *)tx->buf, (int8 *)ty->buf, (bool *)tz->buf, length); break;
+    case UINT8: le_tensor_kernel<uint8><<<gridSize, blockSize>>>((uint8 *)tx->buf, (uint8 *)ty->buf, (bool *)tz->buf, length); break;
+    case INT16: le_tensor_kernel<int16><<<gridSize, blockSize>>>((int16 *)tx->buf, (int16 *)ty->buf, (bool *)tz->buf, length); break;
+    case UINT16: le_tensor_kernel<uint16><<<gridSize, blockSize>>>((uint16 *)tx->buf, (uint16 *)ty->buf, (bool *)tz->buf, length); break;
+    case INT32: le_tensor_kernel<int32><<<gridSize, blockSize>>>((int32 *)tx->buf, (int32 *)ty->buf, (bool *)tz->buf, length); break;
+    case UINT32: le_tensor_kernel<uint32><<<gridSize, blockSize>>>((uint32 *)tx->buf, (uint32 *)ty->buf, (bool *)tz->buf, length); break;
+    case INT64: le_tensor_kernel<int64><<<gridSize, blockSize>>>((int64 *)tx->buf, (int64 *)ty->buf, (bool *)tz->buf, length); break;
+    case UINT64: le_tensor_kernel<uint64><<<gridSize, blockSize>>>((uint64 *)tx->buf, (uint64 *)ty->buf, (bool *)tz->buf, length); break;
+    case FP32: le_tensor_kernel<float32><<<gridSize, blockSize>>>((float32 *)tx->buf, (float32 *)ty->buf, (bool *)tz->buf, length); break;
+    case FP64: le_tensor_kernel<float64><<<gridSize, blockSize>>>((float64 *)tx->buf, (float64 *)ty->buf, (bool *)tz->buf, length); break;
+    case FP128: le_tensor_kernel<float128><<<gridSize, blockSize>>>((float128 *)tx->buf, (float128 *)ty->buf, (bool *)tz->buf, length); break;
+    case ERROR:
+      PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
+      return NULL;
+  }
+  cudaError_t err = cudaGetLastError();
+  if(err != cudaSuccess){
+    PyErr_Format(PyExc_RuntimeError, "CUDA kernel launch failed: %s", cudaGetErrorString(err));
+    return NULL;
+  }
+  err = cudaDeviceSynchronize();
+  if(err != cudaSuccess){
+    PyErr_Format(PyExc_RuntimeError, "CUDA synchronization failed: %s", cudaGetErrorString(err));
+    return NULL;
+  }
+  return PyCapsule_New(tz, "tensor_t on CUDA", capsule_destroyer);
 }
 
 static PyObject *add(PyObject *self, PyObject *args){
@@ -406,54 +565,10 @@ static PyObject *add(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CUDA)");
     return NULL;
   }
-//  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
-//  if(!tz){
-//    PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
-//    return NULL;
-//  }
-//  tz->dtype = tx->dtype;
-//  tz->size = tx->size;
-//  tz->ndim = tx->ndim;
-//  tz->element_size = tx->element_size;
-//  tz->device = tx->device;
-//  tz->stride = NULL;
-//  if(tx->ndim > 0 && tx->shape){
-//    tz->shape = (size_t *)malloc(sizeof(size_t) * tz->ndim);
-//    if(!tz->shape){
-//      free(tz);
-//      PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape allocation failed!");
-//      return NULL;
-//    }
-//    for(size_t i = 0; i < tz->ndim; i++){
-//      tz->shape[i] = tx->shape[i];
-//    }
-//  }else{
-//    tz->shape = NULL;
-//  }
-//  tz->storage = (storage_t *)malloc(sizeof(storage_t));
-//  if(!tz->storage){
-//    if(tz->shape) free(tz->shape);
-//    free(tz);
-//    PyErr_SetString(PyExc_RuntimeError, "tensor_t.storage allocation failed!");
-//    return NULL;
-//  }
-//  tz->storage->bytes = tz->size * tz->element_size;
-//  tz->storage->device = tz->device;
-//  tz->storage->refcount = 1;
-//  cudaError_t err = cudaMalloc(&tz->storage->ptr, tz->storage->bytes);
-//  if(err != cudaSuccess){
-//    if(tz->shape) free(tz->shape);
-//    free(tz->storage);
-//    free(tz);
-//    PyErr_Format(PyExc_RuntimeError, "CUDA malloc failed: %s", cudaGetErrorString(err));
-//    return NULL;
-//  }
-//  tz->buf = tz->storage->ptr;
   tensor_t *tz = NULL;
   tz = alloc_result_tensor(tx);
   return __add_tensor__(tx, ty, tz);
 }
-
 static PyObject *sub(PyObject *self, PyObject *args){
   PyObject *x, *y;
   if(!PyArg_ParseTuple(args, "OO", &x, &y)) return NULL;
@@ -640,12 +755,284 @@ static PyObject *ne(PyObject *self, PyObject *args){
   return __ne_tensor__(tx, ty, tz);
 }
 
+static PyObject *gt(PyObject *self, PyObject *args){
+  PyObject *x, *y;
+  if(!PyArg_ParseTuple(args, "OO", &x, &y)) return NULL;
+  if(!PyCapsule_CheckExact(x) || !PyCapsule_CheckExact(y)){
+    PyErr_SetString(PyExc_RuntimeError, "operands must be the tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = (tensor_t *)PyCapsule_GetPointer(x, "tensor_t on CUDA");
+  tensor_t *ty = (tensor_t *)PyCapsule_GetPointer(y, "tensor_t on CUDA");
+  if(!tx || !ty){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  if(tx->dtype != ty->dtype){
+    PyErr_SetString(PyExc_TypeError, "Both tensor_t(s) must have the same dtype");
+    return NULL;
+  }
+  if(tx->device.type != ty->device.type || tx->device.type != CUDA){
+    PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CUDA)");
+    return NULL;
+  }
+  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  if(!tz){
+    PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
+    return NULL;
+  }
+  tz->dtype = BOOL;
+  tz->size = tx->size;
+  tz->ndim = tx->ndim;
+  tz->element_size = sizeof(bool);
+  tz->device = tx->device;
+  tz->stride = NULL;
+  if(tx->ndim > 0 && tx->shape){
+    tz->shape = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+    if(!tz->shape){
+      free(tz);
+      PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape allocation failed!");
+      return NULL;
+    }
+    for(size_t i = 0; i < tz->ndim; i++){
+      tz->shape[i] = tx->shape[i];
+    }
+  }else{
+    tz->shape = NULL;
+  }
+  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  if(!tz->storage){
+    if(tz->shape) free(tz->shape);
+    free(tz);
+    PyErr_SetString(PyExc_RuntimeError, "tensor_t.storage allocation failed!");
+    return NULL;
+  }
+  tz->storage->bytes = tz->size * tz->element_size;
+  tz->storage->device = tz->device;
+  tz->storage->refcount = 1;
+  cudaError_t err = cudaMalloc(&tz->storage->ptr, tz->storage->bytes);
+  if(err != cudaSuccess){
+    if(tz->shape) free(tz->shape);
+    free(tz->storage);
+    free(tz);
+    PyErr_Format(PyExc_RuntimeError, "CUDA malloc failed: %s", cudaGetErrorString(err));
+    return NULL;
+  }
+  tz->buf = tz->storage->ptr;
+  return __gt_tensor__(tx, ty, tz);
+}
+
+static PyObject *ge(PyObject *self, PyObject *args){
+  PyObject *x, *y;
+  if(!PyArg_ParseTuple(args, "OO", &x, &y)) return NULL;
+  if(!PyCapsule_CheckExact(x) || !PyCapsule_CheckExact(y)){
+    PyErr_SetString(PyExc_RuntimeError, "operands must be the tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = (tensor_t *)PyCapsule_GetPointer(x, "tensor_t on CUDA");
+  tensor_t *ty = (tensor_t *)PyCapsule_GetPointer(y, "tensor_t on CUDA");
+  if(!tx || !ty){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  if(tx->dtype != ty->dtype){
+    PyErr_SetString(PyExc_TypeError, "Both tensor_t(s) must have the same dtype");
+    return NULL;
+  }
+  if(tx->device.type != ty->device.type || tx->device.type != CUDA){
+    PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CUDA)");
+    return NULL;
+  }
+  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  if(!tz){
+    PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
+    return NULL;
+  }
+  tz->dtype = BOOL;
+  tz->size = tx->size;
+  tz->ndim = tx->ndim;
+  tz->element_size = sizeof(bool);
+  tz->device = tx->device;
+  tz->stride = NULL;
+  if(tx->ndim > 0 && tx->shape){
+    tz->shape = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+    if(!tz->shape){
+      free(tz);
+      PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape allocation failed!");
+      return NULL;
+    }
+    for(size_t i = 0; i < tz->ndim; i++){
+      tz->shape[i] = tx->shape[i];
+    }
+  }else{
+    tz->shape = NULL;
+  }
+  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  if(!tz->storage){
+    if(tz->shape) free(tz->shape);
+    free(tz);
+    PyErr_SetString(PyExc_RuntimeError, "tensor_t.storage allocation failed!");
+    return NULL;
+  }
+  tz->storage->bytes = tz->size * tz->element_size;
+  tz->storage->device = tz->device;
+  tz->storage->refcount = 1;
+  cudaError_t err = cudaMalloc(&tz->storage->ptr, tz->storage->bytes);
+  if(err != cudaSuccess){
+    if(tz->shape) free(tz->shape);
+    free(tz->storage);
+    free(tz);
+    PyErr_Format(PyExc_RuntimeError, "CUDA malloc failed: %s", cudaGetErrorString(err));
+    return NULL;
+  }
+  tz->buf = tz->storage->ptr;
+  return __ge_tensor__(tx, ty, tz);
+}
+
+static PyObject *lt(PyObject *self, PyObject *args){
+  PyObject *x, *y;
+  if(!PyArg_ParseTuple(args, "OO", &x, &y)) return NULL;
+  if(!PyCapsule_CheckExact(x) || !PyCapsule_CheckExact(y)){
+    PyErr_SetString(PyExc_RuntimeError, "operands must be the tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = (tensor_t *)PyCapsule_GetPointer(x, "tensor_t on CUDA");
+  tensor_t *ty = (tensor_t *)PyCapsule_GetPointer(y, "tensor_t on CUDA");
+  if(!tx || !ty){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  if(tx->dtype != ty->dtype){
+    PyErr_SetString(PyExc_TypeError, "Both tensor_t(s) must have the same dtype");
+    return NULL;
+  }
+  if(tx->device.type != ty->device.type || tx->device.type != CUDA){
+    PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CUDA)");
+    return NULL;
+  }
+  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  if(!tz){
+    PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
+    return NULL;
+  }
+  tz->dtype = BOOL;
+  tz->size = tx->size;
+  tz->ndim = tx->ndim;
+  tz->element_size = sizeof(bool);
+  tz->device = tx->device;
+  tz->stride = NULL;
+  if(tx->ndim > 0 && tx->shape){
+    tz->shape = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+    if(!tz->shape){
+      free(tz);
+      PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape allocation failed!");
+      return NULL;
+    }
+    for(size_t i = 0; i < tz->ndim; i++){
+      tz->shape[i] = tx->shape[i];
+    }
+  }else{
+    tz->shape = NULL;
+  }
+  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  if(!tz->storage){
+    if(tz->shape) free(tz->shape);
+    free(tz);
+    PyErr_SetString(PyExc_RuntimeError, "tensor_t.storage allocation failed!");
+    return NULL;
+  }
+  tz->storage->bytes = tz->size * tz->element_size;
+  tz->storage->device = tz->device;
+  tz->storage->refcount = 1;
+  cudaError_t err = cudaMalloc(&tz->storage->ptr, tz->storage->bytes);
+  if(err != cudaSuccess){
+    if(tz->shape) free(tz->shape);
+    free(tz->storage);
+    free(tz);
+    PyErr_Format(PyExc_RuntimeError, "CUDA malloc failed: %s", cudaGetErrorString(err));
+    return NULL;
+  }
+  tz->buf = tz->storage->ptr;
+  return __lt_tensor__(tx, ty, tz);
+}
+
+static PyObject *le(PyObject *self, PyObject *args){
+  PyObject *x, *y;
+  if(!PyArg_ParseTuple(args, "OO", &x, &y)) return NULL;
+  if(!PyCapsule_CheckExact(x) || !PyCapsule_CheckExact(y)){
+    PyErr_SetString(PyExc_RuntimeError, "operands must be the tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = (tensor_t *)PyCapsule_GetPointer(x, "tensor_t on CUDA");
+  tensor_t *ty = (tensor_t *)PyCapsule_GetPointer(y, "tensor_t on CUDA");
+  if(!tx || !ty){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  if(tx->dtype != ty->dtype){
+    PyErr_SetString(PyExc_TypeError, "Both tensor_t(s) must have the same dtype");
+    return NULL;
+  }
+  if(tx->device.type != ty->device.type || tx->device.type != CUDA){
+    PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CUDA)");
+    return NULL;
+  }
+  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  if(!tz){
+    PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
+    return NULL;
+  }
+  tz->dtype = BOOL;
+  tz->size = tx->size;
+  tz->ndim = tx->ndim;
+  tz->element_size = sizeof(bool);
+  tz->device = tx->device;
+  tz->stride = NULL;
+  if(tx->ndim > 0 && tx->shape){
+    tz->shape = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+    if(!tz->shape){
+      free(tz);
+      PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape allocation failed!");
+      return NULL;
+    }
+    for(size_t i = 0; i < tz->ndim; i++){
+      tz->shape[i] = tx->shape[i];
+    }
+  }else{
+    tz->shape = NULL;
+  }
+  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  if(!tz->storage){
+    if(tz->shape) free(tz->shape);
+    free(tz);
+    PyErr_SetString(PyExc_RuntimeError, "tensor_t.storage allocation failed!");
+    return NULL;
+  }
+  tz->storage->bytes = tz->size * tz->element_size;
+  tz->storage->device = tz->device;
+  tz->storage->refcount = 1;
+  cudaError_t err = cudaMalloc(&tz->storage->ptr, tz->storage->bytes);
+  if(err != cudaSuccess){
+    if(tz->shape) free(tz->shape);
+    free(tz->storage);
+    free(tz);
+    PyErr_Format(PyExc_RuntimeError, "CUDA malloc failed: %s", cudaGetErrorString(err));
+    return NULL;
+  }
+  tz->buf = tz->storage->ptr;
+  return __le_tensor__(tx, ty, tz);
+}
+
 static PyMethodDef methods[] = {
   {"add", add, METH_VARARGS, "element-wise addition of two tensors or tensor with scalar on CUDA"},
   {"sub", sub, METH_VARARGS, "element-wise subtraction of two tensors or tensor with scalar on CUDA"},
   {"mul", mul, METH_VARARGS, "element-wise multiplication of two tensors or tensor with scalar on CUDA"},
   {"eq", eq, METH_VARARGS, "element-wise equivalence of two tensors or tensor with scalar on CUDA"},
   {"ne", ne, METH_VARARGS, "element-wise non-equivalence of two tensors or tensor with scalar on CUDA"},
+  {"gt", gt, METH_VARARGS, "element-wise greater than op of two tensors or tensor with scalar on CUDA"},
+  {"ge", ge, METH_VARARGS, "element-wise greater than equal op of two tensors or tensor with scalar on CUDA"},
+  {"lt", lt, METH_VARARGS, "element-wise less than op of two tensors or tensor with scalar on CUDA"},
+  {"le", le, METH_VARARGS, "element-wise less than equal op of two tensors or tensor with scalar on CUDA"},
   {NULL, NULL, 0, NULL}
 };
 
