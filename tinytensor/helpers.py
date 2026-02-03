@@ -18,24 +18,33 @@ _CAST = {
   dtypes.complex128: complex,
 }
 
+from typing import Union, Optional, List
+
 def dtype_of(
-  buf: List,
-  dtype: Optional[Union[dtypes.ConstType,dtypes.DType]] = None
+    buf: Union[List, dtypes.ConstType],
+    dtype: Optional[Union[dtypes.ConstType, dtypes.DType]] = None
 ):
+  is_scalar = isinstance(buf, (int, float, complex, bool))
+  if is_scalar: buf = [buf]
+  elif not isinstance(buf, list): raise TypeError("buf must be a scalar or a list of scalars")
+
   if dtype is None:
+    if not buf: raise TypeError("Cannot infer dtype from empty buffer")
     if any(isinstance(x, complex) for x in buf): dtype = dtypes.complex128
     elif any(isinstance(x, float) for x in buf): dtype = dtypes.float64
     elif all(isinstance(x, bool) for x in buf): dtype = dtypes.bool
     elif all(isinstance(x, int) for x in buf): dtype = dtypes.int64
-    else: raise TypeError("Unsupported buf types")
+    else: raise TypeError("Unsupported buffer element types")
   if dtype is int: dtype = dtypes.int64
   elif dtype is float: dtype = dtypes.float64
   elif dtype is complex: dtype = dtypes.complex128
   elif dtype is bool: dtype = dtypes.bool
-  if not isinstance(dtype, dtypes.DType): raise TypeError("dtype must be a DType or a Python scalar type")
+  if not isinstance(dtype, dtypes.DType): raise TypeError("dtype must be a DType or Python scalar type")
   caster = _CAST.get(dtype)
   if caster is None: raise TypeError(f"No caster defined for dtype {dtype}")
-  return [caster(x) for x in buf], dtype
+  out = [caster(x) for x in buf]
+  if is_scalar: return out[0], dtype
+  return out, dtype
 
 def flatten(buf:list|dtypes.ConstType):
   if not isinstance(buf, list): return [buf]
