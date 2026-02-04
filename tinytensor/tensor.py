@@ -1,8 +1,6 @@
 from __future__ import annotations
 from typing import List, Optional, Tuple, Union
 from tinytensor import dtypes
-from tinytensor.engine.cpu.cpu import topyobj
-from tinytensor.engine.cuda.cuda import tocuda
 from tinytensor.shape import Shape
 from tinytensor.engine import cpu, cuda
 from tinytensor.helpers import dtype_of, shape_of, flatten, reshape
@@ -15,6 +13,7 @@ class Tensor:
     buf:Union[List,dtypes.ConstType],
     dtype:Optional[Union[dtypes.DType,dtypes.ConstType]]=None,
     device:Union[str,Device]="cpu",
+    requires_grad:bool=False,
     const:bool=False
   ):
     self.__shape = Shape(shape_of(buf))
@@ -25,6 +24,7 @@ class Tensor:
     self.__const = const
     if self.__device.type == "CPU": self.__buf = cpu.tocpu(buf, self.__shape.shape, self.__dtype.fmt)
     elif self.__device.type == "CUDA": self.__buf = cuda.tocuda(buf, self.__shape.shape, self.__dtype.fmt, self.__device.index)
+    self.__requires_grad = requires_grad # TODO: yet to be immplemented
   def __repr__(self): return f"Tensor(shape={self.__shape}, dtype='{self.__dtype.ctype}', device={self.__device}, const={self.__const})"
   @property
   def ndim(self): return self.__ndim
@@ -36,6 +36,8 @@ class Tensor:
   def nbyte(self): return self.__shape.size * self.__dtype.nbyte
   @property
   def dtype(self): return self.__dtype
+  @property
+  def requires_grad(self): return self.__requires_grad
   @property
   def buf(self): return self.__buf
   def is_const(self): return self.__const
@@ -184,3 +186,10 @@ class Tensor:
       out = cpu.topyobj(cpu.le(x.buf, y.buf)) if self.__device.type == "CPU" else cuda.topyobj(cuda.le(x.buf, y.buf))
     else: out = cpu.topyobj(cpu.le(self.buf, other.buf)) if self.__device.type == "CPU" else cuda.topyobj(cuda.le(self.buf, other.buf))
     return Tensor(reshape(out, self.__shape.shape), dtype=dtypes.bool, device=f"{self.__device.type}:{self.__device.index}") # type: ignore
+  def __neg__(self): return Tensor(reshape(cpu.topyobj(cpu.neg(self.__buf)), self.__shape.shape), dtype=self.__dtype) if self.__device.type == "CPU" else Tensor(reshape(cuda.topyobj(cuda.neg(self.__buf)) ,self.__shape.shape), dtype=self.__dtype, device=f"cuda:{self.__device.index}") # type: ignore
+  def __pos__(self): return Tensor(reshape(cpu.topyobj(cpu.pos(self.__buf)), self.__shape.shape), dtype=self.__dtype) if self.__device.type == "CPU" else Tensor(reshape(cuda.topyobj(cuda.pos(self.__buf)), self.__shape.shape), dtype=self.__dtype, device=f"cuda:{self.__device.index}") # type: ignore
+  def __abs__(self):
+    if self.__dtype == dtypes.complex64: res_dtype = dtypes.float32
+    elif self.__dtype == dtypes.complex128: res_dtype = dtypes.float64
+    else: res_dtype = self.__dtype
+    return Tensor(reshape(cpu.topyobj(cpu.abs(self.__buf)), self.__shape.shape), dtype=res_dtype) if self.__device.type == "CPU" else Tensor(reshape(cuda.topyobj(cuda.abs(self.__buf)), self.__shape.shape), dtype=res_dtype, device=f"cuda:{self.__device.index}") # type: ignore
