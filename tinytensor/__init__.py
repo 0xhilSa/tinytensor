@@ -1,7 +1,8 @@
 from typing import List, Optional, Union
+from tinytensor import dtypes
 from tinytensor.tensor import Tensor
 from tinytensor.engine import cpu, cuda
-from tinytensor import dtypes
+from tinytensor.engine.constants import pi, e, euler_gamma, inf, nan
 from tinytensor.device import Device
 
 
@@ -41,4 +42,9 @@ __all__ = [
   "longdouble",
   "complex64",
   "complex128",
+  "pi",
+  "e",
+  "euler_gamma",
+  "inf",
+  "nan",
 ]
