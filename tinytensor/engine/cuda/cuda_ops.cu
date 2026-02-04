@@ -164,6 +164,15 @@ __global__ void abs_tensor_kernel(const T* x, T*z, size_t length){
   }
 }
 
+// CUDA kernel for element-wise tensor abs operation
+template<typename T>
+__global__ void abs_utensor_kernel(const T* x, T*z, size_t length){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx < length){
+    z[idx] = x[idx];
+  }
+}
+
 // CUDA kernel for element-wise tensor(cmpx) abs operation
 template<typename T, typename U>
 __global__ void abs_cmpx_tensor_kernel(const T* x, U* z, size_t length){
@@ -693,13 +702,13 @@ static PyObject *__abs_tensor__(const tensor_t *tx, tensor_t *tz){
   int gridSize = (length * blockSize - 1) / blockSize;
   switch(dtype){
     case INT8: abs_tensor_kernel<int8><<<gridSize, blockSize>>>((int8 *)tx->buf, (int8 *)tz->buf, length); break;
-    case UINT8: abs_tensor_kernel<uint8><<<gridSize, blockSize>>>((uint8 *)tx->buf, (uint8 *)tz->buf, length); break;
+    case UINT8: abs_utensor_kernel<uint8><<<gridSize, blockSize>>>((uint8 *)tx->buf, (uint8 *)tz->buf, length); break;
     case INT16: abs_tensor_kernel<int16><<<gridSize, blockSize>>>((int16 *)tx->buf, (int16 *)tz->buf, length); break;
-    case UINT16: abs_tensor_kernel<uint16><<<gridSize, blockSize>>>((uint16 *)tx->buf, (uint16 *)tz->buf, length); break;
+    case UINT16: abs_utensor_kernel<uint16><<<gridSize, blockSize>>>((uint16 *)tx->buf, (uint16 *)tz->buf, length); break;
     case INT32: abs_tensor_kernel<int32><<<gridSize, blockSize>>>((int32 *)tx->buf, (int32 *)tz->buf, length); break;
-    case UINT32: abs_tensor_kernel<uint32><<<gridSize, blockSize>>>((uint32 *)tx->buf, (uint32 *)tz->buf, length); break;
+    case UINT32: abs_utensor_kernel<uint32><<<gridSize, blockSize>>>((uint32 *)tx->buf, (uint32 *)tz->buf, length); break;
     case INT64: abs_tensor_kernel<int64><<<gridSize, blockSize>>>((int64 *)tx->buf, (int64 *)tz->buf, length); break;
-    case UINT64: abs_tensor_kernel<uint64><<<gridSize, blockSize>>>((uint64 *)tx->buf, (uint64 *)tz->buf, length); break;
+    case UINT64: abs_utensor_kernel<uint64><<<gridSize, blockSize>>>((uint64 *)tx->buf, (uint64 *)tz->buf, length); break;
     case FP32: abs_tensor_kernel<float32><<<gridSize, blockSize>>>((float32 *)tx->buf, (float32 *)tz->buf, length); break;
     case FP64: abs_tensor_kernel<float64><<<gridSize, blockSize>>>((float64 *)tx->buf, (float64 *)tz->buf, length); break;
     case CMPX64: abs_cmpx_tensor_kernel<complex64, float32><<<gridSize, blockSize>>>((complex64 *)tx->buf, (float32 *)tz->buf, length); break;
@@ -946,6 +955,10 @@ static PyObject *gt(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_TypeError, "Both tensor_t(s) must have the same dtype");
     return NULL;
   }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_RuntimeError, "> operation on complex tensor is not supported");
+    return NULL;
+  }
   if(tx->device.type != ty->device.type || tx->device.type != CUDA){
     PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CUDA)");
     return NULL;
@@ -1011,6 +1024,10 @@ static PyObject *ge(PyObject *self, PyObject *args){
   }
   if(tx->dtype != ty->dtype){
     PyErr_SetString(PyExc_TypeError, "Both tensor_t(s) must have the same dtype");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_RuntimeError, ">= operation on complex tensor is not supported");
     return NULL;
   }
   if(tx->device.type != ty->device.type || tx->device.type != CUDA){
@@ -1080,6 +1097,10 @@ static PyObject *lt(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_TypeError, "Both tensor_t(s) must have the same dtype");
     return NULL;
   }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_RuntimeError, "< operation on complex tensor is not supported");
+    return NULL;
+  }
   if(tx->device.type != ty->device.type || tx->device.type != CUDA){
     PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CUDA)");
     return NULL;
@@ -1145,6 +1166,10 @@ static PyObject *le(PyObject *self, PyObject *args){
   }
   if(tx->dtype != ty->dtype){
     PyErr_SetString(PyExc_TypeError, "Both tensor_t(s) must have the same dtype");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_RuntimeError, "<= operation on complex tensor is not supported");
     return NULL;
   }
   if(tx->device.type != ty->device.type || tx->device.type != CUDA){
