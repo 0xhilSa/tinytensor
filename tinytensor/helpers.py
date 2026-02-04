@@ -24,10 +24,9 @@ def dtype_of(
     buf: Union[List, dtypes.ConstType],
     dtype: Optional[Union[dtypes.ConstType, dtypes.DType]] = None
 ):
-  is_scalar = isinstance(buf, (int, float, complex, bool))
+  is_scalar = isinstance(buf, dtypes.ConstType)
   if is_scalar: buf = [buf]
   elif not isinstance(buf, list): raise TypeError("buf must be a scalar or a list of scalars")
-
   if dtype is None:
     if not buf: raise TypeError("Cannot infer dtype from empty buffer")
     if any(isinstance(x, complex) for x in buf): dtype = dtypes.complex128
@@ -54,6 +53,7 @@ def flatten(buf:list|dtypes.ConstType):
 
 def shape_of(x):
   if not isinstance(x, list): return ()
+  if not has_uniform_shape(x): raise ValueError("buf must satisfy shape uniformity")
   return (len(x),) + shape_of(x[0])
 
 def has_uniform_shape(lst):
