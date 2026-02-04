@@ -11,6 +11,7 @@
     } \
   } while(0)
 
+// capsule destroyer
 void capsule_destroyer(PyObject *capsule){
   tensor_t *t = (tensor_t *)PyCapsule_GetPointer(capsule, "tensor_t on CUDA");
   if(t){
