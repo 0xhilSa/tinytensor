@@ -1,10 +1,9 @@
 from dataclasses import dataclass
 from typing import Literal, Final
-import ctypes
 
 Fmts = Literal[
     "?", "b", "B", "h", "H", "i", "I", "l", "L",
-    "f", "d", "g", "F", "D", "G"
+    "f", "d", "F", "D"
 ]
 ConstType = int|float|complex|bool
 
@@ -31,13 +30,12 @@ int64:Final = DType.new("l", "long", 8, True)
 uint64:Final = DType.new("L", "unsigned long", 8, False)
 float32:Final = DType.new("f", "float", 4, None)
 float64:Final = DType.new("d", "double", 8, None)
-longdouble:Final = DType.new("g", "long double", ctypes.sizeof(ctypes.c_longdouble), None) # size depends on the platform, compiler, or ABI
 complex64:Final = DType.new("F", "float _Complex", 8, None)
 complex128:Final = DType.new("D", "double _Complex", 16, None)
 
 BOOLEAN = [bool]
 INT = [int8, int16, int32, int64]
 UINT = [uint8, uint16, uint32, uint64]
-FLOAT = [float32, float64, longdouble]
+FLOAT = [float32, float64]
 COMPLEX = [complex64, complex128]
 ALL = BOOLEAN + INT + UINT + FLOAT + COMPLEX
