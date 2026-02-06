@@ -33,15 +33,6 @@ print(y.buf)
 print(y.device)
 ```
 
-## TODOs
-- [X] Implement basic arithmetic operations (`__add__`, `__sub__`, etc.)
-- [ ] Profiler for cpu/cuda based tensors
-- [ ] Supports cross dtypes tensor operation
-- [ ] Implement `clone` method
-- [ ] Implement Tensor operation graph(s)
-- [ ] Implement autograd
-- [ ] Implement activation function
-
 ## OS(es)
 tinytensor runs on
 - [X] Linux/MacOS
