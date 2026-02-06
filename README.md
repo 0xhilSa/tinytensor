@@ -14,7 +14,7 @@ numpy, scipy, matplotlib, etc.
 ```bash
 git clone https://github.com/0xhilSa/tinytensor
 cd tinytensor
-bash compile.sh
+bash compile.sh -run
 ```
 
 ## Testing
@@ -34,19 +34,14 @@ print(y.device)
 ```
 
 ## TODOs
-- [X] Implement conversion from raw pointers / PyCapsules to Python lists (CPU & CUDA)
 - [ ] Extend `.cuda()` and `.cpu()` to support `copy`, `dtype`, `const`, and related parameters
-- [X] Add CUDA device selection and device indexing support
 - [ ] Implement basic arithmetic operations (`__add__`, `__sub__`, etc.)
-- [X] Implement relational operations (`__eq__`, `__ne__`, etc.)
-- [X] Vectorize tensor operations for performance
 - [ ] Profiler for cpu/cuda based tensors
 - [ ] Supports cross dtypes tensor operation
-- [X] Implement `copy` method
-- [X] Implement tensor broadcasting
-- [X] Implement `Tensor` dtype casting
-- [X] Enable cuda device selection
+- [ ] Implement `clone` method
 - [ ] Implement Tensor operation graph(s)
+- [ ] Implement autograd
+- [ ] Implement activation function
 
 ## OS(es)
 tinytensor runs on
