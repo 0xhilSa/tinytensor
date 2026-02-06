@@ -39,7 +39,6 @@ dtype_t get_dtype(const char *fmt){
     case 'L': return UINT64;
     case 'f': return FP32;
     case 'd': return FP64;
-    case 'g': return FP128;
     case 'F': return CMPX64;
     case 'D': return CMPX128;
     default: return ERROR;
@@ -142,12 +141,6 @@ static PyObject *__list__(PyObject *list, PyObject *shape, const char *fmt, int 
       case UINT64: *(uint64 *)p = (uint64)py_to_uint(item); break;
       case FP32: *(float32 *)p = (float32)py_to_float(item); break;
       case FP64: *(float64 *)p = (float64)py_to_float(item); break;
-      case FP128: {
-        free(host_buffer);
-        destroy(t);
-        PyErr_SetString(PyExc_TypeError, "FP128 (long double) is not supported on CUDA");
-        return NULL;
-      }
       case CMPX64: {
         Py_complex c = PyComplex_AsCComplex(item);
         if(PyErr_Occurred()){
@@ -275,7 +268,6 @@ static PyObject *__scalar__(PyObject *scalar, const char *fmt, int device_idx){
       memcpy(p, &v, t->element_size);
       break;
     }
-
     case FP32:
     case FP64: {
       double v = PyFloat_AsDouble(scalar);
@@ -284,9 +276,6 @@ static PyObject *__scalar__(PyObject *scalar, const char *fmt, int device_idx){
       else *(double *)p = v;
       break;
     }
-    case FP128:
-      PyErr_SetString(PyExc_TypeError, "FP128 (long double) is not supported on CUDA");
-      goto fail;
     case CMPX64: {
       Py_complex c = PyComplex_AsCComplex(scalar);
       if(PyErr_Occurred()) goto fail;
@@ -375,7 +364,6 @@ static PyObject *topyobj(PyObject *self, PyObject *args){
       case UINT64: return PyLong_FromUnsignedLongLong(*(uint64 *)host_buffer);
       case FP32: return PyFloat_FromDouble(*(float32 *)host_buffer);
       case FP64: return PyFloat_FromDouble(*(float64 *)host_buffer);
-      case FP128: return PyFloat_FromDouble((double)(*(float128 *)host_buffer));
       case CMPX64: {
         complex64 *c = (complex64 *)host_buffer;
         return PyComplex_FromDoubles((double)c->real, (double)c->imag);
@@ -432,9 +420,6 @@ static PyObject *topyobj(PyObject *self, PyObject *args){
           break;
         case FP64:
           item = PyFloat_FromDouble(*(float64 *)p);
-          break;
-        case FP128:
-          item = PyFloat_FromDouble((double)(*(float128 *)p));
           break;
         case CMPX64: {
           complex64 *c = (complex64 *)p;
