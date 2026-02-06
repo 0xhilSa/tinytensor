@@ -11,4 +11,3 @@ typedef struct {
   double imag;
 } complex128_t;
 #endif
-
