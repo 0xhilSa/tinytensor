@@ -25,7 +25,6 @@ dtype_t get_dtype(const char fmt){
     case 'L': return UINT64;
     case 'f': return FP32;
     case 'd': return FP64;
-    case 'g': return FP128;
     case 'F': return CMPX64;
     case 'D': return CMPX128;
     default: return ERROR;
@@ -108,7 +107,6 @@ static PyObject *__list__(PyObject *list, PyObject *shape, Py_ssize_t length, co
       case UINT64: *(uint64 *)p = (uint64)py_to_uint(item); break;
       case FP32: *(float32 *)p = (float32)py_to_float(item); break;
       case FP64: *(float64 *)p = (float64)py_to_float(item); break;
-      case FP128: *(float128 *)p = (float128)py_to_float(item); break;
       case CMPX64: {
         Py_complex c = PyComplex_AsCComplex(item);
         if(PyErr_Occurred()){
@@ -187,7 +185,6 @@ static PyObject *__scalar__(PyObject *scalar, const char fmt){
     case UINT64: *(uint64 *)p = (uint64)PyLong_AsUnsignedLongLongMask(scalar); break;
     case FP32: *(float32 *)p = (float32)PyFloat_AsDouble(scalar); break;
     case FP64: *(float64 *)p = (float64)PyFloat_AsDouble(scalar); break;
-    case FP128: *(float128 *)p = (float128)PyFloat_AsDouble(scalar); break;
     case CMPX64: {
       Py_complex c = PyComplex_AsCComplex(scalar);
       if(PyErr_Occurred()){ destroy(t); return NULL; }
@@ -244,7 +241,6 @@ static PyObject *topyobj(PyObject *self, PyObject *args){
       case UINT64: return PyLong_FromUnsignedLongLong(*(uint64 *)p);
       case FP32:   return PyFloat_FromDouble(*(float32 *)p);
       case FP64:   return PyFloat_FromDouble(*(float64 *)p);
-      case FP128:  return PyFloat_FromDouble((double)*(float128 *)p);
       case CMPX64: {
         complex64 *c = (complex64 *)p;
         return PyComplex_FromDoubles(c->real, c->imag);
@@ -275,7 +271,6 @@ static PyObject *topyobj(PyObject *self, PyObject *args){
       case UINT64: item = PyLong_FromUnsignedLongLong(*(uint64 *)p); break;
       case FP32: item = PyFloat_FromDouble(*(float32 *)p); break;
       case FP64: item = PyFloat_FromDouble(*(float64 *)p); break;
-      case FP128: item = PyFloat_FromDouble((double)*(float128 *)p); break;
       case CMPX64: {
         complex64 *c = (complex64 *)p;
         item = PyComplex_FromDoubles(c->real, c->imag);
