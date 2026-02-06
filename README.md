@@ -34,7 +34,6 @@ print(y.device)
 ```
 
 ## TODOs
-- [ ] Extend `.cuda()` and `.cpu()` to support `copy`, `dtype`, `const`, and related parameters
 - [X] Implement basic arithmetic operations (`__add__`, `__sub__`, etc.)
 - [ ] Profiler for cpu/cuda based tensors
 - [ ] Supports cross dtypes tensor operation
