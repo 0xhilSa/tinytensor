@@ -1,3 +1,5 @@
+// all the kernels assumes dtype homogenity given by the python
+
 #include <python3.10/Python.h>
 #include "../tensor.h"
 
@@ -323,6 +325,65 @@ static PyObject *__fdiv_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
 }
 
+static PyObject *__pow_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
+  size_t length = tx->size;
+  dtype_t dtype = tx->dtype;
+  char *px = (char *)tx->buf;
+  char *py = (char *)ty->buf;
+  char *pz = (char *)tz->buf;
+  size_t elem_size = tx->element_size;
+  size_t tz_elem_size = tz->element_size;
+  for(size_t i = 0; i < length; i++){
+    char *x_ptr = px + i * elem_size;
+    char *y_ptr = py + i * elem_size;
+    char *z_ptr = pz + i * tz_elem_size;
+    switch(dtype){
+      case BOOL: *(bool *)z_ptr = (uint8)pow(*(bool *)x_ptr, *(bool *)y_ptr); break;
+      case INT8: *(int8 *)z_ptr = (int8)pow(*(int8 *)x_ptr, *(int8 *)y_ptr); break;
+      case UINT8: *(uint8 *)z_ptr = (uint8)pow(*(uint8 *)x_ptr, *(uint8 *)y_ptr); break;
+      case INT16: *(int16 *)z_ptr = (int16)pow(*(int16 *)x_ptr, *(int16 *)y_ptr); break;
+      case UINT16: *(uint16 *)z_ptr = (uint16)pow(*(uint16 *)x_ptr, *(uint16 *)y_ptr); break;
+      case INT32: *(int32 *)z_ptr = (int32)pow(*(int32 *)x_ptr, *(int32 *)y_ptr); break;
+      case UINT32: *(uint32 *)z_ptr = (uint32)pow(*(uint32 *)x_ptr, *(uint32 *)y_ptr); break;
+      case INT64: *(int64 *)z_ptr = (int64)pow(*(int64 *)x_ptr, *(int64 *)y_ptr); break;
+      case UINT64: *(uint64 *)z_ptr = (uint64)pow(*(uint64 *)x_ptr, *(uint64 *)y_ptr); break;
+      case FP32: *(float32 *)z_ptr = (float32)powf(*(float32 *)x_ptr, *(float32 *)y_ptr); break;
+      case FP64: *(float64 *)z_ptr = (float64)pow(*(float64 *)x_ptr, *(float64 *)y_ptr); break;
+      case CMPX64: {
+        complex64 x = *(complex64 *)x_ptr;
+        complex64 y = *(complex64 *)y_ptr;
+        float r = sqrt(x.real * x.real + x.imag * x.imag);
+        float theta = atan(x.imag/x.real);
+        float A = y.real * log(r) - y.imag * theta;
+        float B = y.imag * log(r) + y.real * theta;
+        float e = exp(A);
+        complex64 z = {cos(B), sin(B)};
+        (*(complex64 *)z_ptr).real = e * z.real;
+        (*(complex64 *)z_ptr).imag = e * z.imag;
+        break;
+      }
+      case CMPX128: {
+        complex128 x = *(complex128 *)x_ptr;
+        complex128 y = *(complex128 *)y_ptr;
+        double r = sqrt(x.real * x.real + x.imag * x.imag);
+        double theta = atan(x.imag/x.real);
+        double A = y.real * log(r) - y.imag * theta;
+        double B = y.imag * log(r) + y.real * theta;
+        double e = exp(A);
+        complex128 z = {cos(B), sin(B)};
+        (*(complex128 *)z_ptr).real = e * z.real;
+        (*(complex128 *)z_ptr).imag = e * z.imag;
+        break;
+
+      }
+      case ERROR: {
+        PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
+        return NULL;
+      }
+    }
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
 
 static PyObject *__eq_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
   size_t length = tx->size;
@@ -978,6 +1039,33 @@ static PyObject *fdiv_(PyObject *self, PyObject *args){
   return __fdiv_tensor__(tx, ty, tz);
 }
 
+// pow
+static PyObject *pow_(PyObject *self, PyObject *args){
+  PyObject *x, *y;
+  if(!PyArg_ParseTuple(args, "OO", &x, &y)) return NULL;
+  if(!PyCapsule_CheckExact(x) || !PyCapsule_CheckExact(y)){
+    PyErr_SetString(PyExc_RuntimeError, "operands must be the tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  tensor_t *ty = PyCapsule_GetPointer(y, "tensor_t on CPU");
+  if(!tx || !ty){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  if(tx->dtype != ty->dtype){
+    PyErr_SetString(PyExc_TypeError, "Both tensor_t(s) must have the same dtype");
+    return NULL;
+  }
+  if(tx->device.type != ty->device.type || tx->device.type != CPU){
+    PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CPU)");
+    return NULL;
+  }
+  tensor_t *tz = NULL;
+  tz = alloc_result_tensor(tx);
+  return __pow_tensor__(tx, ty, tz);
+}
+
 // eq
 static PyObject *eq(PyObject *self, PyObject *args){
   PyObject *x, *y;
@@ -1557,6 +1645,7 @@ static PyMethodDef methods[] = {
   {"mul", mul, METH_VARARGS, "element-wise multiplication of two tensors or tensor with scalar"},
   {"tdiv", tdiv, METH_VARARGS, "element-wise true division of two tensors or tensor with scalar"},
   {"fdiv", fdiv_, METH_VARARGS, "element-wise floor division of two tensors or tensor with scalar"},
+  {"pow", pow_, METH_VARARGS, "element-wise powe operation of two tensors or tensor with sclaar"},
   {"eq", eq, METH_VARARGS, "element-wise equivalance of two tensors or tensor with scalar"},
   {"ne", ne, METH_VARARGS, "element-wise non-equivalance of two tensors or tensor with scalar"},
   {"gt", gt, METH_VARARGS, "element-wise greater than op of two tensors or tensor with scalar"},
