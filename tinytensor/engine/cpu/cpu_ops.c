@@ -1,6 +1,7 @@
 // all the kernels assumes dtype homogenity given by the python
 
 #include <python3.10/Python.h>
+#include <python3.10/pyerrors.h>
 #include "../tensor.h"
 
 void capsule_destroyer(PyObject *capsule){
@@ -374,8 +375,40 @@ static PyObject *__pow_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t
         (*(complex128 *)z_ptr).real = e * z.real;
         (*(complex128 *)z_ptr).imag = e * z.imag;
         break;
-
       }
+      case ERROR: {
+        PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
+        return NULL;
+      }
+    }
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+static PyObject *__mod_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
+  size_t length = tx->size;
+  dtype_t dtype = tx->dtype;
+  char *px = (char *)tx->buf;
+  char *py = (char *)ty->buf;
+  char *pz = (char *)tz->buf;
+  size_t elem_size = tx->element_size;
+  size_t tz_elem_size = tz->element_size;
+  for(size_t i = 0; i < length; i++){
+    char *x_ptr = px + i * elem_size;
+    char *y_ptr = py + i * elem_size;
+    char *z_ptr = pz + i * tz_elem_size;
+    switch(dtype){
+      case BOOL: *(bool *)z_ptr = (uint8)fmodf(*(bool *)x_ptr, (*(bool *)y_ptr)); break;
+      case INT8: *(int8 *)z_ptr = (int8)fmodf(*(int8 *)x_ptr, *(int8 *)y_ptr); break;
+      case UINT8: *(uint8 *)z_ptr = (uint8)fmodf(*(uint8 *)x_ptr, *(uint8 *)y_ptr); break;
+      case INT16: *(int16 *)z_ptr = (int16)fmodf(*(int16 *)x_ptr, *(int16 *)y_ptr); break;
+      case UINT16: *(uint16 *)z_ptr = (uint16)fmodf(*(uint16 *)x_ptr, *(uint16 *)y_ptr); break;
+      case INT32: *(int32 *)z_ptr = (int32)fmodf(*(int32 *)x_ptr, *(int32 *)y_ptr); break;
+      case UINT32: *(uint32 *)z_ptr = (uint32)fmodf(*(uint32 *)x_ptr, *(uint32 *)y_ptr); break;
+      case INT64: *(int64 *)z_ptr = (int64)fmodf(*(int64 *)x_ptr, *(int64 *)y_ptr); break;
+      case UINT64: *(uint64 *)z_ptr = (uint64)fmodf(*(uint64 *)x_ptr, *(uint64 *)y_ptr); break;
+      case FP32: *(float32 *)z_ptr = (float32)fmodf(*(float32 *)x_ptr, *(float32 *)y_ptr); break;
+      case FP64: *(float64 *)z_ptr = (float64)fmodl(*(float64 *)x_ptr, *(float64 *)y_ptr); break;
       case ERROR: {
         PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
         return NULL;
@@ -1066,6 +1099,36 @@ static PyObject *pow_(PyObject *self, PyObject *args){
   return __pow_tensor__(tx, ty, tz);
 }
 
+// mod
+static PyObject *mod_(PyObject *self, PyObject *args){
+  PyObject *x, *y;
+  if(!PyArg_ParseTuple(args, "OO", &x, &y)) return NULL;
+  if(!PyCapsule_CheckExact(x) || !PyCapsule_CheckExact(y)){
+    PyErr_SetString(PyExc_RuntimeError, "operands must be the tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  tensor_t *ty = PyCapsule_GetPointer(y, "tensor_t on CPU");
+  if(!tx || !ty){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  if(tx->dtype != ty->dtype){
+    PyErr_SetString(PyExc_TypeError, "Both tensor_t(s) must have the same dtype");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_Format(PyExc_TypeError, "%% opertaion on complex tensor is not supported");
+  }
+  if(tx->device.type != CPU || ty->device.type != CPU){
+    PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CPU)");
+    return NULL;
+  }
+  tensor_t *tz = NULL;
+  tz = alloc_result_tensor(tx);
+  return __mod_tensor__(tx, ty, tz);
+}
+
 // eq
 static PyObject *eq(PyObject *self, PyObject *args){
   PyObject *x, *y;
@@ -1645,7 +1708,8 @@ static PyMethodDef methods[] = {
   {"mul", mul, METH_VARARGS, "element-wise multiplication of two tensors or tensor with scalar"},
   {"tdiv", tdiv, METH_VARARGS, "element-wise true division of two tensors or tensor with scalar"},
   {"fdiv", fdiv_, METH_VARARGS, "element-wise floor division of two tensors or tensor with scalar"},
-  {"pow", pow_, METH_VARARGS, "element-wise powe operation of two tensors or tensor with sclaar"},
+  {"pow", pow_, METH_VARARGS, "element-wise raise to the power operation of two tensors or tensor with sclaar"},
+  {"mod", mod_, METH_VARARGS, "element-wise modulo operation of two tensors or tensor with sclaar"},
   {"eq", eq, METH_VARARGS, "element-wise equivalance of two tensors or tensor with scalar"},
   {"ne", ne, METH_VARARGS, "element-wise non-equivalance of two tensors or tensor with scalar"},
   {"gt", gt, METH_VARARGS, "element-wise greater than op of two tensors or tensor with scalar"},
