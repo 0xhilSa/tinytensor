@@ -13,7 +13,6 @@ _CAST = {
   dtypes.uint64: int,
   dtypes.float32: float,
   dtypes.float64: float,
-  dtypes.longdouble: float,
   dtypes.complex64: complex,
   dtypes.complex128: complex,
 }
