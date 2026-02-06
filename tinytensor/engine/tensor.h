@@ -3,7 +3,7 @@
 
 #include <cuda_runtime.h>
 #include <stdlib.h>
-#include "complex.h"
+#include "./complex.h"
 
 #define bool unsigned char
 #define int8 char
@@ -16,7 +16,6 @@
 #define uint64 unsigned long
 #define float32 float
 #define float64 double
-#define float128 long double
 #define complex64 complex64_t
 #define complex128 complex128_t
 
@@ -39,9 +38,8 @@ typedef enum {
   UINT64,
   FP32,
   FP64,
-  FP128,
   CMPX64,
-  CMPX128,
+  CMPX128
 } dtype_t;
 
 size_t getsize(dtype_t dtype);
