@@ -79,6 +79,5 @@ run_with_spinner nvcc -gencode arch=compute_86,code=sm_86 \
   -o "$CU_OUT_DIR/cuda_ops.so"
 
 if [ "$1" == "-run" ]; then
-  echo "========RUNNING========"
-  python3 ./test.py
+  pytest -v
 fi
