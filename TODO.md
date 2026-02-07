@@ -5,3 +5,4 @@
 - [ ] Implement Tensor operation graph(s)
 - [ ] Implement autograd
 - [ ] Implement activation function
+- [ ] Convert Image into the Tensor
