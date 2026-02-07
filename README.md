@@ -33,7 +33,7 @@ print(y.device)
 
 ## OS(es)
 tinytensor runs on
-- [X] Linux/MacOS
+- [X] Linux
 - [ ] Windows
 
 ## LICENSE
