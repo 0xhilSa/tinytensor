@@ -5,9 +5,8 @@
 
 
 ## What is TinyTensor?
-TinyTensor is a lightweight tensor library built from scratch in C/C++ with Python bindings,
-focused on understanding the low-level core of deep learning frameworks.
-It provides basic tensor operations, GPU/CUDA support, and a minimal design for learning and experimentation
+TinyTensor is a lightweight tensor library written from scratch in pure C, focused on building the core foundations of deep learning frameworks.
+It provides basic tensor structures, memory handling, and essential operations with a minimal and educational design.
 
 ## Install from the source
 ```bash
