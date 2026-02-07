@@ -13,7 +13,6 @@ It provides basic tensor structures, memory handling, and essential operations w
 git clone https://github.com/0xhilSa/tinytensor
 cd tinytensor
 bash compile.sh -run
-pip install -e .
 ```
 
 ## Testing
