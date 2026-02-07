@@ -5,10 +5,9 @@
 
 
 ## What is TinyTensor?
-a tinytensor is a tiny implementation of tensor computation library, focused on how tensor ops works bts.
-kernel launch, fusion ops, memory allocation, free(ing).
-The goal is to implement tensor library from scratch using Python, C, & CUDA, avoiding using external libraries like
-numpy, scipy, matplotlib, etc.
+TinyTensor is a lightweight tensor library built from scratch in C/C++ with Python bindings,
+focused on understanding the low-level core of deep learning frameworks.
+It provides basic tensor operations, GPU/CUDA support, and a minimal design for learning and experimentation
 
 ## Install from the source
 ```bash
