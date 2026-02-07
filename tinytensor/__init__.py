@@ -12,8 +12,9 @@ def tensor(
   buf:Union[List[dtypes.ConstType],dtypes.ConstType],
   dtype:Optional[Union[dtypes.DType,dtypes.ConstType]]=None,
   device:str="cpu",
+  requires_grad:bool=False, # type: ignore (type interference)
   const:bool=False # type: ignore (type interference)
-): return Tensor(buf=buf, dtype=dtype, device=device, const=const)
+): return Tensor(buf=buf, dtype=dtype, device=device, requires_grad=requires_grad, const=const)
 
 from tinytensor.dtypes import (bool, int8, uint8, int16, uint16,
                                int32, uint32, int64, uint64,
