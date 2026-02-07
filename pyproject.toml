@@ -1,0 +1,9 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tinytensor"
+version = "0.2.0"
+description = "A tiny tensor library"
+dependencies = []
