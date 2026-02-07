@@ -78,6 +78,9 @@ run_with_spinner nvcc -gencode arch=compute_86,code=sm_86 \
   "$TEN_SRC/tensor.c" \
   -o "$CU_OUT_DIR/cuda_ops.so"
 
+pip install -r ./requirements.txt
+pip install -e .
+
 if [ "$1" == "-run" ]; then
   pytest -v
 fi
