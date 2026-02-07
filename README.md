@@ -30,6 +30,7 @@ print(y)
 print(y.buf)
 print(y.device)
 ```
+or simply run `pytest`
 
 ## OS(es)
 tinytensor runs on
