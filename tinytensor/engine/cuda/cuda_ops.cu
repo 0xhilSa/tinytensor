@@ -1,6 +1,6 @@
 #include <python3.10/Python.h>
 #include <cuda_runtime.h>
-#include <python3.10/pyerrors.h>
+#include <python3.10/methodobject.h>
 #include "../tensor.h"
 
 #define CUDA_CHECK(call) \
@@ -61,7 +61,7 @@ template<typename T, typename U>
 __global__ void fdiv_tensor_kernel(const T *x, const T *y, U *z, size_t length){
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   if(idx < length){
-    z[idx] = (U)x[idx] / (U)y[idx];
+    z[idx] = (U)(x[idx] / y[idx]);
   }
 }
 
@@ -302,7 +302,7 @@ __global__ void sub_bool_kernel(const bool *x, const bool *y, bool *z, size_t le
 }
 
 // CUDA kernel for boolean AND op
-__global__ void mul_bool_kernel(const bool *x, const bool *y, bool *z, size_t length){
+__global__ void mul_bool_tensor_kernel(const bool *x, const bool *y, bool *z, size_t length){
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   if(idx < length){
     z[idx] = x[idx] & y[idx];
@@ -310,7 +310,7 @@ __global__ void mul_bool_kernel(const bool *x, const bool *y, bool *z, size_t le
 }
 
 // CUDA kernel for complex64 addition
-__global__ void add_complex64_kernel(const complex64 *x, const complex64 *y, complex64 *z, size_t length){
+__global__ void add_complex64_tensor_kernel(const complex64 *x, const complex64 *y, complex64 *z, size_t length){
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   if(idx < length){
     z[idx].real = x[idx].real + y[idx].real;
@@ -319,7 +319,7 @@ __global__ void add_complex64_kernel(const complex64 *x, const complex64 *y, com
 }
 
 // CUDA kernel for complex64 subtraction
-__global__ void sub_complex64_kernel(const complex64 *x, const complex64 *y, complex64 *z, size_t length){
+__global__ void sub_complex64_tensor_kernel(const complex64 *x, const complex64 *y, complex64 *z, size_t length){
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   if(idx < length){
     z[idx].real = x[idx].real - y[idx].real;
@@ -328,7 +328,7 @@ __global__ void sub_complex64_kernel(const complex64 *x, const complex64 *y, com
 }
 
 // CUDA kernel for complex64 multiplication
-__global__ void mul_complex64_kernel(const complex64 *x, const complex64 *y, complex64 *z, size_t length){
+__global__ void mul_complex64_tensor_kernel(const complex64 *x, const complex64 *y, complex64 *z, size_t length){
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   if(idx < length){
     z[idx].real = x[idx].real * y[idx].real - x[idx].imag * y[idx].imag;
@@ -337,7 +337,7 @@ __global__ void mul_complex64_kernel(const complex64 *x, const complex64 *y, com
 }
 
 // CUDA kernel for complex128 addition
-__global__ void add_complex128_kernel(const complex128 *x, const complex128 *y, complex128 *z, size_t length){
+__global__ void add_complex128_tensor_kernel(const complex128 *x, const complex128 *y, complex128 *z, size_t length){
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   if(idx < length){
     z[idx].real = x[idx].real + y[idx].real;
@@ -346,7 +346,7 @@ __global__ void add_complex128_kernel(const complex128 *x, const complex128 *y, 
 }
 
 // CUDA kernel for complex128 subtraction
-__global__ void sub_complex128_kernel(const complex128 *x, const complex128 *y, complex128 *z, size_t length){
+__global__ void sub_complex128_tensor_kernel(const complex128 *x, const complex128 *y, complex128 *z, size_t length){
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   if(idx < length){
     z[idx].real = x[idx].real - y[idx].real;
@@ -355,11 +355,92 @@ __global__ void sub_complex128_kernel(const complex128 *x, const complex128 *y, 
 }
 
 // CUDA kernel for complex64 multiplication
-__global__ void mul_complex128_kernel(const complex128 *x, const complex128 *y, complex128 *z, size_t length){
+__global__ void mul_complex128_tensor_kernel(const complex128 *x, const complex128 *y, complex128 *z, size_t length){
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   if(idx < length){
     z[idx].real = x[idx].real * y[idx].real - x[idx].imag * y[idx].imag;
     z[idx].imag = x[idx].real * y[idx].imag - x[idx].imag * y[idx].real;
+  }
+}
+
+// CUDA kernel for left shift op on Tensor
+template<typename T>
+__global__ void lshift_tensor_kernel(const T *x, const T *y, T *z, size_t length){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx < length){
+    z[idx] = x[idx] << y[idx];
+  }
+}
+
+// CUDA kernel for right shift op on Tensor
+template<typename T>
+__global__ void rshift_tensor_kernel(const T *x, const T *y, T *z, size_t length){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx < length){
+    z[idx] = x[idx] >> y[idx];
+  }
+}
+
+// CUDA kernel for and op on Tensor
+template<typename T>
+__global__ void and_tensor_kernel(const T *x, const T *y, T *z, size_t length){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx < length){
+    z[idx] = x[idx] & y[idx];
+  }
+}
+
+// CUDA kernel for nand op on Tensor
+template<typename T>
+__global__ void nand_tensor_kernel(const T *x, const T *y, T *z, size_t length){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx < length){
+    z[idx] = ~(x[idx] & y[idx]);
+  }
+}
+
+// CUDA kernel for or op on Tensor
+template<typename T>
+__global__ void or_tensor_kernel(const T *x, const T *y, T *z, size_t length){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx < length){
+    z[idx] = x[idx] | y[idx];
+  }
+}
+
+// CUDA kernel for nor op on Tensor
+template<typename T>
+__global__ void nor_tensor_kernel(const T *x, const T *y, T *z, size_t length){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx < length){
+    z[idx] = ~(x[idx] | y[idx]);
+  }
+}
+
+// CUDA kernel for not op on Tensor
+template<typename T>
+__global__ void not_tensor_kernel(const T *x, T *z, size_t length){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx < length){
+    z[idx] = ~x[idx];
+  }
+}
+
+// CUDA kernel for xor op on Tensor
+template<typename T>
+__global__ void xor_tensor_kernel(const T *x, const T *y, T *z, size_t length){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx < length){
+    z[idx] = x[idx] ^ y[idx];
+  }
+}
+
+// CUDA kernel for xnor op on Tensor
+template<typename T>
+__global__ void xnor_tensor_kernel(const T *x, const T *y, T *z, size_t length){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx < length){
+    z[idx] = ~(x[idx] ^ y[idx]);
   }
 }
 
@@ -427,8 +508,8 @@ static PyObject *__add_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t
     case UINT64: add_tensor_kernel<uint64><<<gridSize, blockSize>>>((uint64 *)tx->buf, (uint64 *)ty->buf, (uint64 *)tz->buf, length); break;
     case FP32: add_tensor_kernel<float32><<<gridSize, blockSize>>>((float32 *)tx->buf, (float32 *)ty->buf, (float32 *)tz->buf, length); break;
     case FP64: add_tensor_kernel<float64><<<gridSize, blockSize>>>((float64 *)tx->buf, (float64 *)ty->buf, (float64 *)tz->buf, length); break;
-    case CMPX64: add_complex64_kernel<<<gridSize, blockSize>>>((complex64 *)tx->buf, (complex64 *)ty->buf, (complex64 *)tz->buf, length); break;
-    case CMPX128: add_complex128_kernel<<<gridSize, blockSize>>>((complex128 *)tx->buf, (complex128 *)ty->buf, (complex128 *)tz->buf, length); break;
+    case CMPX64: add_complex64_tensor_kernel<<<gridSize, blockSize>>>((complex64 *)tx->buf, (complex64 *)ty->buf, (complex64 *)tz->buf, length); break;
+    case CMPX128: add_complex128_tensor_kernel<<<gridSize, blockSize>>>((complex128 *)tx->buf, (complex128 *)ty->buf, (complex128 *)tz->buf, length); break;
     case ERROR:
       PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
       return NULL;
@@ -463,8 +544,8 @@ static PyObject *__sub_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t
     case UINT64: sub_tensor_kernel<uint64><<<gridSize, blockSize>>>((uint64 *)tx->buf, (uint64 *)ty->buf, (uint64 *)tz->buf, length); break;
     case FP32: sub_tensor_kernel<float32><<<gridSize, blockSize>>>((float32 *)tx->buf, (float32 *)ty->buf, (float32 *)tz->buf, length); break;
     case FP64: sub_tensor_kernel<float64><<<gridSize, blockSize>>>((float64 *)tx->buf, (float64 *)ty->buf, (float64 *)tz->buf, length); break;
-    case CMPX64: sub_complex64_kernel<<<gridSize, blockSize>>>((complex64 *)tx->buf, (complex64 *)ty->buf, (complex64 *)tz->buf, length); break;
-    case CMPX128: sub_complex128_kernel<<<gridSize, blockSize>>>((complex128 *)tx->buf, (complex128 *)ty->buf, (complex128 *)tz->buf, length); break;
+    case CMPX64: sub_complex64_tensor_kernel<<<gridSize, blockSize>>>((complex64 *)tx->buf, (complex64 *)ty->buf, (complex64 *)tz->buf, length); break;
+    case CMPX128: sub_complex128_tensor_kernel<<<gridSize, blockSize>>>((complex128 *)tx->buf, (complex128 *)ty->buf, (complex128 *)tz->buf, length); break;
     case ERROR:
       PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
       return NULL;
@@ -488,7 +569,7 @@ static PyObject *__mul_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t
   int blockSize = 256;
   int gridSize = (length + blockSize - 1) / blockSize;
   switch(dtype){
-    case BOOL: mul_bool_kernel<<<gridSize, blockSize>>>((bool *)tx->buf, (bool *)ty->buf, (bool *)tz->buf, length); break;
+    case BOOL: mul_bool_tensor_kernel<<<gridSize, blockSize>>>((bool *)tx->buf, (bool *)ty->buf, (bool *)tz->buf, length); break;
     case INT8: mul_tensor_kernel<int8><<<gridSize, blockSize>>>((int8 *)tx->buf, (int8 *)ty->buf, (int8 *)tz->buf, length); break;
     case UINT8: mul_tensor_kernel<uint8><<<gridSize, blockSize>>>((uint8 *)tx->buf, (uint8 *)ty->buf, (uint8 *)tz->buf, length); break;
     case INT16: mul_tensor_kernel<int16><<<gridSize, blockSize>>>((int16 *)tx->buf, (int16 *)ty->buf, (int16 *)tz->buf, length); break;
@@ -499,8 +580,8 @@ static PyObject *__mul_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t
     case UINT64: mul_tensor_kernel<uint64><<<gridSize, blockSize>>>((uint64 *)tx->buf, (uint64 *)ty->buf, (uint64 *)tz->buf, length); break;
     case FP32: mul_tensor_kernel<float32><<<gridSize, blockSize>>>((float32 *)tx->buf, (float32 *)ty->buf, (float32 *)tz->buf, length); break;
     case FP64: mul_tensor_kernel<float64><<<gridSize, blockSize>>>((float64 *)tx->buf, (float64 *)ty->buf, (float64 *)tz->buf, length); break;
-    case CMPX64: mul_complex64_kernel<<<gridSize, blockSize>>>((complex64 *)tx->buf, (complex64 *)ty->buf, (complex64 *)tz->buf, length); break;
-    case CMPX128: mul_complex128_kernel<<<gridSize, blockSize>>>((complex128 *)tx->buf, (complex128 *)ty->buf, (complex128 *)tz->buf, length); break;
+    case CMPX64: mul_complex64_tensor_kernel<<<gridSize, blockSize>>>((complex64 *)tx->buf, (complex64 *)ty->buf, (complex64 *)tz->buf, length); break;
+    case CMPX128: mul_complex128_tensor_kernel<<<gridSize, blockSize>>>((complex128 *)tx->buf, (complex128 *)ty->buf, (complex128 *)tz->buf, length); break;
     case ERROR:
       PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
       return NULL;
@@ -559,8 +640,8 @@ static PyObject *__fdiv_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_
   int blockSize = 256;
   int gridSize = (length + blockSize - 1) / blockSize;
   switch(dtype){
-    case INT8: fdiv_tensor_kernel<int8, int32><<<gridSize, blockSize>>>((int8 *)tx->buf, (int8 *)ty->buf, (int32 *)tz->buf, length); break;
-    case UINT8: fdiv_tensor_kernel<uint8, uint32><<<gridSize, blockSize>>>((uint8 *)tx->buf, (uint8 *)ty->buf, (uint32 *)tz->buf, length); break;
+    case INT8: fdiv_tensor_kernel<int8, int8><<<gridSize, blockSize>>>((int8 *)tx->buf, (int8 *)ty->buf, (int8 *)tz->buf, length); break;
+    case UINT8: fdiv_tensor_kernel<uint8, uint8><<<gridSize, blockSize>>>((uint8 *)tx->buf, (uint8 *)ty->buf, (uint8 *)tz->buf, length); break;
     case INT16: fdiv_tensor_kernel<int16, int16><<<gridSize, blockSize>>>((int16 *)tx->buf, (int16 *)ty->buf, (int16 *)tz->buf, length); break;
     case UINT16: fdiv_tensor_kernel<uint16, uint16><<<gridSize, blockSize>>>((uint16 *)tx->buf, (uint16 *)ty->buf, (uint16 *)tz->buf, length); break;
     case INT32: fdiv_tensor_kernel<int32, int32><<<gridSize, blockSize>>>((int32 *)tx->buf, (int32 *)ty->buf, (int32 *)tz->buf, length); break;
@@ -866,7 +947,7 @@ static PyObject *__neg_tensor__(const tensor_t *tx, tensor_t *tz){
   size_t length = tx->size;
   dtype_t dtype = tx->dtype;
   int blockSize = 256;
-  int gridSize = (length * blockSize - 1) / blockSize;
+  int gridSize = (length + blockSize - 1) / blockSize;
   switch(dtype){
     case INT8: neg_tensor_kernel<int8><<<gridSize, blockSize>>>((int8 *)tx->buf, (int8 *)tz->buf, length); break;
     case UINT8: neg_tensor_kernel<uint8><<<gridSize, blockSize>>>((uint8 *)tx->buf, (uint8 *)tz->buf, length); break;
@@ -898,7 +979,7 @@ static PyObject *__pos_tensor__(const tensor_t *tx, tensor_t *tz){
   size_t length = tx->size;
   dtype_t dtype = tx->dtype;
   int blockSize = 256;
-  int gridSize = (length * blockSize - 1) / blockSize;
+  int gridSize = (length + blockSize - 1) / blockSize;
   switch(dtype){
     case INT8: pos_tensor_kernel<int8><<<gridSize, blockSize>>>((int8 *)tx->buf, (int8 *)tz->buf, length); break;
     case UINT8: pos_tensor_kernel<uint8><<<gridSize, blockSize>>>((uint8 *)tx->buf, (uint8 *)tz->buf, length); break;
@@ -930,7 +1011,7 @@ static PyObject *__abs_tensor__(const tensor_t *tx, tensor_t *tz){
   size_t length = tx->size;
   dtype_t dtype = tx->dtype;
   int blockSize = 256;
-  int gridSize = (length * blockSize - 1) / blockSize;
+  int gridSize = (length + blockSize - 1) / blockSize;
   switch(dtype){
     case INT8: abs_tensor_kernel<int8><<<gridSize, blockSize>>>((int8 *)tx->buf, (int8 *)tz->buf, length); break;
     case UINT8: abs_utensor_kernel<uint8><<<gridSize, blockSize>>>((uint8 *)tx->buf, (uint8 *)tz->buf, length); break;
@@ -944,6 +1025,259 @@ static PyObject *__abs_tensor__(const tensor_t *tx, tensor_t *tz){
     case FP64: abs_tensor_kernel<float64><<<gridSize, blockSize>>>((float64 *)tx->buf, (float64 *)tz->buf, length); break;
     case CMPX64: abs_cmpx_tensor_kernel<complex64, float32><<<gridSize, blockSize>>>((complex64 *)tx->buf, (float32 *)tz->buf, length); break;
     case CMPX128: abs_cmpx_tensor_kernel<complex128, float64><<<gridSize, blockSize>>>((complex128 *)tx->buf, (float64 *)tz->buf, length); break;
+  }
+  cudaError_t err = cudaGetLastError();
+  if(err != cudaSuccess){
+    PyErr_Format(PyExc_RuntimeError, "CUDA kernel launch failed: %s", cudaGetErrorString(err));
+    return NULL;
+  }
+  err = cudaDeviceSynchronize();
+  if(err != cudaSuccess){
+    PyErr_Format(PyExc_RuntimeError, "CUDA synchronization failed: %s", cudaGetErrorString(err));
+    return NULL;
+  }
+  return PyCapsule_New(tz, "tensor_t on CUDA", capsule_destroyer);
+}
+
+
+static PyObject *__lshift_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
+  size_t length = tx->size;
+  dtype_t dtype = tx->dtype;
+  int blockSize = 256;
+  int gridSize = (length + blockSize - 1) / blockSize;
+  switch(dtype){
+    case INT8: lshift_tensor_kernel<int8><<<gridSize, blockSize>>>((int8 *)tx->buf, (int8 *)ty->buf, (int8 *)tz->buf, length); break;
+    case UINT8: lshift_tensor_kernel<uint8><<<gridSize, blockSize>>>((uint8 *)tx->buf, (uint8 *)ty->buf, (uint8 *)tz->buf, length); break;
+    case INT16: lshift_tensor_kernel<int16><<<gridSize, blockSize>>>((int16 *)tx->buf, (int16 *)ty->buf, (int16 *)tz->buf, length); break;
+    case UINT16: lshift_tensor_kernel<uint16><<<gridSize, blockSize>>>((uint16 *)tx->buf, (uint16 *)ty->buf, (uint16 *)tz->buf, length); break;
+    case INT32: lshift_tensor_kernel<int32><<<gridSize, blockSize>>>((int32 *)tx->buf, (int32 *)ty->buf, (int32 *)tz->buf, length); break;
+    case UINT32: lshift_tensor_kernel<uint32><<<gridSize, blockSize>>>((uint32 *)tx->buf, (uint32 *)ty->buf, (uint32 *)tz->buf, length); break;
+    case INT64: lshift_tensor_kernel<int64><<<gridSize, blockSize>>>((int64 *)tx->buf, (int64 *)ty->buf, (int64 *)tz->buf, length); break;
+    case UINT64: lshift_tensor_kernel<uint64><<<gridSize, blockSize>>>((uint64 *)tx->buf, (uint64 *)ty->buf, (uint64 *)tz->buf, length); break;
+  }
+  cudaError_t err = cudaGetLastError();
+  if(err != cudaSuccess){
+    PyErr_Format(PyExc_RuntimeError, "CUDA kernel launch failed: %s", cudaGetErrorString(err));
+    return NULL;
+  }
+  err = cudaDeviceSynchronize();
+  if(err != cudaSuccess){
+    PyErr_Format(PyExc_RuntimeError, "CUDA synchronization failed: %s", cudaGetErrorString(err));
+    return NULL;
+  }
+  return PyCapsule_New(tz, "tensor_t on CUDA", capsule_destroyer);
+}
+
+static PyObject *__rshift_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
+  size_t length = tx->size;
+  dtype_t dtype = tx->dtype;
+  int blockSize = 256;
+  int gridSize = (length + blockSize - 1) / blockSize;
+  switch(dtype){
+    case INT8: rshift_tensor_kernel<int8><<<gridSize, blockSize>>>((int8 *)tx->buf, (int8 *)ty->buf, (int8 *)tz->buf, length); break;
+    case UINT8: rshift_tensor_kernel<uint8><<<gridSize, blockSize>>>((uint8 *)tx->buf, (uint8 *)ty->buf, (uint8 *)tz->buf, length); break;
+    case INT16: rshift_tensor_kernel<int16><<<gridSize, blockSize>>>((int16 *)tx->buf, (int16 *)ty->buf, (int16 *)tz->buf, length); break;
+    case UINT16: rshift_tensor_kernel<uint16><<<gridSize, blockSize>>>((uint16 *)tx->buf, (uint16 *)ty->buf, (uint16 *)tz->buf, length); break;
+    case INT32: rshift_tensor_kernel<int32><<<gridSize, blockSize>>>((int32 *)tx->buf, (int32 *)ty->buf, (int32 *)tz->buf, length); break;
+    case UINT32: rshift_tensor_kernel<uint32><<<gridSize, blockSize>>>((uint32 *)tx->buf, (uint32 *)ty->buf, (uint32 *)tz->buf, length); break;
+    case INT64: rshift_tensor_kernel<int64><<<gridSize, blockSize>>>((int64 *)tx->buf, (int64 *)ty->buf, (int64 *)tz->buf, length); break;
+    case UINT64: rshift_tensor_kernel<uint64><<<gridSize, blockSize>>>((uint64 *)tx->buf, (uint64 *)ty->buf, (uint64 *)tz->buf, length); break;
+  }
+  cudaError_t err = cudaGetLastError();
+  if(err != cudaSuccess){
+    PyErr_Format(PyExc_RuntimeError, "CUDA kernel launch failed: %s", cudaGetErrorString(err));
+    return NULL;
+  }
+  err = cudaDeviceSynchronize();
+  if(err != cudaSuccess){
+    PyErr_Format(PyExc_RuntimeError, "CUDA synchronization failed: %s", cudaGetErrorString(err));
+    return NULL;
+  }
+  return PyCapsule_New(tz, "tensor_t on CUDA", capsule_destroyer);
+}
+
+static PyObject *__and_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
+  size_t length = tx->size;
+  dtype_t dtype = tx->dtype;
+  int blockSize = 256;
+  int gridSize = (length + blockSize - 1) / blockSize;
+  switch(dtype){
+    case INT8: and_tensor_kernel<int8><<<gridSize, blockSize>>>((int8 *)tx->buf, (int8 *)ty->buf, (int8 *)tz->buf, length); break;
+    case UINT8: and_tensor_kernel<uint8><<<gridSize, blockSize>>>((uint8 *)tx->buf, (uint8 *)ty->buf, (uint8 *)tz->buf, length); break;
+    case INT16: and_tensor_kernel<int16><<<gridSize, blockSize>>>((int16 *)tx->buf, (int16 *)ty->buf, (int16 *)tz->buf, length); break;
+    case UINT16: and_tensor_kernel<uint16><<<gridSize, blockSize>>>((uint16 *)tx->buf, (uint16 *)ty->buf, (uint16 *)tz->buf, length); break;
+    case INT32: and_tensor_kernel<int32><<<gridSize, blockSize>>>((int32 *)tx->buf, (int32 *)ty->buf, (int32 *)tz->buf, length); break;
+    case UINT32: and_tensor_kernel<uint32><<<gridSize, blockSize>>>((uint32 *)tx->buf, (uint32 *)ty->buf, (uint32 *)tz->buf, length); break;
+    case INT64: and_tensor_kernel<int64><<<gridSize, blockSize>>>((int64 *)tx->buf, (int64 *)ty->buf, (int64 *)tz->buf, length); break;
+    case UINT64: and_tensor_kernel<uint64><<<gridSize, blockSize>>>((uint64 *)tx->buf, (uint64 *)ty->buf, (uint64 *)tz->buf, length); break;
+  }
+  cudaError_t err = cudaGetLastError();
+  if(err != cudaSuccess){
+    PyErr_Format(PyExc_RuntimeError, "CUDA kernel launch failed: %s", cudaGetErrorString(err));
+    return NULL;
+  }
+  err = cudaDeviceSynchronize();
+  if(err != cudaSuccess){
+    PyErr_Format(PyExc_RuntimeError, "CUDA synchronization failed: %s", cudaGetErrorString(err));
+    return NULL;
+  }
+  return PyCapsule_New(tz, "tensor_t on CUDA", capsule_destroyer);
+}
+
+static PyObject *__nand_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
+  size_t length = tx->size;
+  dtype_t dtype = tx->dtype;
+  int blockSize = 256;
+  int gridSize = (length + blockSize - 1) / blockSize;
+  switch(dtype){
+    case INT8: nand_tensor_kernel<int8><<<gridSize, blockSize>>>((int8 *)tx->buf, (int8 *)ty->buf, (int8 *)tz->buf, length); break;
+    case UINT8: nand_tensor_kernel<uint8><<<gridSize, blockSize>>>((uint8 *)tx->buf, (uint8 *)ty->buf, (uint8 *)tz->buf, length); break;
+    case INT16: nand_tensor_kernel<int16><<<gridSize, blockSize>>>((int16 *)tx->buf, (int16 *)ty->buf, (int16 *)tz->buf, length); break;
+    case UINT16: nand_tensor_kernel<uint16><<<gridSize, blockSize>>>((uint16 *)tx->buf, (uint16 *)ty->buf, (uint16 *)tz->buf, length); break;
+    case INT32: nand_tensor_kernel<int32><<<gridSize, blockSize>>>((int32 *)tx->buf, (int32 *)ty->buf, (int32 *)tz->buf, length); break;
+    case UINT32: nand_tensor_kernel<uint32><<<gridSize, blockSize>>>((uint32 *)tx->buf, (uint32 *)ty->buf, (uint32 *)tz->buf, length); break;
+    case INT64: nand_tensor_kernel<int64><<<gridSize, blockSize>>>((int64 *)tx->buf, (int64 *)ty->buf, (int64 *)tz->buf, length); break;
+    case UINT64: nand_tensor_kernel<uint64><<<gridSize, blockSize>>>((uint64 *)tx->buf, (uint64 *)ty->buf, (uint64 *)tz->buf, length); break;
+  }
+  cudaError_t err = cudaGetLastError();
+  if(err != cudaSuccess){
+    PyErr_Format(PyExc_RuntimeError, "CUDA kernel launch failed: %s", cudaGetErrorString(err));
+    return NULL;
+  }
+  err = cudaDeviceSynchronize();
+  if(err != cudaSuccess){
+    PyErr_Format(PyExc_RuntimeError, "CUDA synchronization failed: %s", cudaGetErrorString(err));
+    return NULL;
+  }
+  return PyCapsule_New(tz, "tensor_t on CUDA", capsule_destroyer);
+}
+
+static PyObject *__or_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
+  size_t length = tx->size;
+  dtype_t dtype = tx->dtype;
+  int blockSize = 256;
+  int gridSize = (length + blockSize - 1) / blockSize;
+  switch(dtype){
+    case INT8: or_tensor_kernel<int8><<<gridSize, blockSize>>>((int8 *)tx->buf, (int8 *)ty->buf, (int8 *)tz->buf, length); break;
+    case UINT8: or_tensor_kernel<uint8><<<gridSize, blockSize>>>((uint8 *)tx->buf, (uint8 *)ty->buf, (uint8 *)tz->buf, length); break;
+    case INT16: or_tensor_kernel<int16><<<gridSize, blockSize>>>((int16 *)tx->buf, (int16 *)ty->buf, (int16 *)tz->buf, length); break;
+    case UINT16: or_tensor_kernel<uint16><<<gridSize, blockSize>>>((uint16 *)tx->buf, (uint16 *)ty->buf, (uint16 *)tz->buf, length); break;
+    case INT32: or_tensor_kernel<int32><<<gridSize, blockSize>>>((int32 *)tx->buf, (int32 *)ty->buf, (int32 *)tz->buf, length); break;
+    case UINT32: or_tensor_kernel<uint32><<<gridSize, blockSize>>>((uint32 *)tx->buf, (uint32 *)ty->buf, (uint32 *)tz->buf, length); break;
+    case INT64: or_tensor_kernel<int64><<<gridSize, blockSize>>>((int64 *)tx->buf, (int64 *)ty->buf, (int64 *)tz->buf, length); break;
+    case UINT64: or_tensor_kernel<uint64><<<gridSize, blockSize>>>((uint64 *)tx->buf, (uint64 *)ty->buf, (uint64 *)tz->buf, length); break;
+  }
+  cudaError_t err = cudaGetLastError();
+  if(err != cudaSuccess){
+    PyErr_Format(PyExc_RuntimeError, "CUDA kernel launch failed: %s", cudaGetErrorString(err));
+    return NULL;
+  }
+  err = cudaDeviceSynchronize();
+  if(err != cudaSuccess){
+    PyErr_Format(PyExc_RuntimeError, "CUDA synchronization failed: %s", cudaGetErrorString(err));
+    return NULL;
+  }
+  return PyCapsule_New(tz, "tensor_t on CUDA", capsule_destroyer);
+}
+
+static PyObject *__nor_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
+  size_t length = tx->size;
+  dtype_t dtype = tx->dtype;
+  int blockSize = 256;
+  int gridSize = (length + blockSize - 1) / blockSize;
+  switch(dtype){
+    case INT8: nor_tensor_kernel<int8><<<gridSize, blockSize>>>((int8 *)tx->buf, (int8 *)ty->buf, (int8 *)tz->buf, length); break;
+    case UINT8: nor_tensor_kernel<uint8><<<gridSize, blockSize>>>((uint8 *)tx->buf, (uint8 *)ty->buf, (uint8 *)tz->buf, length); break;
+    case INT16: nor_tensor_kernel<int16><<<gridSize, blockSize>>>((int16 *)tx->buf, (int16 *)ty->buf, (int16 *)tz->buf, length); break;
+    case UINT16: nor_tensor_kernel<uint16><<<gridSize, blockSize>>>((uint16 *)tx->buf, (uint16 *)ty->buf, (uint16 *)tz->buf, length); break;
+    case INT32: nor_tensor_kernel<int32><<<gridSize, blockSize>>>((int32 *)tx->buf, (int32 *)ty->buf, (int32 *)tz->buf, length); break;
+    case UINT32: nor_tensor_kernel<uint32><<<gridSize, blockSize>>>((uint32 *)tx->buf, (uint32 *)ty->buf, (uint32 *)tz->buf, length); break;
+    case INT64: nor_tensor_kernel<int64><<<gridSize, blockSize>>>((int64 *)tx->buf, (int64 *)ty->buf, (int64 *)tz->buf, length); break;
+    case UINT64: nor_tensor_kernel<uint64><<<gridSize, blockSize>>>((uint64 *)tx->buf, (uint64 *)ty->buf, (uint64 *)tz->buf, length); break;
+  }
+  cudaError_t err = cudaGetLastError();
+  if(err != cudaSuccess){
+    PyErr_Format(PyExc_RuntimeError, "CUDA kernel launch failed: %s", cudaGetErrorString(err));
+    return NULL;
+  }
+  err = cudaDeviceSynchronize();
+  if(err != cudaSuccess){
+    PyErr_Format(PyExc_RuntimeError, "CUDA synchronization failed: %s", cudaGetErrorString(err));
+    return NULL;
+  }
+  return PyCapsule_New(tz, "tensor_t on CUDA", capsule_destroyer);
+}
+
+static PyObject *__not_tensor__(const tensor_t *tx, tensor_t *tz){
+  size_t length = tx->size;
+  dtype_t dtype = tx->dtype;
+  int blockSize = 256;
+  int gridSize = (length + blockSize - 1) / blockSize;
+  switch(dtype){
+    case INT8: not_tensor_kernel<int8><<<gridSize, blockSize>>>((int8 *)tx->buf, (int8 *)tz->buf, length); break;
+    case UINT8: not_tensor_kernel<uint8><<<gridSize, blockSize>>>((uint8 *)tx->buf, (uint8 *)tz->buf, length); break;
+    case INT16: not_tensor_kernel<int16><<<gridSize, blockSize>>>((int16 *)tx->buf, (int16 *)tz->buf, length); break;
+    case UINT16: not_tensor_kernel<uint16><<<gridSize, blockSize>>>((uint16 *)tx->buf, (uint16 *)tz->buf, length); break;
+    case INT32: not_tensor_kernel<int32><<<gridSize, blockSize>>>((int32 *)tx->buf, (int32 *)tz->buf, length); break;
+    case UINT32: not_tensor_kernel<uint32><<<gridSize, blockSize>>>((uint32 *)tx->buf, (uint32 *)tz->buf, length); break;
+    case INT64: not_tensor_kernel<int64><<<gridSize, blockSize>>>((int64 *)tx->buf, (int64 *)tz->buf, length); break;
+    case UINT64: not_tensor_kernel<uint64><<<gridSize, blockSize>>>((uint64 *)tx->buf, (uint64 *)tz->buf, length); break;
+  }
+  cudaError_t err = cudaGetLastError();
+  if(err != cudaSuccess){
+    PyErr_Format(PyExc_RuntimeError, "CUDA kernel launch failed: %s", cudaGetErrorString(err));
+    return NULL;
+  }
+  err = cudaDeviceSynchronize();
+  if(err != cudaSuccess){
+    PyErr_Format(PyExc_RuntimeError, "CUDA synchronization failed: %s", cudaGetErrorString(err));
+    return NULL;
+  }
+  return PyCapsule_New(tz, "tensor_t on CUDA", capsule_destroyer);
+}
+
+static PyObject *__xor_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
+  size_t length = tx->size;
+  dtype_t dtype = tx->dtype;
+  int blockSize = 256;
+  int gridSize = (length + blockSize - 1) / blockSize;
+  switch(dtype){
+    case INT8: xor_tensor_kernel<int8><<<gridSize, blockSize>>>((int8 *)tx->buf, (int8 *)ty->buf, (int8 *)tz->buf, length); break;
+    case UINT8: xor_tensor_kernel<uint8><<<gridSize, blockSize>>>((uint8 *)tx->buf, (uint8 *)ty->buf, (uint8 *)tz->buf, length); break;
+    case INT16: xor_tensor_kernel<int16><<<gridSize, blockSize>>>((int16 *)tx->buf, (int16 *)ty->buf, (int16 *)tz->buf, length); break;
+    case UINT16: xor_tensor_kernel<uint16><<<gridSize, blockSize>>>((uint16 *)tx->buf, (uint16 *)ty->buf, (uint16 *)tz->buf, length); break;
+    case INT32: xor_tensor_kernel<int32><<<gridSize, blockSize>>>((int32 *)tx->buf, (int32 *)ty->buf, (int32 *)tz->buf, length); break;
+    case UINT32: xor_tensor_kernel<uint32><<<gridSize, blockSize>>>((uint32 *)tx->buf, (uint32 *)ty->buf, (uint32 *)tz->buf, length); break;
+    case INT64: xor_tensor_kernel<int64><<<gridSize, blockSize>>>((int64 *)tx->buf, (int64 *)ty->buf, (int64 *)tz->buf, length); break;
+    case UINT64: xor_tensor_kernel<uint64><<<gridSize, blockSize>>>((uint64 *)tx->buf, (uint64 *)ty->buf, (uint64 *)tz->buf, length); break;
+  }
+  cudaError_t err = cudaGetLastError();
+  if(err != cudaSuccess){
+    PyErr_Format(PyExc_RuntimeError, "CUDA kernel launch failed: %s", cudaGetErrorString(err));
+    return NULL;
+  }
+  err = cudaDeviceSynchronize();
+  if(err != cudaSuccess){
+    PyErr_Format(PyExc_RuntimeError, "CUDA synchronization failed: %s", cudaGetErrorString(err));
+    return NULL;
+  }
+  return PyCapsule_New(tz, "tensor_t on CUDA", capsule_destroyer);
+}
+
+static PyObject *__xnor_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
+  size_t length = tx->size;
+  dtype_t dtype = tx->dtype;
+  int blockSize = 256;
+  int gridSize = (length + blockSize - 1) / blockSize;
+  switch(dtype){
+    case INT8: xnor_tensor_kernel<int8><<<gridSize, blockSize>>>((int8 *)tx->buf, (int8 *)ty->buf, (int8 *)tz->buf, length); break;
+    case UINT8: xnor_tensor_kernel<uint8><<<gridSize, blockSize>>>((uint8 *)tx->buf, (uint8 *)ty->buf, (uint8 *)tz->buf, length); break;
+    case INT16: xnor_tensor_kernel<int16><<<gridSize, blockSize>>>((int16 *)tx->buf, (int16 *)ty->buf, (int16 *)tz->buf, length); break;
+    case UINT16: xnor_tensor_kernel<uint16><<<gridSize, blockSize>>>((uint16 *)tx->buf, (uint16 *)ty->buf, (uint16 *)tz->buf, length); break;
+    case INT32: xnor_tensor_kernel<int32><<<gridSize, blockSize>>>((int32 *)tx->buf, (int32 *)ty->buf, (int32 *)tz->buf, length); break;
+    case UINT32: xnor_tensor_kernel<uint32><<<gridSize, blockSize>>>((uint32 *)tx->buf, (uint32 *)ty->buf, (uint32 *)tz->buf, length); break;
+    case INT64: xnor_tensor_kernel<int64><<<gridSize, blockSize>>>((int64 *)tx->buf, (int64 *)ty->buf, (int64 *)tz->buf, length); break;
+    case UINT64: xnor_tensor_kernel<uint64><<<gridSize, blockSize>>>((uint64 *)tx->buf, (uint64 *)ty->buf, (uint64 *)tz->buf, length); break;
   }
   cudaError_t err = cudaGetLastError();
   if(err != cudaSuccess){
@@ -1118,7 +1452,7 @@ static PyObject *tdiv(PyObject *self, PyObject *args){
   tz->buf = tz->storage->ptr;
   return __tdiv_tensor__(tx, ty, tz);
 }
-static PyObject *fdiv_(PyObject *self, PyObject *args){
+static PyObject *fdiv(PyObject *self, PyObject *args){
   PyObject *x, *y;
   if(!PyArg_ParseTuple(args, "OO", &x, &y)) return NULL;
   if(!PyCapsule_CheckExact(x) || !PyCapsule_CheckExact(y)){
@@ -1138,6 +1472,10 @@ static PyObject *fdiv_(PyObject *self, PyObject *args){
   }
   if(tx->dtype != ty->dtype){
     PyErr_SetString(PyExc_TypeError, "tensors must have the same dtype for floordiv");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_RuntimeError, "'//' operation on complex tensor is not supported");
     return NULL;
   }
   tensor_t *tz = alloc_result_tensor(tx);
@@ -1711,23 +2049,329 @@ static PyObject *abs_(PyObject *self, PyObject *args){
   return __abs_tensor__(tx, tz);
 }
 
+static PyObject *lshift(PyObject *self, PyObject *args){
+  PyObject *x, *y;
+  if(!PyArg_ParseTuple(args, "OO", &x, &y)) return NULL;
+  if(!PyCapsule_CheckExact(x) || !PyCapsule_CheckExact(y)){
+    PyErr_SetString(PyExc_RuntimeError, "operands must be the tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = (tensor_t *)PyCapsule_GetPointer(x, "tensor_t on CUDA");
+  tensor_t *ty = (tensor_t *)PyCapsule_GetPointer(y, "tensor_t on CUDA");
+  if(!tx || !ty){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  if(tx->dtype != ty->dtype){
+    PyErr_SetString(PyExc_TypeError, "Both tensor_t(s) must have the same dtype");
+    return NULL;
+  }
+  if(tx->dtype == FP32 || tx->dtype == FP64){
+    PyErr_SetString(PyExc_RuntimeError, "'<<' operation on floating points tensor is not supported");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_RuntimeError, "'<<' operation on complex tensor is not supported");
+    return NULL;
+  }
+  if(tx->device.type != ty->device.type || tx->device.type != CUDA){
+    PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CUDA)");
+    return NULL;
+  }
+  tensor_t *tz = NULL;
+  tz = alloc_result_tensor(tx);
+  return __lshift_tensor__(tx, ty, tz);
+}
+
+static PyObject *rshift(PyObject *self, PyObject *args){
+  PyObject *x, *y;
+  if(!PyArg_ParseTuple(args, "OO", &x, &y)) return NULL;
+  if(!PyCapsule_CheckExact(x) || !PyCapsule_CheckExact(y)){
+    PyErr_SetString(PyExc_RuntimeError, "operands must be the tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = (tensor_t *)PyCapsule_GetPointer(x, "tensor_t on CUDA");
+  tensor_t *ty = (tensor_t *)PyCapsule_GetPointer(y, "tensor_t on CUDA");
+  if(!tx || !ty){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  if(tx->dtype != ty->dtype){
+    PyErr_SetString(PyExc_TypeError, "Both tensor_t(s) must have the same dtype");
+    return NULL;
+  }
+  if(tx->dtype == FP32 || tx->dtype == FP64){
+    PyErr_SetString(PyExc_RuntimeError, "'<<' operation on floating points tensor is not supported");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_RuntimeError, "'<<' operation on complex tensor is not supported");
+    return NULL;
+  }
+  if(tx->device.type != ty->device.type || tx->device.type != CUDA){
+    PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CUDA)");
+    return NULL;
+  }
+  tensor_t *tz = NULL;
+  tz = alloc_result_tensor(tx);
+  return __rshift_tensor__(tx, ty, tz);
+}
+
+static PyObject *and_(PyObject *self, PyObject *args){
+  PyObject *x, *y;
+  if(!PyArg_ParseTuple(args, "OO", &x, &y)) return NULL;
+  if(!PyCapsule_CheckExact(x) || !PyCapsule_CheckExact(y)){
+    PyErr_SetString(PyExc_RuntimeError, "operands must be the tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = (tensor_t *)PyCapsule_GetPointer(x, "tensor_t on CUDA");
+  tensor_t *ty = (tensor_t *)PyCapsule_GetPointer(y, "tensor_t on CUDA");
+  if(!tx || !ty){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  if(tx->dtype != ty->dtype){
+    PyErr_SetString(PyExc_TypeError, "Both tensor_t(s) must have the same dtype");
+    return NULL;
+  }
+  if(tx->dtype == FP32 || tx->dtype == FP64){
+    PyErr_SetString(PyExc_RuntimeError, "'<<' operation on floating points tensor is not supported");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_RuntimeError, "'<<' operation on complex tensor is not supported");
+    return NULL;
+  }
+  if(tx->device.type != ty->device.type || tx->device.type != CUDA){
+    PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CUDA)");
+    return NULL;
+  }
+  tensor_t *tz = NULL;
+  tz = alloc_result_tensor(tx);
+  return __and_tensor__(tx, ty, tz);
+}
+
+static PyObject *nand_(PyObject *self, PyObject *args){
+  PyObject *x, *y;
+  if(!PyArg_ParseTuple(args, "OO", &x, &y)) return NULL;
+  if(!PyCapsule_CheckExact(x) || !PyCapsule_CheckExact(y)){
+    PyErr_SetString(PyExc_RuntimeError, "operands must be the tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = (tensor_t *)PyCapsule_GetPointer(x, "tensor_t on CUDA");
+  tensor_t *ty = (tensor_t *)PyCapsule_GetPointer(y, "tensor_t on CUDA");
+  if(!tx || !ty){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  if(tx->dtype != ty->dtype){
+    PyErr_SetString(PyExc_TypeError, "Both tensor_t(s) must have the same dtype");
+    return NULL;
+  }
+  if(tx->dtype == FP32 || tx->dtype == FP64){
+    PyErr_SetString(PyExc_RuntimeError, "'<<' operation on floating points tensor is not supported");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_RuntimeError, "'<<' operation on complex tensor is not supported");
+    return NULL;
+  }
+  if(tx->device.type != ty->device.type || tx->device.type != CUDA){
+    PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CUDA)");
+    return NULL;
+  }
+  tensor_t *tz = NULL;
+  tz = alloc_result_tensor(tx);
+  return __nand_tensor__(tx, ty, tz);
+}
+
+static PyObject *or_(PyObject *self, PyObject *args){
+  PyObject *x, *y;
+  if(!PyArg_ParseTuple(args, "OO", &x, &y)) return NULL;
+  if(!PyCapsule_CheckExact(x) || !PyCapsule_CheckExact(y)){
+    PyErr_SetString(PyExc_RuntimeError, "operands must be the tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = (tensor_t *)PyCapsule_GetPointer(x, "tensor_t on CUDA");
+  tensor_t *ty = (tensor_t *)PyCapsule_GetPointer(y, "tensor_t on CUDA");
+  if(!tx || !ty){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  if(tx->dtype != ty->dtype){
+    PyErr_SetString(PyExc_TypeError, "Both tensor_t(s) must have the same dtype");
+    return NULL;
+  }
+  if(tx->dtype == FP32 || tx->dtype == FP64){
+    PyErr_SetString(PyExc_RuntimeError, "'<<' operation on floating points tensor is not supported");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_RuntimeError, "'<<' operation on complex tensor is not supported");
+    return NULL;
+  }
+  if(tx->device.type != ty->device.type || tx->device.type != CUDA){
+    PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CUDA)");
+    return NULL;
+  }
+  tensor_t *tz = NULL;
+  tz = alloc_result_tensor(tx);
+  return __or_tensor__(tx, ty, tz);
+}
+
+static PyObject *nor_(PyObject *self, PyObject *args){
+  PyObject *x, *y;
+  if(!PyArg_ParseTuple(args, "OO", &x, &y)) return NULL;
+  if(!PyCapsule_CheckExact(x) || !PyCapsule_CheckExact(y)){
+    PyErr_SetString(PyExc_RuntimeError, "operands must be the tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = (tensor_t *)PyCapsule_GetPointer(x, "tensor_t on CUDA");
+  tensor_t *ty = (tensor_t *)PyCapsule_GetPointer(y, "tensor_t on CUDA");
+  if(!tx || !ty){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  if(tx->dtype != ty->dtype){
+    PyErr_SetString(PyExc_TypeError, "Both tensor_t(s) must have the same dtype");
+    return NULL;
+  }
+  if(tx->dtype == FP32 || tx->dtype == FP64){
+    PyErr_SetString(PyExc_RuntimeError, "'<<' operation on floating points tensor is not supported");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_RuntimeError, "'<<' operation on complex tensor is not supported");
+    return NULL;
+  }
+  if(tx->device.type != ty->device.type || tx->device.type != CUDA){
+    PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CUDA)");
+    return NULL;
+  }
+  tensor_t *tz = NULL;
+  tz = alloc_result_tensor(tx);
+  return __nor_tensor__(tx, ty, tz);
+}
+
+static PyObject *not_(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "operands must be the tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = (tensor_t *)PyCapsule_GetPointer(x, "tensor_t on CUDA");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  if(tx->dtype == FP32 || tx->dtype == FP64){
+    PyErr_SetString(PyExc_RuntimeError, "'<<' operation on floating points tensor is not supported");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_RuntimeError, "'<<' operation on complex tensor is not supported");
+    return NULL;
+  }
+  tensor_t *tz = NULL;
+  tz = alloc_result_tensor(tx);
+  return __not_tensor__(tx, tz);
+}
+
+static PyObject *xor_(PyObject *self, PyObject *args){
+  PyObject *x, *y;
+  if(!PyArg_ParseTuple(args, "OO", &x, &y)) return NULL;
+  if(!PyCapsule_CheckExact(x) || !PyCapsule_CheckExact(y)){
+    PyErr_SetString(PyExc_RuntimeError, "operands must be the tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = (tensor_t *)PyCapsule_GetPointer(x, "tensor_t on CUDA");
+  tensor_t *ty = (tensor_t *)PyCapsule_GetPointer(y, "tensor_t on CUDA");
+  if(!tx || !ty){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  if(tx->dtype != ty->dtype){
+    PyErr_SetString(PyExc_TypeError, "Both tensor_t(s) must have the same dtype");
+    return NULL;
+  }
+  if(tx->dtype == FP32 || tx->dtype == FP64){
+    PyErr_SetString(PyExc_RuntimeError, "'<<' operation on floating points tensor is not supported");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_RuntimeError, "'<<' operation on complex tensor is not supported");
+    return NULL;
+  }
+  if(tx->device.type != ty->device.type || tx->device.type != CUDA){
+    PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CUDA)");
+    return NULL;
+  }
+  tensor_t *tz = NULL;
+  tz = alloc_result_tensor(tx);
+  return __xor_tensor__(tx, ty, tz);
+}
+
+static PyObject *xnor_(PyObject *self, PyObject *args){
+  PyObject *x, *y;
+  if(!PyArg_ParseTuple(args, "OO", &x, &y)) return NULL;
+  if(!PyCapsule_CheckExact(x) || !PyCapsule_CheckExact(y)){
+    PyErr_SetString(PyExc_RuntimeError, "operands must be the tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = (tensor_t *)PyCapsule_GetPointer(x, "tensor_t on CUDA");
+  tensor_t *ty = (tensor_t *)PyCapsule_GetPointer(y, "tensor_t on CUDA");
+  if(!tx || !ty){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  if(tx->dtype != ty->dtype){
+    PyErr_SetString(PyExc_TypeError, "Both tensor_t(s) must have the same dtype");
+    return NULL;
+  }
+  if(tx->dtype == FP32 || tx->dtype == FP64){
+    PyErr_SetString(PyExc_RuntimeError, "'<<' operation on floating points tensor is not supported");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_RuntimeError, "'<<' operation on complex tensor is not supported");
+    return NULL;
+  }
+  if(tx->device.type != ty->device.type || tx->device.type != CUDA){
+    PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CUDA)");
+    return NULL;
+  }
+  tensor_t *tz = NULL;
+  tz = alloc_result_tensor(tx);
+  return __xnor_tensor__(tx, ty, tz);
+}
+
 static PyMethodDef methods[] = {
-  {"add", add, METH_VARARGS, "element-wise addition of two tensors or tensor with scalar on CUDA"},
-  {"sub", sub, METH_VARARGS, "element-wise subtraction of two tensors or tensor with scalar on CUDA"},
-  {"mul", mul, METH_VARARGS, "element-wise multiplication of two tensors or tensor with scalar on CUDA"},
-  {"tdiv", tdiv, METH_VARARGS, "element-wise true division for two tensors or tensor with scalar on CUDA"},
-  {"fdiv", fdiv_, METH_VARARGS, "element-wise floor division for two tensors or tensor with scalar on CUDA"},
-  {"pow", pow_, METH_VARARGS, "element-wise pow op for two tensors or tensor with scalar on CUDA"},
-  {"mod", mod_, METH_VARARGS, "element-wise modulo op for two tensors or tensor with scalar on CUDA"},
-  {"eq", eq, METH_VARARGS, "element-wise equivalence of two tensors or tensor with scalar on CUDA"},
-  {"ne", ne, METH_VARARGS, "element-wise non-equivalence of two tensors or tensor with scalar on CUDA"},
-  {"gt", gt, METH_VARARGS, "element-wise greater than op of two tensors or tensor with scalar on CUDA"},
-  {"ge", ge, METH_VARARGS, "element-wise greater than equal op of two tensors or tensor with scalar on CUDA"},
-  {"lt", lt, METH_VARARGS, "element-wise less than op of two tensors or tensor with scalar on CUDA"},
-  {"le", le, METH_VARARGS, "element-wise less than equal op of two tensors or tensor with scalar on CUDA"},
-  {"neg", neg, METH_VARARGS, "negation operation on tensor on CUDA"},
-  {"pos", pos, METH_VARARGS, "non-negation operation on tensor on CUDA"},
-  {"abs", abs_, METH_VARARGS, "absolute value of tensor or tensor with scalar on CUDA"},
+  {"add", add, METH_VARARGS, "element-wise 'add' operation on CUDA tensor"},
+  {"sub", sub, METH_VARARGS, "element-wise 'sub' operation on CUDA tensor"},
+  {"mul", mul, METH_VARARGS, "element-wise 'mul' operation on CUDA tensor"},
+  {"tdiv", tdiv, METH_VARARGS, "element-wise 'tdiv' operation on CUDA tensor"},
+  {"fdiv", fdiv, METH_VARARGS, "element-wise 'fdiv' operation on CUDA tensor"},
+  {"pow", pow_, METH_VARARGS, "element-wise 'pow' operation on CUDA tensor"},
+  {"mod", mod_, METH_VARARGS, "element-wise 'mod' operation on CUDA tensor"},
+  {"eq", eq, METH_VARARGS, "element-wise 'eq' operation on CUDA tensor"},
+  {"ne", ne, METH_VARARGS, "element-wise 'ne' operation on CUDA tensor"},
+  {"gt", gt, METH_VARARGS, "element-wise 'gt' operation on CUDA tensor"},
+  {"ge", ge, METH_VARARGS, "element-wise 'ge' operation on CUDA tensor"},
+  {"lt", lt, METH_VARARGS, "element-wise 'lt' operation on CUDA tensor"},
+  {"le", le, METH_VARARGS, "element-wise 'le' operation on CUDA tensor"},
+  {"neg", neg, METH_VARARGS, "element-wise 'neg' operation on CUDA tensor"},
+  {"pos", pos, METH_VARARGS, "element-wise 'pos' operation on CUDA tensor"},
+  {"abs", abs_, METH_VARARGS, "element-wise 'abs' operation on CUDA tensor"},
+  {"lshift", lshift, METH_VARARGS, "element-wise 'lshift' operation on CUDA tensor"},
+  {"rshift", rshift, METH_VARARGS, "element-wise 'rshift' operation on CUDA tensor"},
+  {"and_", and_, METH_VARARGS, "element-wise 'and' operation on CUDA tensor"},
+  {"nand_", nand_, METH_VARARGS, "element-wise 'nand' operation on CUDA tensor"},
+  {"or_", or_, METH_VARARGS, "element-wise 'or' operation on CUDA tensor"},
+  {"nor_", nor_, METH_VARARGS, "element-wise 'nor' operation on CUDA tensor"},
+  {"not_", not_, METH_VARARGS, "element-wise 'not' operation on CUDA tensor"},
+  {"xor_", xor_, METH_VARARGS, "element-wise 'xor' operation on CUDA tensor"},
+  {"xnor_", xnor_, METH_VARARGS, "element-wise 'xnor' operation on CUDA tensor"},
   {NULL, NULL, 0, NULL}
 };
 
