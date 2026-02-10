@@ -69,7 +69,14 @@ static PyObject *__list__(PyObject *list, PyObject *shape, Py_ssize_t length, co
     free(t);
     return NULL;
   }
-  t->stride = NULL; // not implemented yet
+  t->stride = malloc(sizeof(size_t) * t->ndim);
+  if(!t->stride){
+    destroy(t);
+    PyErr_SetString(PyExc_RuntimeError, "tensor_t.stride allocation failed!");
+    return NULL;
+  }
+  t->stride[t->ndim-1] = 1;
+  for(int i = (int)t->ndim - 2; i >= 0; i--){ t->stride[i] = t->shape[i + 1] * t->stride[i+1]; }
   t->element_size = getsize(dtype);
   t->device = (device_t){CPU, 0};
   t->storage = malloc(sizeof(storage_t));
@@ -291,10 +298,90 @@ static PyObject *topyobj(PyObject *self, PyObject *args){
   return list;
 }
 
+static PyObject *ndim(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  tensor_t *t = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  if(!t){
+    PyErr_SetString(PyExc_RuntimeError, "invalid tensor capsule");
+    return NULL;
+  }
+  return PyLong_FromLong(t->ndim);
+}
+
+static PyObject *shape(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_TypeError, "expected tensor capsule");
+    return NULL;
+  }
+  tensor_t *t = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  if(!t){
+    PyErr_SetString(PyExc_RuntimeError, "invalid tensor capsule");
+    return NULL;
+  }
+  PyObject *shape_tuple = PyTuple_New(t->ndim);
+  if(!shape_tuple){
+    PyErr_SetString(PyExc_RuntimeError, "tuple allocation failed");
+    return NULL;
+  }
+  for(int i = 0; i < t->ndim; i++){
+    PyTuple_SetItem(shape_tuple, i, PyLong_FromSize_t(t->shape[i]));
+  }
+  return shape_tuple;
+}
+
+static PyObject *stride(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_TypeError, "expected tensor capsule");
+    return NULL;
+  }
+  tensor_t *t = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  if(!t){
+    PyErr_SetString(PyExc_RuntimeError, "invalid tensor capsule");
+    return NULL;
+  }
+  PyObject *stride_tuple = PyTuple_New(t->ndim);
+  if(!stride_tuple){
+    PyErr_SetString(PyExc_RuntimeError, "tuple allocation failed");
+    return NULL;
+  }
+  for(int i = 0; i < t->ndim; i++){
+    PyTuple_SetItem(stride_tuple, i, PyLong_FromSize_t(t->stride[i]));
+  }
+  return stride_tuple;
+}
+
+static PyObject *device(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_TypeError, "expected tensor capsule");
+    return NULL;
+  }
+  tensor_t *t = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  if(!t){
+    PyErr_SetString(PyExc_RuntimeError, "invalid tensor capsule");
+    return NULL;
+  }
+  const char *type = (t->device.type == CPU) ? "CPU" : "CUDA";
+  return Py_BuildValue("(si)", type, t->device.index);
+}
 
 static PyMethodDef methods[] = {
   {"tocpu", tocpu, METH_VARARGS, "store tensor in tensor_t"},
   {"topyobj", topyobj, METH_VARARGS, "returns python list"},
+  {"ndim", ndim, METH_VARARGS, "returns tensor_t ndim"},
+  {"shape", shape, METH_VARARGS, "returns tensor_t shape"},
+  {"stride", stride, METH_VARARGS, "returns tensor_t stride"},
+  {"device", device, METH_VARARGS, "returns tensor_t device"},
   {NULL, NULL, 0, NULL}
 };
 
