@@ -1,7 +1,7 @@
 from typing import Tuple, Union
 
 class Shape:
-  def __init__(self, shape:Tuple[int, ...]):
+  def __init__(self, shape:Tuple[int,...]):
     self.shape = shape
     self.ndim = len(shape)
     self.size = 1
