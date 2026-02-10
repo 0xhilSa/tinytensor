@@ -46,7 +46,10 @@ class Tensor:
   def is_const(self): return self.__const
   def cuda(self, device_index:int=0): return Tensor(reshape(cpu.topyobj(self.__buf), self.shape.shape), dtype=self.__dtype, device=f"cuda:{device_index}") if self.__device.type == "CPU" else self # type: ignore
   def cpu(self): return Tensor(reshape(cuda.topyobj(self.__buf), self.shape.shape), dtype=self.__dtype, device=f"cpu") if self.__device.type == "CUDA" else self # type: ignore
-  def data(self): x = cuda.topyobj(self.__buf) if self.__device.type == "CUDA" else cpu.topyobj(self.__buf); return reshape(x, self.shape.shape) # type: ignore
+  def data(self):
+    if self.__device.type == "CUDA": x = cuda.topyobj(self.__buf)
+    else: x = cpu.topyobj(self.__buf)
+    return reshape(x, self.shape.shape) # type: ignore
   def __len__(self):
     if self.ndim == 0: raise ValueError("len() of a 0-d tensor")
     return len(cpu.topyobj(self.__buf)) if self.__device.type == "CPU" else len(cuda.topyobj(self.__buf)) # type: ignore
@@ -97,11 +100,11 @@ class Tensor:
   @classmethod
   def _from_view(cls, buf, dtype, device, requires_grad=False, const=False):
     obj = cls.__new__(cls)
-    obj.__device = device
     obj.__buf = buf
     obj.__dtype = dtype
     obj.__requires_grad = requires_grad
     obj.__const = const
+    obj.__device = device
     if device.type == "CPU":
       shp = cpu.shape(buf)
       obj.__shape = Shape(shp)
@@ -411,9 +414,9 @@ class Tensor:
     return Tensor(reshape(out, shape), dtype=self.__dtype, device=f"{self.__device.type}:{self.__device.index}") # type: ignore
 
   def permute(self, axes:Tuple[int,...]):
-    if not isinstance(axes, tuple): raise TypeError("axes must be tuple")
-    new_buf = cpu.permute(self.__buf, axes) #if self.__device.type == "CPU" else cuda.permute(self.__buf, axes)
-    return Tensor._from_view(new_buf, self.__dtype, self.device, self.__requires_grad, const=self.__const)
+    if self.__device.type == "CPU": out = cpu.permute(self.__buf, axes)
+    else: out = cuda.permute(self.__buf, axes)
+    return Tensor._from_view(buf=out, dtype=self.__dtype, device=self.__device)
 
   def sum(self, axis:int|None=None, keepdim:bool=False):
     if self.__device.type != "CPU": raise NotImplementedError("sum only implemented for CPU right now")
