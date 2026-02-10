@@ -1,7 +1,4 @@
-// all the kernels assumes dtype homogenity given by the python
-
 #include <python3.10/Python.h>
-#include <python3.10/methodobject.h>
 #include "../tensor.h"
 
 void capsule_destroyer(PyObject *capsule){
@@ -9,6 +6,34 @@ void capsule_destroyer(PyObject *capsule){
   if(t){
     destroy(t);
   }
+}
+
+tensor_t *tensor_empty_scalar_like(tensor_t *tx){
+  tensor_t *tz = malloc(sizeof(tensor_t));
+  if(!tz) return NULL;
+  tz->dtype = tx->dtype;
+  tz->device = tx->device;
+  tz->element_size = tx->element_size;
+  tz->ndim = 0;
+  tz->size = 1;
+  tz->shape = NULL;
+  tz->stride = NULL;
+  tz->storage = malloc(sizeof(storage_t));
+  if(!tz->storage){
+    free(tz);
+    return NULL;
+  }
+  tz->storage->bytes = tz->element_size;
+  tz->storage->device = tz->device;
+  tz->storage->refcount = 1;
+  tz->storage->ptr = calloc(1, tz->storage->bytes);
+  if(!tz->storage->ptr){
+    free(tz->storage);
+    free(tz);
+    return NULL;
+  }
+  tz->buf = tz->storage->ptr;
+  return tz;
 }
 
 static tensor_t *alloc_result_tensor(const tensor_t *t){
@@ -1061,6 +1086,149 @@ static PyObject *__xnor_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_
     }
   }
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+static PyObject *__sum_all__(const tensor_t *tx, tensor_t *tz){
+  size_t length = tx->size;
+  dtype_t dtype = tx->dtype;
+  char *px = (char *)tx->buf;
+  size_t elem_size = tx->element_size;
+  switch(dtype){
+    case INT8: {
+      *(int8 *)tz->buf = (int8)0;
+      for(size_t i = 0; i < length; i++){
+        char *x_ptr = px + i * elem_size;
+        *(int8 *)tz->buf += *(int8 *)x_ptr;
+      }
+      return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+    }
+    case UINT8: {
+      *(uint8 *)tz->buf = (uint8)0;
+      for(size_t i = 0; i < length; i++){
+        char *x_ptr = px + i * elem_size;
+        *(int8 *)tz->buf += *(uint8 *)x_ptr;
+      }
+      return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+    }
+    case INT16: {
+      *(int16 *)tz->buf = (int16)0;
+      for(size_t i = 0; i < length; i++){
+        char *x_ptr = px + i * elem_size;
+        *(int16 *)tz->buf += *(int16 *)x_ptr;
+      }
+      return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+    }
+    case UINT16: {
+      *(uint16 *)tz->buf = (uint16)0;
+      for(size_t i = 0; i < length; i++){
+        char *x_ptr = px + i * elem_size;
+        *(uint16 *)tz->buf += *(uint16 *)x_ptr;
+      }
+      return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+    }
+    case INT32: {
+      *(int32 *)tz->buf = (int32)0;
+      for(size_t i = 0; i < length; i++){
+        char *x_ptr = px + i * elem_size;
+        *(int32* )tz->buf += *(int32 *)x_ptr;
+      }
+      return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+    }
+    case UINT32: {
+      *(uint32 *)tz->buf = (uint32)0;
+      for(size_t i = 0; i < length; i++){
+        char *x_ptr = px + i * elem_size;
+        *(uint32 *)tz->buf += *(uint32 *)x_ptr;
+      }
+      return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+    }
+    case INT64: {
+      *(int64 *)tz->buf = (int64)0;
+      for(size_t i = 0; i < length; i++){
+        char *x_ptr = px + i * elem_size;
+        *(int64 *)tz->buf += *(int64 *)x_ptr;
+      }
+      return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+    }
+    case UINT64: {
+      *(uint64 *)tz->buf = (uint64)0;
+      for(size_t i = 0; i < length; i++){
+        char *x_ptr = px + i * elem_size;
+        *(uint64 *)tz->buf += *(uint64 *)x_ptr;
+      }
+      return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+    }
+    case FP32: {
+      *(float32 *)tz->buf = (float32)0;
+      for(size_t i = 0; i < length; i++){
+        char *x_ptr = px + i * elem_size;
+        *(float32 *)tz->buf += *(float32 *)x_ptr;
+      }
+      return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+    }
+    case FP64: {
+      *(float64 *)tz->buf = (float64)0;
+      for(size_t i = 0; i < length; i++){
+        char *x_ptr = px + i * elem_size;
+        *(float64 *)tz->buf += *(float64 *)x_ptr;
+      }
+      return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+    }
+    case CMPX64: {
+      (*(complex64 *)tz->buf).real = 0.0f;
+      (*(complex64 *)tz->buf).imag = 0.0f;
+      for(size_t i = 0; i < length; i++){
+        char *x_ptr = px + i * elem_size;
+        (*(complex64 *)tz->buf).real += (*(complex64 *)x_ptr).real;
+        (*(complex64 *)tz->buf).imag += (*(complex64 *)x_ptr).imag;
+      }
+      return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+    }
+    case CMPX128: {
+      (*(complex128 *)tz->buf).real = 0.0;
+      (*(complex128 *)tz->buf).imag = 0.0;
+      for(size_t i = 0; i < length; i++){
+        char *x_ptr = px + i * elem_size;
+        (*(complex128 *)tz->buf).real += (*(complex128 *)x_ptr).real;
+        (*(complex128 *)tz->buf).imag += (*(complex128 *)x_ptr).imag;
+      }
+      return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+    }
+    default: {
+      free(tz);
+      PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
+      return NULL;
+    }
+  }
+}
+
+#define SUM_AXIS_KERNEL(NAME, IN_T, ACC_T)                            \
+static PyObject *__sum_axis_##NAME##__(const tensor_t *tx, tensor_t *tz, int axis){\
+  IN_T *in  = (IN_T*)tx->buf;                                         \
+  IN_T *out = (IN_T*)tz->buf;                                         \
+  int reduced_dim = tx->shape[axis];                                  \
+  for(int out_index = 0; out_index < tz->size; out_index++){          \
+    int tmp = out_index;                                              \
+    int idx_in[16] = {0};                                             \
+    int j = 0;                                                        \
+    for(int i = 0; i < tx->ndim; i++){                                \
+      if(i == axis) continue;                                         \
+      idx_in[i] = tmp / tz->stride[j];                                \
+      tmp %= tz->stride[j];                                           \
+      j++;                                                            \
+    }                                                                 \
+    ACC_T total = 0;                                                  \
+    for(int r = 0; r < reduced_dim; r++){                             \
+      idx_in[axis] = r;                                               \
+      int in_offset = 0;                                              \
+      for(int k = 0; k < tx->ndim; k++){                              \
+        in_offset += idx_in[k] * tx->stride[k];                       \
+      }                                                               \
+      total += (ACC_T)in[in_offset];                                  \
+    }                                                                 \
+    out[out_index] = (IN_T)total;                                     \
+  }                                                                   \
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);     \
 }
 
 static int shapes_match(const tensor_t *tx, const tensor_t *ty){
@@ -2305,6 +2473,293 @@ static PyObject *xnor_(PyObject *self, PyObject *args){
   return __xnor_tensor__(tx, ty, tz);
 }
 
+static PyObject *permute(PyObject *self, PyObject *args){
+  PyObject *x;
+  PyObject *axes_tuple;
+  if(!PyArg_ParseTuple(args, "OO", &x, &axes_tuple)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_TypeError, "expected tensor capsule");
+    return NULL;
+  }
+  tensor_t *t = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  if(!t){
+    PyErr_SetString(PyExc_RuntimeError, "invalid tensor capsule");
+    return NULL;
+  }
+  if(!PyTuple_Check(axes_tuple)){
+    PyErr_SetString(PyExc_TypeError, "permute expects tuple");
+    return NULL;
+  }
+  int ndim = t->ndim;
+  if(PyTuple_Size(axes_tuple) != ndim){
+    PyErr_SetString(PyExc_ValueError, "axes must match ndim");
+    return NULL;
+  }
+  int *axes = malloc(sizeof(int) * ndim);
+  bool *used = calloc(ndim, sizeof(bool));
+  for(int i = 0; i < ndim; i++){
+    int ax = (int)PyLong_AsLong(PyTuple_GetItem(axes_tuple, i));
+    if(ax < 0) ax += ndim;
+    if(ax < 0 || ax >= ndim){
+      free(axes);
+      free(used);
+      PyErr_SetString(PyExc_IndexError, "axis out of range");
+      return NULL;
+    }
+    if(used[ax]){
+      free(axes);
+      free(used);
+      PyErr_SetString(PyExc_ValueError, "duplicate axis");
+      return NULL;
+    }
+    used[ax] = 1;
+    axes[i] = ax;
+  }
+  free(used);
+  tensor_t *out = malloc(sizeof(tensor_t));
+  out->dtype = t->dtype;
+  out->ndim  = ndim;
+  out->element_size = t->element_size;
+  out->size  = t->size;
+  out->shape  = malloc(sizeof(size_t) * ndim);
+  out->stride = malloc(sizeof(size_t) * ndim);
+  for(int i = 0; i < ndim; i++){
+    out->shape[i] = t->shape[axes[i]];
+  }
+  out->stride[ndim - 1] = 1;
+  for(int i = ndim - 2; i >= 0; i--){
+    out->stride[i] = out->stride[i + 1] * out->shape[i + 1];
+  }
+  size_t itemsize = getsize(out->dtype);
+  out->storage = malloc(sizeof(storage_t));
+  out->storage->refcount = 1;
+  out->storage->bytes = out->size * itemsize;
+  out->storage->ptr = malloc(out->storage->bytes);
+  out->buf = out->storage->ptr;
+  size_t *out_index = malloc(sizeof(size_t) * ndim);
+  for(size_t linear = 0; linear < out->size; linear++){
+    size_t tmp = linear;
+    for(int d = ndim - 1; d >= 0; d--){
+      out_index[d] = tmp % out->shape[d];
+      tmp /= out->shape[d];
+    }
+    size_t in_offset = 0;
+    for(int d = 0; d < ndim; d++){
+      int orig_axis = axes[d];
+      in_offset += out_index[d] * t->stride[orig_axis];
+    }
+    memcpy(
+      (char*)out->buf + linear * itemsize,
+      (char*)t->buf   + in_offset * itemsize,
+      itemsize
+    );
+  }
+  free(out_index);
+  free(axes);
+  return PyCapsule_New(out, "tensor_t on CPU", capsule_destroyer);
+}
+
+SUM_AXIS_KERNEL(int8, int8, int32);
+SUM_AXIS_KERNEL(uint8, uint8, uint64);
+SUM_AXIS_KERNEL(int16, int16, int32);
+SUM_AXIS_KERNEL(uint16, uint16, uint64);
+SUM_AXIS_KERNEL(int32, int32, int64);
+SUM_AXIS_KERNEL(uint32, uint32, uint64);
+SUM_AXIS_KERNEL(int64, int64, int64);
+SUM_AXIS_KERNEL(uint64, uint64, uint64);
+SUM_AXIS_KERNEL(float32, float32, float32);
+SUM_AXIS_KERNEL(float64, float64, float64);
+
+static PyObject *__sum_axis_cmpx64__(tensor_t *tx, tensor_t *tz, int axis){
+  complex64 *in = (complex64 *)tx->buf;
+  complex64 *out = (complex64 *)tz->buf;
+  int reduced_dim = tx->shape[axis];
+  for(int out_index = 0; out_index < tz->size; out_index++){
+    int tmp = out_index;
+    int idx_in[16] = {0};
+    int j = 0;
+    for(int i = 0; i < tx->ndim; i++){
+      if(i == axis) continue;
+      idx_in[i] = tmp / tz->stride[j];
+      tmp %= tz->stride[j];
+      j++;
+    }
+    float real_sum = 0.0f;
+    float imag_sum = 0.0f;
+    for(int r = 0; r < reduced_dim; r++){
+      idx_in[axis] = r;
+      int in_offset = 0;
+      for(int k = 0; k < tx->ndim; k++){
+        in_offset += idx_in[k] * tx->stride[k];
+      }
+      real_sum += (float)in[in_offset].real;
+      imag_sum += (float)in[in_offset].imag;
+    }
+    out[out_index].real = (float)real_sum;
+    out[out_index].imag = (float)imag_sum;
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+static PyObject *__sum_axis_cmpx128__(tensor_t *tx, tensor_t *tz, int axis){
+  complex128 *in = (complex128 *)tx->buf;
+  complex128 *out = (complex128 *)tz->buf;
+  int reduced_dim = tx->shape[axis];
+  for(int out_index = 0; out_index < tz->size; out_index++){
+    int tmp = out_index;
+    int idx_in[16] = {0};
+    int j = 0;
+    for(int i = 0; i < tx->ndim; i++){
+      if(i == axis) continue;
+      idx_in[i] = tmp / tz->stride[j];
+      tmp %= tz->stride[j];
+      j++;
+    }
+    double real_sum = 0.0;
+    double imag_sum = 0.0;
+    for(int r = 0; r < reduced_dim; r++){
+      idx_in[axis] = r;
+      int in_offset = 0;
+      for(int k = 0; k < tx->ndim; k++){
+        in_offset += idx_in[k] * tx->stride[k];
+      }
+      real_sum += (double)in[in_offset].real;
+      imag_sum += (double)in[in_offset].imag;
+    }
+    out[out_index].real = (double)real_sum;
+    out[out_index].imag = (double)imag_sum;
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+static PyObject *sum(PyObject *self, PyObject *args, PyObject *kwargs){
+  PyObject *x;
+  PyObject *axis_obj = Py_None;
+  static char *kwlist[] = {"x", "axis", NULL};
+  if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O|O", kwlist, &x, &axis_obj)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid capsule");
+    return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor pointer");
+    return NULL;
+  }
+  if(axis_obj == Py_None){
+    tensor_t *tz = tensor_empty_scalar_like(tx);
+    if(!tz){
+      PyErr_SetString(PyExc_RuntimeError, "scalar tensor allocation failed");
+      return NULL;
+    }
+    return __sum_all__(tx, tz);
+  }
+  if(!PyLong_Check(axis_obj)){
+    PyErr_SetString(PyExc_TypeError, "axis must be int or None");
+    return NULL;
+  }
+  int axis = PyLong_AsLong(axis_obj);
+  if(axis < 0) axis += tx->ndim;
+  if(axis < 0 || axis >= tx->ndim){
+    PyErr_SetString(PyExc_ValueError, "axis is out of range");
+    return NULL;
+  }
+  int out_ndim = tx->ndim - 1;
+  if(out_ndim == 0){
+    tensor_t *tz = tensor_empty_scalar_like(tx);
+    if(!tz){
+      PyErr_SetString(PyExc_RuntimeError, "scalar tensor allocation failed");
+      return NULL;
+    }
+    switch(tx->dtype){
+      case INT8: return __sum_axis_int8__(tx, tz, axis);
+      case UINT8: return __sum_axis_uint8__(tx, tz, axis);
+      case INT16: return __sum_axis_int16__(tx, tz, axis);
+      case UINT16: return __sum_axis_uint16__(tx, tz, axis);
+      case INT32: return __sum_axis_int32__(tx, tz, axis);
+      case UINT32: return __sum_axis_uint32__(tx, tz, axis);
+      case INT64: return __sum_axis_int64__(tx, tz, axis);
+      case UINT64: return __sum_axis_uint64__(tx, tz, axis);
+      case FP32: return __sum_axis_float32__(tx, tz, axis);
+      case FP64: return __sum_axis_float64__(tx, tz, axis);
+      case CMPX64: return __sum_axis_cmpx64__(tx, tz, axis);
+      case CMPX128: return __sum_axis_cmpx128__(tx, tz, axis);
+      case ERROR: {
+        destroy(tz);
+        PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
+        return NULL;
+      }
+      default: {
+        destroy(tz);
+        PyErr_SetString(PyExc_TypeError, "sum not supported for this dtype");
+        return NULL;
+      }
+    }
+  }
+  tensor_t *tz = malloc(sizeof(tensor_t));
+  if(!tz){
+    PyErr_SetString(PyExc_MemoryError, "tensor allocation failed");
+    return NULL;
+  }
+  tz->dtype = tx->dtype;
+  tz->device = tx->device;
+  tz->element_size = tx->element_size;
+  tz->ndim = out_ndim;
+  tz->shape = malloc(sizeof(size_t) * out_ndim);
+  tz->stride = malloc(sizeof(size_t) * out_ndim);
+  if(!tz->shape || !tz->stride){
+    PyErr_SetString(PyExc_MemoryError, "shape/stride allocation failed");
+    return NULL;
+  }
+  int j = 0;
+  for(int i = 0; i < tx->ndim; i++){
+    if(i == axis) continue;
+    tz->shape[j++] = tx->shape[i];
+  }
+  tz->stride[out_ndim - 1] = 1;
+  for(int i = out_ndim - 2; i >= 0; i--){
+    tz->stride[i] = tz->shape[i + 1] * tz->stride[i + 1];
+  }
+  tz->size = 1;
+  for(int i = 0; i < out_ndim; i++){
+    tz->size *= tz->shape[i];
+  }
+  tz->storage = malloc(sizeof(storage_t));
+  tz->storage->bytes = tz->size * tz->element_size;
+  tz->storage->device = tz->device;
+  tz->storage->refcount = 1;
+  tz->storage->ptr = calloc(1, tz->storage->bytes);
+  if(!tz->storage->ptr){
+    PyErr_SetString(PyExc_RuntimeError, "storage allocation failed");
+    return NULL;
+  }
+  tz->buf = tz->storage->ptr;
+  switch(tx->dtype){
+    case INT8: return __sum_axis_int8__(tx, tz, axis);
+    case UINT8: return __sum_axis_uint8__(tx, tz, axis);
+    case INT16: return __sum_axis_int16__(tx, tz, axis);
+    case UINT16: return __sum_axis_uint16__(tx, tz, axis);
+    case INT32: return __sum_axis_int32__(tx, tz, axis);
+    case UINT32: return __sum_axis_uint32__(tx, tz, axis);
+    case INT64: return __sum_axis_int64__(tx, tz, axis);
+    case UINT64: return __sum_axis_uint64__(tx, tz, axis);
+    case FP32: return __sum_axis_float32__(tx, tz, axis);
+    case FP64: return __sum_axis_float64__(tx, tz, axis);
+    case CMPX64: return __sum_axis_cmpx64__(tx, tz, axis);
+    case CMPX128: return __sum_axis_cmpx128__(tx, tz, axis);
+    case ERROR: {
+      destroy(tz);
+      PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
+      return NULL;
+    }
+    default: {
+      destroy(tz);
+      PyErr_SetString(PyExc_TypeError, "sum not supported for this dtype");
+      return NULL;
+    }
+  }
+}
+
 static PyMethodDef methods[] = {
   {"add", add, METH_VARARGS, "element-wise 'add' operation on tensor"},
   {"sub", sub, METH_VARARGS, "element-wise 'sub' operation tensor"},
@@ -2331,6 +2786,8 @@ static PyMethodDef methods[] = {
   {"not_", not_, METH_VARARGS, "element-wise 'not' operation on tensor"},
   {"xor_", xor_, METH_VARARGS, "element-wise 'xor' operation on tensor"},
   {"xnor_", xnor_, METH_VARARGS, "element-wise 'xnor' operation on tensor"},
+  {"permute", permute, METH_VARARGS, "tensor permute"},
+  {"sum", (PyCFunction)sum, METH_VARARGS | METH_KEYWORDS, "returns the sum of the tensor"},
   {NULL, NULL, 0, NULL}
 };
 
