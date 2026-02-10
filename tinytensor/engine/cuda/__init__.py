@@ -1,7 +1,15 @@
-from tinytensor.engine.cuda.cuda import device_count, get_device_prop, device_name, is_available, get_device, topyobj, tocuda, runtime_version, driver_version, driver_package
-from tinytensor.engine.cuda.cuda_ops import add, sub, mul, tdiv, fdiv, pow, mod, eq, ne, gt, ge, lt, le, neg, pos, abs, lshift, rshift, and_, nand_, or_, nor_, not_, xor_, xnor_
+from tinytensor.engine.cuda.cuda import (device_count, get_device_prop, device_name, is_available, get_device,
+                                         topyobj, tocuda, runtime_version, driver_version, driver_package,
+                                         shape, ndim, stride, device)
+from tinytensor.engine.cuda.cuda_ops import (add, sub, mul, tdiv, fdiv, pow, mod,
+                                             eq, ne, gt, ge, lt, le, neg, pos, abs,
+                                             lshift, rshift, and_, nand_, or_, nor_, not_, xor_, xnor_,)
 
 __all__ = [
+  "shape",
+  "ndim",
+  "stride",
+  "device",
   "driver_package",
   "driver_version",
   "runtime_version",

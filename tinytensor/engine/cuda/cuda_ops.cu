@@ -1,6 +1,5 @@
 #include <python3.10/Python.h>
 #include <cuda_runtime.h>
-#include <python3.10/methodobject.h>
 #include "../tensor.h"
 
 #define CUDA_CHECK(call) \
