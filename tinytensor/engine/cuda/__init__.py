@@ -3,7 +3,8 @@ from tinytensor.engine.cuda.cuda import (device_count, get_device_prop, device_n
                                          shape, ndim, stride, device)
 from tinytensor.engine.cuda.cuda_ops import (add, sub, mul, tdiv, fdiv, pow, mod,
                                              eq, ne, gt, ge, lt, le, neg, pos, abs,
-                                             lshift, rshift, and_, nand_, or_, nor_, not_, xor_, xnor_,)
+                                             lshift, rshift, and_, nand_, or_, nor_, not_, xor_, xnor_,
+                                             permute)
 
 __all__ = [
   "shape",
@@ -45,4 +46,5 @@ __all__ = [
   "not_",
   "xor_",
   "xnor_",
+  "permute",
 ]

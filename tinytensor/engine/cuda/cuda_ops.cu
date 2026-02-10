@@ -2345,6 +2345,130 @@ static PyObject *xnor_(PyObject *self, PyObject *args){
   return __xnor_tensor__(tx, ty, tz);
 }
 
+__global__ void permute_kernel(
+  const char *in_buf,
+  char *out_buf,
+  const size_t *in_stride,
+  const size_t *out_shape,
+  const int *axes,
+  int ndim,
+  size_t total,
+  size_t itemsize
+){
+  size_t linear = blockIdx.x * blockDim.x + threadIdx.x;
+  if(linear >= total) return;
+  size_t tmp = linear;
+  size_t in_offset = 0;
+  for(int d = ndim - 1; d >= 0; d--){
+    size_t idx = tmp % out_shape[d];
+    tmp /= out_shape[d];
+    int orig_axis = axes[d];
+    in_offset += idx * in_stride[orig_axis];
+  }
+  const char *src = in_buf + in_offset * itemsize;
+  char *dst = out_buf + linear * itemsize;
+  for(size_t b = 0; b < itemsize; b++){
+    dst[b] = src[b];
+  }
+}
+
+static PyObject *permute(PyObject *self, PyObject *args){
+    PyObject *x;
+    PyObject *axes_tuple;
+    if(!PyArg_ParseTuple(args, "OO", &x, &axes_tuple)) return NULL;
+    if(!PyCapsule_CheckExact(x)){
+      PyErr_SetString(PyExc_TypeError, "expected tensor capsule");
+      return NULL;
+    }
+    tensor_t *t = (tensor_t *)PyCapsule_GetPointer(x, "tensor_t on CUDA");
+    if(!t){
+      PyErr_SetString(PyExc_RuntimeError, "invalid tensor capsule");
+      return NULL;
+    }
+    if(!PyTuple_Check(axes_tuple)){
+      PyErr_SetString(PyExc_TypeError, "permute expects tuple");
+      return NULL;
+    }
+    int ndim = t->ndim;
+    if(PyTuple_Size(axes_tuple) != ndim){
+      PyErr_SetString(PyExc_ValueError, "axes must match ndim");
+      return NULL;
+    }
+    int *axes_host = (int *)malloc(sizeof(int) * ndim);
+    bool *used = (bool *)calloc(ndim, sizeof(bool));
+    for(int i = 0; i < ndim; i++){
+      int ax = (int)PyLong_AsLong(PyTuple_GetItem(axes_tuple, i));
+      if(ax < 0) ax += ndim;
+      if(ax < 0 || ax >= ndim){
+        free(axes_host);
+        free(used);
+        PyErr_SetString(PyExc_IndexError, "axis out of range");
+        return NULL;
+      }
+      if(used[ax]){
+        free(axes_host);
+        free(used);
+        PyErr_SetString(PyExc_ValueError, "duplicate axis");
+        return NULL;
+      }
+      used[ax] = true;
+      axes_host[i] = ax;
+    }
+    free(used);
+    tensor_t *out = (tensor_t *)malloc(sizeof(tensor_t));
+    out->dtype = t->dtype;
+    out->device = (device_t){CUDA, t->device.index};
+    out->ndim = ndim;
+    out->element_size = t->element_size;
+    out->size = t->size;
+    out->shape = (size_t *)malloc(sizeof(size_t) * ndim);
+    out->stride = (size_t *)malloc(sizeof(size_t) * ndim);
+    for(int i = 0; i < ndim; i++){
+      out->shape[i] = t->shape[axes_host[i]];
+    }
+    out->stride[ndim - 1] = 1;
+    for(int i = ndim - 2; i >= 0; i--){
+      out->stride[i] = out->stride[i + 1] * out->shape[i + 1];
+    }
+    size_t itemsize = getsize(out->dtype);
+    out->storage = (storage_t *)malloc(sizeof(storage_t));
+    out->storage->refcount = 1;
+    out->storage->device = out->device;
+    out->storage->bytes = out->size * itemsize;
+    cudaMalloc(&out->storage->ptr, out->storage->bytes);
+    out->buf = out->storage->ptr;
+    int *axes_dev;
+    size_t *in_stride_dev;
+    size_t *out_shape_dev;
+    cudaMalloc(&axes_dev, sizeof(int) * ndim);
+    cudaMalloc(&in_stride_dev, sizeof(size_t) * ndim);
+    cudaMalloc(&out_shape_dev, sizeof(size_t) * ndim);
+    cudaMemcpy(axes_dev, axes_host, sizeof(int) * ndim, cudaMemcpyHostToDevice);
+    cudaMemcpy(in_stride_dev, t->stride, sizeof(size_t) * ndim, cudaMemcpyHostToDevice);
+    cudaMemcpy(out_shape_dev, out->shape, sizeof(size_t) * ndim, cudaMemcpyHostToDevice);
+    free(axes_host);
+    size_t total = out->size;
+    int threads = 256;
+    int blocks = (total + threads - 1) / threads;
+    permute_kernel<<<blocks, threads>>>(
+      (char *)t->buf,
+      (char *)out->buf,
+      in_stride_dev,
+      out_shape_dev,
+      axes_dev,
+      ndim,
+      total,
+      itemsize
+    );
+    cudaDeviceSynchronize();
+    cudaFree(axes_dev);
+    cudaFree(in_stride_dev);
+    cudaFree(out_shape_dev);
+    const char *name = (out->device.type == CUDA) ? "CUDA" : "CPU";
+    return PyCapsule_New(out, "tensor_t on CUDA", capsule_destroyer);
+}
+
+
 static PyMethodDef methods[] = {
   {"add", add, METH_VARARGS, "element-wise 'add' operation on CUDA tensor"},
   {"sub", sub, METH_VARARGS, "element-wise 'sub' operation on CUDA tensor"},
@@ -2371,6 +2495,7 @@ static PyMethodDef methods[] = {
   {"not_", not_, METH_VARARGS, "element-wise 'not' operation on CUDA tensor"},
   {"xor_", xor_, METH_VARARGS, "element-wise 'xor' operation on CUDA tensor"},
   {"xnor_", xnor_, METH_VARARGS, "element-wise 'xnor' operation on CUDA tensor"},
+  {"permute", permute, METH_VARARGS, "permute CUDA tensor"},
   {NULL, NULL, 0, NULL}
 };
 
