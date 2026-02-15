@@ -123,35 +123,47 @@ static void __gelu__(const tensor_t *tx, tensor_t *tz){
     case INT8: {
       int8 *x = (int8 *)tx->buf;
       float32 *z = (float32 *)tz->buf;
-      for(size_t i = 0; i < length; i++){ z[i] = (float32)gelu((float64)x[i]); }
+      for(size_t i = 0; i < length; i++){ z[i] = (float32)gelu((float32)x[i]); }
       break;
     }
     case UINT8: {
       uint8 *x = (uint8 *)tx->buf;
       float32 *z = (float32 *)tz->buf;
-      for(size_t i = 0; i < length; i++){ z[i] = (float32)gelu((float64)x[i]); }
+      for(size_t i = 0; i < length; i++){ z[i] = (float32)gelu((float32)x[i]); }
       break;
     }
     case INT16: {
       int16 *x = (int16 *)tx->buf;
       float32 *z = (float32 *)tz->buf;
-      for(size_t i = 0; i < length; i++){ z[i] = (float32)gelu((float64)x[i]); }
+      for(size_t i = 0; i < length; i++){ z[i] = (float32)gelu((float32)x[i]); }
       break;
     }
     case UINT16: {
       uint16 *x = (uint16 *)tx->buf;
       float32 *z = (float32 *)tz->buf;
-      for(size_t i = 0; i < length; i++){ z[i] = (float32)gelu((float64)x[i]);}
+      for(size_t i = 0; i < length; i++){ z[i] = (float32)gelu((float32)x[i]);}
       break;
     }
     case INT32: {
       int32 *x = (int32 *)tx->buf;
       float32 *z = (float32 *)tz->buf;
-      for(size_t i = 0; i < length; i++){ z[i] = (float32)gelu((float64)x[i]);}
+      for(size_t i = 0; i < length; i++){ z[i] = (float32)gelu((float32)x[i]);}
       break;
     }
     case UINT32: {
       uint32 *x = (uint32 *)tx->buf;
+      float32 *z = (float32 *)tz->buf;
+      for(size_t i = 0; i < length; i++){ z[i] = (float32)gelu((float32)x[i]); }
+      break;
+    }
+    case INT64: {
+      int64 *x = (int64 *)tx->buf;
+      float32 *z = (float32 *)tz->buf;
+      for(size_t i = 0; i < length; i++){ z[i] = (float32)gelu((float64)x[i]); }
+      break;
+    }
+    case UINT64: {
+      uint64 *x = (uint64 *)tx->buf;
       float32 *z = (float32 *)tz->buf;
       for(size_t i = 0; i < length; i++){ z[i] = (float32)gelu((float64)x[i]); }
       break;
@@ -177,72 +189,79 @@ static void __gelu__(const tensor_t *tx, tensor_t *tz){
 
 static void __leaky_relu__(const tensor_t *tx, tensor_t *tz, double alpha){
   size_t length = tx->size;
-  dtype_t dtype = tx->dtype;
-  switch(dtype){
+  switch(tx->dtype){
     case INT8: {
       int8 *x = (int8 *)tx->buf;
-      int8 *z = (int8 *)tz->buf;
-      for(size_t i = 0; i < length; i++){ z[i] = (float32)leaky_relu((float64)x[i], alpha); }
+      float32 *z = (float32 *)tz->buf;
+      for(size_t i = 0; i < length; i++)
+        z[i] = (float32)leaky_relu((float64)x[i], alpha);
       break;
     }
     case INT16: {
       int16 *x = (int16 *)tx->buf;
-      int16 *z = (int16 *)tz->buf;
-      for(size_t i = 0; i < length; i++){ z[i] = (float32)leaky_relu((float64)x[i], alpha); }
+      float32 *z = (float32 *)tz->buf;
+      for(size_t i = 0; i < length; i++)
+        z[i] = (float32)leaky_relu((float64)x[i], alpha);
       break;
     }
     case INT32: {
       int32 *x = (int32 *)tx->buf;
-      int32 *z = (int32 *)tz->buf;
-      for(size_t i = 0; i < length; i++){ z[i] = (float32)leaky_relu((float64)x[i], alpha); }
+      float32 *z = (float32 *)tz->buf;
+      for(size_t i = 0; i < length; i++)
+        z[i] = (float32)leaky_relu((float64)x[i], alpha);
       break;
     }
     case INT64: {
       int64 *x = (int64 *)tx->buf;
-      int64 *z = (int64 *)tz->buf;
-      for(size_t i = 0; i < length; i++){ z[i] = (float32)leaky_relu((float64)x[i], alpha); }
-      break;
-    }
-    case FP32: {
-      float32 *x = (float32 *)tx->buf;
       float32 *z = (float32 *)tz->buf;
-      for(size_t i = 0; i < length; i++){ z[i] = (float32)leaky_relu((float64)x[i], alpha); }
-      break;
-    }
-    case FP64: {
-      float64 *x = (float64 *)tx->buf;
-      float64 *z = (float64 *)tz->buf;
-      for(size_t i = 0; i < length; i++){ z[i] = leaky_relu(x[i], alpha); }
+      for(size_t i = 0; i < length; i++)
+        z[i] = (float32)leaky_relu((float64)x[i], alpha);
       break;
     }
     case UINT8: {
       uint8 *x = (uint8 *)tx->buf;
       float32 *z = (float32 *)tz->buf;
-      for(size_t i = 0; i < length; i++){ z[i] = (float32)leaky_relu((float64)x[i], alpha); }
+      for(size_t i = 0; i < length; i++)
+        z[i] = (float32)leaky_relu((float64)x[i], alpha);
       break;
     }
     case UINT16: {
       uint16 *x = (uint16 *)tx->buf;
       float32 *z = (float32 *)tz->buf;
-      for(size_t i = 0; i < length; i++){ z[i] = (float32)leaky_relu((float64)x[i], alpha); }
+      for(size_t i = 0; i < length; i++)
+        z[i] = (float32)leaky_relu((float64)x[i], alpha);
       break;
     }
     case UINT32: {
       uint32 *x = (uint32 *)tx->buf;
       float32 *z = (float32 *)tz->buf;
-      for(size_t i = 0; i < length; i++){ z[i] = (float32)leaky_relu((float64)x[i], alpha); }
+      for(size_t i = 0; i < length; i++)
+        z[i] = (float32)leaky_relu((float64)x[i], alpha);
       break;
     }
     case UINT64: {
       uint64 *x = (uint64 *)tx->buf;
       float64 *z = (float64 *)tz->buf;
-      for(size_t i = 0; i < length; i++){ z[i] = (float64)leaky_relu(x[i], alpha); }
+      for(size_t i = 0; i < length; i++)
+        z[i] = leaky_relu((float64)x[i], alpha);
       break;
     }
-    default: {
+    case FP32: {
+      float32 *x = (float32 *)tx->buf;
+      float32 *z = (float32 *)tz->buf;
+      for(size_t i = 0; i < length; i++)
+        z[i] = (float32)leaky_relu((float64)x[i], alpha);
+      break;
+    }
+    case FP64: {
+      float64 *x = (float64 *)tx->buf;
+      float64 *z = (float64 *)tz->buf;
+      for(size_t i = 0; i < length; i++)
+        z[i] = leaky_relu(x[i], alpha);
+      break;
+    }
+    default:
       PyErr_SetString(PyExc_RuntimeError, "__leaky_relu__: unsupported dtype");
-      break;
-    }
   }
 }
 

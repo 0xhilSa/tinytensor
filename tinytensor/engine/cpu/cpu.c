@@ -375,6 +375,35 @@ static PyObject *device(PyObject *self, PyObject *args){
   return Py_BuildValue("(si)", type, t->device.index);
 }
 
+static PyObject *dtype(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_TypeError, "expected tensor capsule");
+    return NULL;
+  }
+  tensor_t *t = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  if(!t){
+    PyErr_SetString(PyExc_RuntimeError, "invalid tensor capsule");
+    return NULL;
+  }
+  switch(t->dtype){
+    case BOOL: return PyUnicode_FromString("bool");
+    case INT8: return PyUnicode_FromString("char");
+    case UINT8: return PyUnicode_FromString("unsigned char");
+    case INT16: return PyUnicode_FromString("short");
+    case UINT16: return PyUnicode_FromString("unsigned short");
+    case INT32: return PyUnicode_FromString("int");
+    case UINT32: return PyUnicode_FromString("unsigned int");
+    case INT64: return PyUnicode_FromString("long");
+    case UINT64: return PyUnicode_FromString("unsigned long");
+    case FP32: return PyUnicode_FromString("float");
+    case FP64: return PyUnicode_FromString("double");
+    case CMPX64: return PyUnicode_FromString("float _Complex");
+    case CMPX128: return PyUnicode_FromString("double _Complex");
+  }
+}
+
 static PyMethodDef methods[] = {
   {"tocpu", tocpu, METH_VARARGS, "store tensor in tensor_t"},
   {"topyobj", topyobj, METH_VARARGS, "returns python list"},
@@ -382,6 +411,7 @@ static PyMethodDef methods[] = {
   {"shape", shape, METH_VARARGS, "returns tensor_t shape"},
   {"stride", stride, METH_VARARGS, "returns tensor_t stride"},
   {"device", device, METH_VARARGS, "returns tensor_t device"},
+  {"dtype", dtype, METH_VARARGS, "returns tensor_t dtype"},
   {NULL, NULL, 0, NULL}
 };
 
