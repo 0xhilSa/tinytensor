@@ -21,8 +21,19 @@ from tinytensor.dtypes import (bool, int8, uint8, int16, uint16,
                                float32, float64,
                                complex64, complex128)
 
+def arange(
+  start:int=0, stop:int=0, step:int=1,
+  dtype:Union[dtypes.ConstType,dtypes.DType]=int64,
+  device:Union[str,Device]="cpu",
+  requires_grad:bool=False, # type: ignore
+  const:bool=False # type: ignore
+):
+  if step == 0: raise ValueError("step parameter cannot be 0")
+  return Tensor(list(range(start, stop, step)), dtype=dtype, device=device, requires_grad=requires_grad, const=const)
+
 __all__ = [
   "cuda_available",
+  "arange",
   "tensor",
   "Tensor",
   "Device",
