@@ -1,5 +1,8 @@
 __pycache__
 ./test.py
+.venv
+test.py
 *.so
 *.bak
 *.egg-info
+*dist/
