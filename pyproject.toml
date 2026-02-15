@@ -5,5 +5,13 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "tinytensor"
 version = "0.2.0"
-description = "A tiny tensor library"
+description="A lightweight tensor computation library"
+requires-python = ">=3.8"
+authors = [
+  { name="Sahil Rajwar" }
+]
+license = {file = "MIT"}
 dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/Sahil-Rajwar-2004/tinytensor"
