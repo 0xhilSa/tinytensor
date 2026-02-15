@@ -1,6 +1,7 @@
 #include <cuda_runtime.h>
 #include <python3.10/Python.h>
 #include <nvml.h>
+#include <python3.10/pyerrors.h>
 #include "../tensor.h"
 
 #define CUDA_CHECK(call) \
@@ -519,7 +520,11 @@ static PyObject *get_device_prop(PyObject *self, PyObject *args){
   PyDict_SetItemString(dict, "memPitch", PyLong_FromUnsignedLongLong(prop.memPitch));
   PyDict_SetItemString(dict, "maxThreadsPerBlock", PyLong_FromLong(prop.maxThreadsPerBlock));
   PyDict_SetItemString(dict, "multiProcessorCount", PyLong_FromLong(prop.multiProcessorCount));
+#if CUDART_VERSION < 13000
   PyDict_SetItemString(dict, "clockRate", PyLong_FromLong(prop.clockRate));
+#else
+    PyDict_SetItemString(dict, "clockRate", PyLong_FromLong(-1));  // Not supported in CUDA 13+
+#endif
   PyDict_SetItemString(dict, "major", PyLong_FromLong(prop.major));
   PyDict_SetItemString(dict, "minor", PyLong_FromLong(prop.minor));
   PyDict_SetItemString(dict, "integrated", PyBool_FromLong(prop.integrated));
@@ -657,6 +662,39 @@ static PyObject *device(PyObject *self, PyObject *args){
   return Py_BuildValue("(si)", type, t->device.index);
 }
 
+static PyObject *dtype(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_TypeError, "expected tensor capsule");
+    return NULL;
+  }
+  tensor_t *t = (tensor_t *)PyCapsule_GetPointer(x, "tensor_t on CUDA");
+  if(!t){
+    PyErr_SetString(PyExc_RuntimeError, "invalid tensor capsule");
+    return NULL;
+  }
+  switch(t->dtype){
+    case BOOL: return PyUnicode_FromString("bool");
+    case INT8: return PyUnicode_FromString("char");
+    case UINT8: return PyUnicode_FromString("unsigned char");
+    case INT16: return PyUnicode_FromString("short");
+    case UINT16: return PyUnicode_FromString("unsigned short");
+    case INT32: return PyUnicode_FromString("int");
+    case UINT32: return PyUnicode_FromString("unsigned int");
+    case INT64: return PyUnicode_FromString("long");
+    case UINT64: return PyUnicode_FromString("unsigned long");
+    case FP32: return PyUnicode_FromString("float");
+    case FP64: return PyUnicode_FromString("double");
+    case CMPX64: return PyUnicode_FromString("float _Complex");
+    case CMPX128: return PyUnicode_FromString("double _Complex");
+    default: {
+      PyErr_SetString(PyExc_RuntimeError, "Something unexpected happen, check ./tinytensor/engine/cpu/cpu.c");
+      return NULL;
+    }
+  }
+}
+
 static PyMethodDef methods[] = {
   {"tocuda", tocuda, METH_VARARGS, "returns CUDA tensor_t capsule"},
   {"topyobj", topyobj, METH_VARARGS, "returns CPU tensor_t capsule from CUDA tensor_t"},
@@ -672,6 +710,7 @@ static PyMethodDef methods[] = {
   {"shape", shape, METH_VARARGS, "returns tensor_t shape"},
   {"stride", stride, METH_VARARGS, "returns tensor_t stride"},
   {"device", device, METH_VARARGS, "returns tensor_t device"},
+  {"dtype", dtype, METH_VARARGS, "returns tensor_t dtype"},
   {NULL, NULL, 0, NULL}
 };
 

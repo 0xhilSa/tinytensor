@@ -2464,7 +2464,6 @@ static PyObject *permute(PyObject *self, PyObject *args){
     cudaFree(axes_dev);
     cudaFree(in_stride_dev);
     cudaFree(out_shape_dev);
-    const char *name = (out->device.type == CUDA) ? "CUDA" : "CPU";
     return PyCapsule_New(out, "tensor_t on CUDA", capsule_destroyer);
 }
 
