@@ -46,10 +46,20 @@ class Tensor:
   def is_const(self): return self.__const
   def cuda(self, device_index:int=0): return Tensor(reshape(cpu.topyobj(self.__buf), self.shape.shape), dtype=self.__dtype, device=f"cuda:{device_index}") if self.__device.type == "CPU" else self # type: ignore
   def cpu(self): return Tensor(reshape(cuda.topyobj(self.__buf), self.shape.shape), dtype=self.__dtype, device=f"cpu") if self.__device.type == "CUDA" else self # type: ignore
+  @staticmethod
+  def _format_number(x):
+    if isinstance(x, float):
+      if x != 0 and abs(x) < 1e-4: return float(f"{x:.0e}")
+      else: return float(f"{x:.4f}")
+    return str(x)
+  @staticmethod
+  def _format_nested(arr):
+    if isinstance(arr, list): return [Tensor._format_nested(v) for v in arr]
+    return Tensor._format_number(arr)
   def data(self):
     if self.__device.type == "CUDA": x = cuda.topyobj(self.__buf)
     else: x = cpu.topyobj(self.__buf)
-    return reshape(x, self.shape.shape) # type: ignore
+    return Tensor._format_nested(reshape(x, self.shape.shape)) # type: ignore
   def __len__(self):
     if self.ndim == 0: raise ValueError("len() of a 0-d tensor")
     return len(cpu.topyobj(self.__buf)) if self.__device.type == "CPU" else len(cuda.topyobj(self.__buf)) # type: ignore
