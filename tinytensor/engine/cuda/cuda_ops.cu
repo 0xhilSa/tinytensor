@@ -1,5 +1,6 @@
 #include <python3.10/Python.h>
 #include <cuda_runtime.h>
+#include <cuda.h>
 #include "../tensor.h"
 
 #define CUDA_CHECK(call) \
@@ -2467,6 +2468,818 @@ static PyObject *permute(PyObject *self, PyObject *args){
     return PyCapsule_New(out, "tensor_t on CUDA", capsule_destroyer);
 }
 
+tensor_t *tensor_empty_like_bmm(tensor_t *tx, size_t m, size_t n){
+  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  if(!tz) return NULL;
+  tz->dtype = tx->dtype;
+  tz->device = tx->device;
+  tz->ndim = tx->ndim;
+  tz->element_size = tx->element_size;
+  tz->shape = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+  if(!tz->shape){ free(tz); return NULL; }
+  for(size_t i = 0; i < tz->ndim - 2; i++)
+    tz->shape[i] = tx->shape[i];
+  tz->shape[tz->ndim - 2] = m;
+  tz->shape[tz->ndim - 1] = n;
+  tz->stride = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+  if(!tz->stride){ free(tz->shape); free(tz); return NULL; }
+  tz->stride[tz->ndim - 1] = 1;
+  for(int i = tz->ndim - 2; i >= 0; i--)
+    tz->stride[i] = tz->stride[i+1] * tz->shape[i+1];
+  tz->size = 1;
+  for(size_t i = 0; i < tz->ndim; i++)
+    tz->size *= tz->shape[i];
+  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  if(!tz->storage){
+    free(tz->stride);
+    free(tz->shape);
+    free(tz);
+    return NULL;
+  }
+  tz->storage->bytes = tz->size * tz->element_size;
+  tz->storage->refcount = 1;
+  tz->storage->device = tz->device;
+  CUDA_CHECK(cudaMalloc(&tz->storage->ptr, tz->storage->bytes));
+  tz->buf = tz->storage->ptr;
+  CUDA_CHECK(cudaMemset(tz->buf, 0, tz->storage->bytes));
+  return tz;
+}
+
+template<typename T>
+__global__ void bmm_tensor_kernel(const T *x, const T *y, T *z, size_t m, size_t k, size_t n){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  size_t batch = blockIdx.y;
+  size_t total = m * n;
+  if(idx >= total) return;
+  size_t i = idx / n;
+  size_t j = idx % n;
+  size_t a_base = batch * m * k;
+  size_t b_base = batch * k * n;
+  size_t c_base = batch * m * n;
+  T sum = (T)0;
+  for(size_t kk = 0; kk < k; kk++){
+    sum += x[a_base + i * k + kk] * y[b_base + kk * n + j];
+  }
+  z[c_base + i * n + j] = sum;
+}
+
+template<typename C, typename R>
+__global__ void bmm_cmpx_tensor_kernel(const C *x, const C *y, C *z, size_t m, size_t k, size_t n){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  size_t batch = blockIdx.y;
+  size_t total = m * n;
+  if(idx >= total) return;
+  size_t i = idx / n;
+  size_t j = idx % n;
+  size_t a_base = batch * m * k;
+  size_t b_base = batch * k * n;
+  size_t c_base = batch * m * n;
+  R sum_real = (R)0;
+  R sum_imag = (R)0;
+  for(size_t kk = 0; kk < k; kk++){
+    C a = x[a_base + i * k + kk];
+    C b = y[b_base + kk * n + j];
+    sum_real += a.real * b.real - a.imag * b.imag;
+    sum_imag += a.real * b.imag + a.imag * b.real;
+  }
+  z[c_base + i * n + j].real = sum_real;
+  z[c_base + i * n + j].imag = sum_imag;
+}
+
+static PyObject *bmm(PyObject *self, PyObject *args){
+  PyObject *x, *y;
+  if(!PyArg_ParseTuple(args, "OO", &x, &y)) return NULL;
+  if(!PyCapsule_CheckExact(x) || !PyCapsule_CheckExact(y)){
+    PyErr_SetString(PyExc_RuntimeError, "operands must be tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = (tensor_t *)PyCapsule_GetPointer(x, "tensor_t on CUDA");
+  tensor_t *ty = (tensor_t *)PyCapsule_GetPointer(y, "tensor_t on CUDA");
+  if(!tx || !ty){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  if(tx->dtype != ty->dtype){
+    PyErr_SetString(PyExc_TypeError, "Both tensors must have same dtype");
+    return NULL;
+  }
+  if(tx->device.type != CUDA || ty->device.type != CUDA){
+    PyErr_SetString(PyExc_RuntimeError, "Both tensors must be on CUDA");
+    return NULL;
+  }
+  if(tx->ndim < 3 || ty->ndim < 3){
+    PyErr_SetString(PyExc_RuntimeError, "bmm requires tensors >= 3D");
+    return NULL;
+  }
+  if(tx->ndim != ty->ndim){
+    PyErr_SetString(PyExc_ValueError, "Both tensors must have same ndim");
+    return NULL;
+  }
+  size_t m = tx->shape[tx->ndim - 2];
+  size_t k = tx->shape[tx->ndim - 1];
+  size_t k2 = ty->shape[ty->ndim - 2];
+  size_t n = ty->shape[ty->ndim - 1];
+  if(k != k2){
+    PyErr_SetString(PyExc_ValueError, "Matrix dimensions incompatible");
+    return NULL;
+  }
+  for(size_t i = 0; i < tx->ndim - 2; i++){
+    if(tx->shape[i] != ty->shape[i]){
+      PyErr_SetString(PyExc_ValueError, "Batch dimensions must match");
+      return NULL;
+    }
+  }
+  tensor_t *tz = tensor_empty_like_bmm(tx, m, n);
+  if(!tz){
+    PyErr_SetString(PyExc_MemoryError, "Output allocation failed");
+    return NULL;
+  }
+  size_t batch_size = 1;
+  for(size_t i = 0; i < tx->ndim - 2; i++){
+    batch_size *= tx->shape[i];
+  }
+  dim3 block(256);
+  dim3 grid((m * n + block.x - 2) / block.x, batch_size);
+  switch (tx->dtype){
+    case INT8: {
+      int8 *x = (int8 *)tx->buf;
+      int8 *y = (int8 *)ty->buf;
+      int8 *z = (int8 *)tz->buf;
+      bmm_tensor_kernel<int8><<<grid, block>>>(x, y, z, m , k, n);
+      cudaDeviceSynchronize();
+      break;
+    }
+    case UINT8: {
+      uint8 *x = (uint8 *)tx->buf;
+      uint8 *y = (uint8 *)ty->buf;
+      uint8 *z = (uint8 *)tz->buf;
+      bmm_tensor_kernel<uint8><<<grid, block>>>(x, y, z, m , k, n);
+      cudaDeviceSynchronize();
+      break;
+    }
+    case INT16: {
+      int16 *x = (int16 *)tx->buf;
+      int16 *y = (int16 *)ty->buf;
+      int16 *z = (int16 *)tz->buf;
+      bmm_tensor_kernel<int16><<<grid, block>>>(x, y, z, m, k, n);
+      cudaDeviceSynchronize();
+      break;
+    }
+    case UINT16: {
+      uint16 *x = (uint16 *)tx->buf;
+      uint16 *y = (uint16 *)ty->buf;
+      uint16 *z = (uint16 *)tz->buf;
+      bmm_tensor_kernel<uint16><<<grid, block>>>(x, y, z, m, k, n);
+      cudaDeviceSynchronize();
+      break;
+    }
+    case INT32: {
+      int32 *x = (int32 *)tx->buf;
+      int32 *y = (int32 *)ty->buf;
+      int32 *z = (int32 *)tz->buf;
+      bmm_tensor_kernel<int32><<<grid, block>>>(x, y, z, m, k, n);
+      cudaDeviceSynchronize();
+      break;
+    }
+    case UINT32: {
+      uint32 *x = (uint32 *)tx->buf;
+      uint32 *y = (uint32 *)ty->buf;
+      uint32 *z = (uint32 *)tz->buf;
+      bmm_tensor_kernel<uint32><<<grid, block>>>(x, y, z, m, k, n);
+      cudaDeviceSynchronize();
+      break;}
+    case INT64: {
+      int64 *x = (int64 *)tx->buf;
+      int64 *y = (int64 *)ty->buf;
+      int64 *z = (int64 *)tz->buf;
+      bmm_tensor_kernel<int64><<<grid, block>>>(x, y, z, m, k, n);
+      cudaDeviceSynchronize();
+      break;
+    }
+    case UINT64: {
+      int64 *x = (int64 *)tx->buf;
+      int64 *y = (int64 *)ty->buf;
+      int64 *z = (int64 *)tz->buf;
+      bmm_tensor_kernel<int64><<<grid, block>>>(x, y, z, m, k, n);
+      cudaDeviceSynchronize();
+      break;
+    }
+    case FP32: {
+      float32 *x = (float32 *)tx->buf;
+      float32 *y = (float32 *)ty->buf;
+      float32 *z = (float32 *)tz->buf;
+      bmm_tensor_kernel<float32><<<grid, block>>>(x, y, z, m, k, n);
+      cudaDeviceSynchronize();
+      break;
+    }
+    case FP64: {
+      float64 *x = (float64 *)tx->buf;
+      float64 *y = (float64 *)ty->buf;
+      float64 *z = (float64 *)tz->buf;
+      bmm_tensor_kernel<float64><<<grid, block>>>(x, y, z, m, k, n);
+      cudaDeviceSynchronize();
+      break;
+    }
+    case CMPX64: {
+      complex64 *x = (complex64 *)tx->buf;
+      complex64 *y = (complex64 *)ty->buf;
+      complex64 *z = (complex64 *)tz->buf;
+      bmm_cmpx_tensor_kernel<complex64, float><<<grid, block>>>(x, y, z, m, k, n);
+      cudaDeviceSynchronize();
+      break;
+    }
+    case CMPX128: {
+      complex128 *x = (complex128 *)tx->buf;
+      complex128 *y = (complex128 *)ty->buf;
+      complex128 *z = (complex128 *)tz->buf;
+      bmm_cmpx_tensor_kernel<complex128, double><<<grid, block>>>(x, y, z, m, k, n);
+      cudaDeviceSynchronize();
+      break;
+    }
+    default: {
+      PyErr_SetString(PyExc_RuntimeError, "something bad happened at `bmm` function");
+      return NULL;
+    }
+  }
+  return PyCapsule_New(tz, "tensor_t on CUDA", capsule_destroyer);
+}
+
+tensor_t *tensor_empty_axis_sum(tensor_t *tx, int axis){
+  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  if(!tz) return NULL;
+  tz->dtype = tx->dtype;
+  tz->device = tx->device;
+  tz->element_size = tx->element_size;
+  tz->ndim = tx->ndim - 1;
+  tz->shape = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+  tz->stride = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+  if(!tz->shape || !tz->stride){
+    free(tz->shape);
+    free(tz->stride);
+    free(tz);
+    return NULL;
+  }
+  int j = 0;
+  for(int i = 0; i < tx->ndim; i++){
+    if(i == axis) continue;
+    tz->shape[j++] = tx->shape[i];
+  }
+  tz->stride[tz->ndim - 1] = 1;
+  for(int i = tz->ndim - 2; i >= 0; i--){
+    tz->stride[i] = tz->stride[i + 1] * tz->shape[i + 1];
+  }
+  tz->size = 1;
+  for(int i = 0; i < tz->ndim; i++){
+    tz->size *= tz->shape[i];
+  }
+  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  if(!tz->storage){
+    free(tz->shape);
+    free(tz->stride);
+    free(tz);
+    return NULL;
+  }
+  tz->storage->bytes = tz->size * tz->element_size;
+  tz->storage->refcount = 1;
+  tz->storage->device = tz->device;
+  CUDA_CHECK(cudaMalloc(&tz->storage->ptr, tz->storage->bytes));
+  tz->buf = tz->storage->ptr;
+  CUDA_CHECK(cudaMemset(tz->buf, 0, tz->storage->bytes));
+  return tz;
+}
+
+tensor_t *tensor_empty_scalar_like(tensor_t *tx){
+  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  if(!tz) return NULL;
+  tz->dtype = tx->dtype;
+  tz->device = tx->device;
+  tz->element_size = tx->element_size;
+  tz->ndim = 0;
+  tz->shape = NULL;
+  tz->stride = NULL;
+  tz->size = 1;
+  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  if(!tz->storage){
+    free(tz);
+    return NULL;
+  }
+  tz->storage->bytes = tz->element_size;
+  tz->storage->refcount = 1;
+  tz->storage->device = tz->device;
+  CUDA_CHECK(cudaMalloc(&tz->storage->ptr, tz->storage->bytes));
+  tz->buf = tz->storage->ptr;
+  CUDA_CHECK(cudaMemset(tz->buf, 0, tz->storage->bytes));
+  return tz;
+}
+
+__device__ inline uint64 atomicAdd_u64(uint64 *addr, uint64 val){
+  unsigned long long *uaddr = (unsigned long long *)addr;
+  unsigned long long old = *uaddr, assumed;
+  do{
+    assumed = old;
+    old = atomicCAS(uaddr, assumed, assumed + (unsigned long long)val);
+  }while(assumed != old);
+  return (uint64)old;
+}
+
+__device__ inline int64 atomicAdd_i64(int64 *addr, int64 val){
+  unsigned long long *uaddr = (unsigned long long *)addr;
+  unsigned long long old = *uaddr, assumed;
+  do{
+    assumed = old;
+    old = atomicCAS(
+      uaddr,
+      assumed,
+      (unsigned long long)((long long)assumed + (long long)val)
+    );
+  }while(assumed != old);
+  return (int64)old;
+}
+
+__device__ inline double atomicAdd_f64(double *addr, double val){
+#if __CUDA_ARCH__ >= 600
+  return atomicAdd(addr, val);
+#else
+  unsigned long long *uaddr = (unsigned long long *)addr;
+  unsigned long long old = *uaddr, assumed;
+  do{
+    assumed = old;
+    old = atomicCAS(
+      uaddr,
+      assumed,
+      __double_as_longlong(val + __longlong_as_double(assumed))
+    );
+  }while(assumed != old);
+  return __longlong_as_double(old);
+#endif
+}
+
+#define SUM_ALL_KERNEL(NAME, IN_T, ACC_T, ATOMIC_FN)  \
+__global__ void sum_all_##NAME##_kernel(              \
+    const IN_T *x, ACC_T *out, size_t N               \
+){                                                    \
+  __shared__ ACC_T cache[256];                        \
+  size_t tid = threadIdx.x;                           \
+  size_t idx = blockIdx.x * blockDim.x + tid;         \
+  ACC_T temp = 0;                                     \
+  while(idx < N){                                     \
+    temp += (ACC_T)x[idx];                            \
+    idx += blockDim.x * gridDim.x;                    \
+  }                                                   \
+  cache[tid] = temp;                                  \
+  __syncthreads();                                    \
+  for(size_t s = blockDim.x/2; s > 0; s >>= 1){       \
+    if(tid < s) cache[tid] += cache[tid+s];           \
+    __syncthreads();                                  \
+  }                                                   \
+  if(tid == 0) ATOMIC_FN(out, cache[0]);              \
+}
+
+#define SUM_AXIS_KERNEL(NAME, IN_T, ACC_T)                             \
+__global__ void sum_axis_##NAME##_kernel(                              \
+    const IN_T *in, IN_T *out,                                         \
+    const size_t *stride, const size_t *out_stride,                    \
+    int ndim, int axis, size_t reduced_dim, size_t out_size            \
+){                                                                     \
+  size_t out_index = blockIdx.x * blockDim.x + threadIdx.x; \
+  if(out_index >= out_size) return;                         \
+  int idx_in[16] = {0};                                     \
+  size_t tmp = out_index;                                   \
+  int j = 0;                                                \
+  for(int i = 0; i < ndim; i++){                            \
+    if(i == axis) continue;                                 \
+    idx_in[i] = tmp / out_stride[j];                        \
+    tmp %= out_stride[j];                                   \
+    j++;                                                    \
+  }                                                         \
+  ACC_T total = 0;                                          \
+  for(size_t r = 0; r < reduced_dim; r++){                  \
+    idx_in[axis] = r;                                       \
+    size_t offset = 0;                                      \
+    for(int k = 0; k < ndim; k++)                           \
+      offset += idx_in[k] * stride[k];                      \
+    total += (ACC_T)in[offset];                             \
+  }                                                         \
+  out[out_index] = (IN_T)total;                             \
+}
+
+SUM_ALL_KERNEL(int8, int8, int32, atomicAdd)
+SUM_ALL_KERNEL(uint8, uint8, uint64, atomicAdd_u64)
+SUM_ALL_KERNEL(int16, int16, int32, atomicAdd)
+SUM_ALL_KERNEL(uint16, uint16, uint64, atomicAdd_u64)
+SUM_ALL_KERNEL(int32, int32, int64, atomicAdd_i64)
+SUM_ALL_KERNEL(uint32, uint32, uint64, atomicAdd_u64)
+SUM_ALL_KERNEL(int64, int64, int64, atomicAdd_i64)
+SUM_ALL_KERNEL(uint64, uint64, uint64, atomicAdd_u64)
+SUM_ALL_KERNEL(fp32, float32, float32, atomicAdd)
+SUM_ALL_KERNEL(fp64, float64, float64, atomicAdd_f64)
+
+SUM_AXIS_KERNEL(int8, int8, int32)
+SUM_AXIS_KERNEL(uint8, uint8, uint64)
+SUM_AXIS_KERNEL(int16, int16, int32)
+SUM_AXIS_KERNEL(uint16, uint16, uint64)
+SUM_AXIS_KERNEL(int32, int32, int64)
+SUM_AXIS_KERNEL(uint32, uint32, uint64)
+SUM_AXIS_KERNEL(int64, int64, int64)
+SUM_AXIS_KERNEL(uint64, uint64, uint64)
+SUM_AXIS_KERNEL(fp32, float32, float32)
+SUM_AXIS_KERNEL(fp64, float64, float64)
+
+__global__ void sum_axis_cmpx64_kernel(
+  const complex64 *in, complex64 *out,
+  const size_t *stride, const size_t *out_stride,
+  int ndim, int axis, size_t reduced_dim, size_t out_size
+){
+  size_t out_index = blockIdx.x * blockDim.x + threadIdx.x;
+  if(out_index >= out_size) return;
+  int idx_in[16] = {0};
+  size_t tmp = out_index;
+  int j = 0;
+  for(int i = 0; i < ndim; i++){
+    if(i == axis) continue;
+    idx_in[i] = tmp / out_stride[j];
+    tmp %= out_stride[j];
+    j++;
+  }
+  float real_sum = 0.0f;
+  float imag_sum = 0.0f;
+  for(size_t r = 0; r < reduced_dim; r++){
+    idx_in[axis] = r;
+    size_t offset = 0;
+    for(int k = 0; k < ndim; k++)
+      offset += idx_in[k] * stride[k];
+    real_sum += in[offset].real;
+    imag_sum += in[offset].imag;
+  }
+  out[out_index].real = real_sum;
+  out[out_index].imag = imag_sum;
+}
+
+__global__ void sum_axis_cmpx128_kernel(
+  const complex128 *in, complex128 *out,
+  const size_t *stride, const size_t *out_stride,
+  int ndim, int axis, size_t reduced_dim, size_t out_size
+){
+  size_t out_index = blockIdx.x * blockDim.x + threadIdx.x;
+  if(out_index >= out_size) return;
+  int idx_in[16] = {0};
+  size_t tmp = out_index;
+  int j = 0;
+  for(int i = 0; i < ndim; i++){
+    if(i == axis) continue;
+    idx_in[i] = tmp / out_stride[j];
+    tmp %= out_stride[j];
+    j++;
+  }
+  double real_sum = 0.0;
+  double imag_sum = 0.0;
+  for(size_t r = 0; r < reduced_dim; r++){
+    idx_in[axis] = r;
+    size_t offset = 0;
+    for(int k = 0; k < ndim; k++)
+      offset += idx_in[k] * stride[k];
+    real_sum += in[offset].real;
+    imag_sum += in[offset].imag;
+  }
+  out[out_index].real = real_sum;
+  out[out_index].imag = imag_sum;
+}
+
+__global__ void sum_all_cmpx64_kernel(const complex64 *x, complex64 *out, size_t N){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx >= N) return;
+  atomicAdd(&out->real, x[idx].real);
+  atomicAdd(&out->imag, x[idx].imag);
+}
+
+__global__ void sum_all_cmpx128_kernel(const complex128 *x, complex128 *out, size_t N){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx >= N) return;
+  atomicAdd_f64(&out->real, x[idx].real);
+  atomicAdd_f64(&out->imag, x[idx].imag);
+}
+
+static PyObject *__sum_all__(tensor_t *tx, tensor_t *tz){
+  size_t N = tx->size;
+  CUDA_CHECK(cudaMemset(tz->buf, 0, tz->storage->bytes));
+  int threads = 256;
+  int blocks = (N + threads - 1) / threads;
+  if(blocks > 1024) blocks = 1024;
+  switch(tx->dtype){
+    case INT8: sum_all_int8_kernel<<<blocks,threads>>>((int8*)tx->buf,(int32*)tz->buf,N); break;
+    case UINT8: sum_all_uint8_kernel<<<blocks,threads>>>((uint8*)tx->buf,(uint64*)tz->buf,N); break;
+    case INT16: sum_all_int16_kernel<<<blocks,threads>>>((int16*)tx->buf,(int32*)tz->buf,N); break;
+    case UINT16: sum_all_uint16_kernel<<<blocks,threads>>>((uint16*)tx->buf,(uint64*)tz->buf,N); break;
+    case INT32: sum_all_int32_kernel<<<blocks,threads>>>((int32*)tx->buf,(int64*)tz->buf,N); break;
+    case UINT32: sum_all_uint32_kernel<<<blocks,threads>>>((uint32*)tx->buf,(uint64*)tz->buf,N); break;
+    case INT64: sum_all_int64_kernel<<<blocks,threads>>>((int64*)tx->buf,(int64*)tz->buf,N); break;
+    case UINT64: sum_all_uint64_kernel<<<blocks,threads>>>((uint64*)tx->buf,(uint64*)tz->buf,N); break;
+    case FP32: sum_all_fp32_kernel<<<blocks,threads>>>((float32*)tx->buf,(float32*)tz->buf,N); break;
+    case FP64: sum_all_fp64_kernel<<<blocks,threads>>>((float64*)tx->buf,(float64*)tz->buf,N); break;
+    case CMPX64: sum_all_cmpx64_kernel<<<blocks,threads>>>((complex64*)tx->buf,(complex64*)tz->buf,N); break;
+    case CMPX128: sum_all_cmpx128_kernel<<<blocks,threads>>>((complex128*)tx->buf,(complex128*)tz->buf,N); break;
+    default:
+      destroy(tz);
+      PyErr_SetString(PyExc_TypeError,"sum not supported on CUDA");
+      return NULL;
+  }
+  CUDA_CHECK(cudaDeviceSynchronize());
+  return PyCapsule_New(tz,"tensor_t on CUDA",capsule_destroyer);
+}
+
+static PyObject *__sum_axis__(tensor_t *tx, tensor_t *tz, int axis){
+  size_t reduced_dim = tx->shape[axis];
+  size_t out_size = tz->size;
+  size_t *d_stride, *d_out_stride;
+  CUDA_CHECK(cudaMalloc(&d_stride, sizeof(size_t) * tx->ndim));
+  CUDA_CHECK(cudaMalloc(&d_out_stride, sizeof(size_t) * tz->ndim));
+  CUDA_CHECK(cudaMemcpy(d_stride, tx->stride, sizeof(size_t) * tx->ndim, cudaMemcpyHostToDevice));
+  CUDA_CHECK(cudaMemcpy(d_out_stride, tz->stride, sizeof(size_t) * tz->ndim, cudaMemcpyHostToDevice));
+  int threads = 256;
+  int blocks = (out_size + threads - 1) / threads;
+  switch(tx->dtype){
+    case INT8:
+      sum_axis_int8_kernel<<<blocks,threads>>>(
+        (int8*)tx->buf,(int8*)tz->buf,
+        d_stride,d_out_stride,
+        tx->ndim,axis,reduced_dim,out_size);
+      break;
+    case UINT8:
+      sum_axis_uint8_kernel<<<blocks,threads>>>(
+        (uint8*)tx->buf,(uint8*)tz->buf,
+        d_stride,d_out_stride,
+        tx->ndim,axis,reduced_dim,out_size);
+      break;
+    case INT16:
+      sum_axis_int16_kernel<<<blocks,threads>>>(
+        (int16*)tx->buf,(int16*)tz->buf,
+        d_stride,d_out_stride,
+        tx->ndim,axis,reduced_dim,out_size);
+      break;
+    case UINT16:
+      sum_axis_uint16_kernel<<<blocks,threads>>>(
+        (uint16*)tx->buf,(uint16*)tz->buf,
+        d_stride,d_out_stride,
+        tx->ndim,axis,reduced_dim,out_size);
+      break;
+    case INT32:
+      sum_axis_int32_kernel<<<blocks,threads>>>(
+        (int32*)tx->buf,(int32*)tz->buf,
+        d_stride,d_out_stride,
+        tx->ndim,axis,reduced_dim,out_size);
+      break;
+    case UINT32:
+      sum_axis_uint32_kernel<<<blocks,threads>>>(
+        (uint32*)tx->buf,(uint32*)tz->buf,
+        d_stride,d_out_stride,
+        tx->ndim,axis,reduced_dim,out_size);
+      break;
+    case INT64:
+      sum_axis_int64_kernel<<<blocks,threads>>>(
+        (int64*)tx->buf,(int64*)tz->buf,
+        d_stride,d_out_stride,
+        tx->ndim,axis,reduced_dim,out_size);
+      break;
+    case UINT64:
+      sum_axis_uint64_kernel<<<blocks,threads>>>(
+        (uint64*)tx->buf,(uint64*)tz->buf,
+        d_stride,d_out_stride,
+        tx->ndim,axis,reduced_dim,out_size);
+      break;
+    case FP32:
+      sum_axis_fp32_kernel<<<blocks,threads>>>(
+        (float32*)tx->buf,(float32*)tz->buf,
+        d_stride,d_out_stride,
+        tx->ndim,axis,reduced_dim,out_size);
+      break;
+    case FP64:
+      sum_axis_fp64_kernel<<<blocks,threads>>>(
+        (float64*)tx->buf,(float64*)tz->buf,
+        d_stride,d_out_stride,
+        tx->ndim,axis,reduced_dim,out_size);
+      break;
+    case CMPX64:
+      sum_axis_cmpx64_kernel<<<blocks,threads>>>(
+        (complex64*)tx->buf,(complex64*)tz->buf,
+        d_stride,d_out_stride,
+        tx->ndim,axis,reduced_dim,out_size);
+      break;
+    case CMPX128:
+      sum_axis_cmpx128_kernel<<<blocks,threads>>>(
+        (complex128*)tx->buf,(complex128*)tz->buf,
+        d_stride,d_out_stride,
+        tx->ndim,axis,reduced_dim,out_size);
+      break;
+    default:
+      destroy(tz);
+      PyErr_SetString(PyExc_TypeError, "sum(axis) not supported on CUDA");
+      return NULL;
+  }
+  CUDA_CHECK(cudaDeviceSynchronize());
+  cudaFree(d_stride);
+  cudaFree(d_out_stride);
+  return PyCapsule_New(tz, "tensor_t on CUDA", capsule_destroyer);
+}
+
+static PyObject *sum(PyObject *self, PyObject *args, PyObject *kwargs){
+  PyObject *x;
+  PyObject *axis_obj = Py_None;
+  static char *kwlist[] = {(char *)"x", (char *)"axis", NULL};
+  if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O|O", kwlist, &x, &axis_obj))
+    return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid capsule");
+    return NULL;
+  }
+  tensor_t *tx = (tensor_t *)PyCapsule_GetPointer(x, "tensor_t on CUDA");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor pointer");
+    return NULL;
+  }
+  if(tx->device.type != CUDA){
+    PyErr_SetString(PyExc_RuntimeError, "Tensor must be on CUDA");
+    return NULL;
+  }
+  if(axis_obj == Py_None){
+    tensor_t *tz = tensor_empty_scalar_like(tx);
+    if(!tz){
+      PyErr_SetString(PyExc_RuntimeError, "scalar tensor allocation failed");
+      return NULL;
+    }
+    return __sum_all__(tx, tz);
+  }
+  if(!PyLong_Check(axis_obj)){
+    PyErr_SetString(PyExc_TypeError, "axis must be int or None");
+    return NULL;
+  }
+  int axis = PyLong_AsLong(axis_obj);
+  if(axis < 0) axis += tx->ndim;
+  if(axis < 0 || axis >= tx->ndim){
+    PyErr_SetString(PyExc_ValueError, "axis out of range");
+    return NULL;
+  }
+  if(tx->ndim == 1){
+    tensor_t *tz = tensor_empty_scalar_like(tx);
+    if(!tz){
+      PyErr_SetString(PyExc_RuntimeError, "scalar tensor allocation failed");
+      return NULL;
+    }
+    return __sum_all__(tx, tz);
+  }
+  tensor_t *tz = tensor_empty_axis_sum(tx, axis);
+  if(!tz){
+    PyErr_SetString(PyExc_RuntimeError, "axis-sum tensor allocation failed");
+    return NULL;
+  }
+  return __sum_axis__(tx, tz, axis);
+}
+
+static tensor_t *tensor_empty_like_realimag(tensor_t *tx, dtype_t out_dtype){
+  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  if(!tz) return NULL;
+  tz->dtype = out_dtype;
+  tz->element_size = getsize(out_dtype);
+  tz->device = tx->device;
+  tz->ndim = tx->ndim;
+  tz->shape = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+  tz->stride = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+  if(!tz->shape || !tz->stride){
+    free(tz->shape);
+    free(tz->stride);
+    free(tz);
+    return NULL;
+  }
+  for(size_t i = 0; i < tz->ndim; i++){
+    tz->shape[i] = tx->shape[i];
+    tz->stride[i] = tx->stride[i];
+  }
+  tz->size = tx->size;
+  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  if(!tz->storage){
+    free(tz->shape);
+    free(tz->stride);
+    free(tz);
+    return NULL;
+  }
+  tz->storage->device = tz->device;
+  tz->storage->refcount = 1;
+  tz->storage->bytes = tz->size * tz->element_size;
+  CUDA_CHECK(cudaMalloc(&tz->storage->ptr, tz->storage->bytes));
+  tz->buf = tz->storage->ptr;
+  return tz;
+}
+
+__global__ void real_cmpx64_kernel(const complex64 *x, float32 *out, size_t N){
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if(i < N) out[i] = x[i].real;
+}
+
+__global__ void real_cmpx128_kernel(const complex128 *x, float64 *out, size_t N){
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if(i < N) out[i] = x[i].real;
+}
+
+__global__ void imag_cmpx64_kernel(const complex64 *x, float32 *out, size_t N){
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if(i < N) out[i] = x[i].imag;
+}
+
+__global__ void imag_cmpx128_kernel(const complex128 *x, float64 *out, size_t N){
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if(i < N) out[i] = x[i].imag;
+}
+
+static PyObject *real(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "invalid tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = (tensor_t *)PyCapsule_GetPointer(x, "tensor_t on CUDA");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  if(tx->dtype != CMPX64 && tx->dtype != CMPX128){
+    PyErr_SetString(PyExc_TypeError, "real() implemented only for complex dtype tensor(s)");
+    return NULL;
+  }
+  dtype_t out_dtype = (tx->dtype == CMPX64) ? FP32 : FP64;
+  tensor_t *tz;
+  if(tx->ndim == 0){
+    tz = tensor_empty_scalar_like(tx);
+    tz->dtype = out_dtype;
+    tz->element_size = getsize(out_dtype);
+    tz->storage->bytes = tz->element_size;
+    if(tx->dtype == CMPX64){
+      float32 tmp = ((complex64*)tx->buf)[0].real;
+      CUDA_CHECK(cudaMemcpy(tz->buf, &tmp, sizeof(float32), cudaMemcpyHostToDevice));
+    }else{
+      float64 tmp = ((complex128*)tx->buf)[0].real;
+      CUDA_CHECK(cudaMemcpy(tz->buf, &tmp, sizeof(float64), cudaMemcpyHostToDevice));
+    }
+    return PyCapsule_New(tz, "tensor_t on CUDA", capsule_destroyer);
+  }
+  tz = tensor_empty_like_realimag(tx, out_dtype);
+  if(!tz){
+    PyErr_SetString(PyExc_RuntimeError, "output allocation failed");
+    return NULL;
+  }
+  size_t N = tx->size;
+  int threads = 256;
+  int blocks = (N + threads - 1) / threads;
+  if(tx->dtype == CMPX64){ real_cmpx64_kernel<<<blocks, threads>>>((complex64*)tx->buf, (float32*)tz->buf, N); }
+  else{ real_cmpx128_kernel<<<blocks, threads>>>((complex128*)tx->buf, (float64*)tz->buf, N); }
+  CUDA_CHECK(cudaDeviceSynchronize());
+  return PyCapsule_New(tz, "tensor_t on CUDA", capsule_destroyer);
+}
+
+static PyObject *imag(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "invalid tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = (tensor_t *)PyCapsule_GetPointer(x, "tensor_t on CUDA");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  if(tx->dtype != CMPX64 && tx->dtype != CMPX128){
+    PyErr_SetString(PyExc_TypeError, "imag() implemented only for complex dtype tensor(s)");
+    return NULL;
+  }
+  dtype_t out_dtype = (tx->dtype == CMPX64) ? FP32 : FP64;
+  tensor_t *tz;
+  if(tx->ndim == 0){
+    tz = tensor_empty_scalar_like(tx);
+    tz->dtype = out_dtype;
+    tz->element_size = getsize(out_dtype);
+    tz->storage->bytes = tz->element_size;
+    if(tx->dtype == CMPX64){
+      float32 tmp = ((complex64*)tx->buf)[0].imag;
+      CUDA_CHECK(cudaMemcpy(tz->buf, &tmp, sizeof(float32), cudaMemcpyHostToDevice));
+    }else{
+      float64 tmp = ((complex128*)tx->buf)[0].imag;
+      CUDA_CHECK(cudaMemcpy(tz->buf, &tmp, sizeof(float64), cudaMemcpyHostToDevice));
+    }
+    return PyCapsule_New(tz, "tensor_t on CUDA", capsule_destroyer);
+  }
+  tz = tensor_empty_like_realimag(tx, out_dtype);
+  if(!tz){
+    PyErr_SetString(PyExc_RuntimeError, "output allocation failed");
+    return NULL;
+  }
+  size_t N = tx->size;
+  int threads = 256;
+  int blocks = (N + threads - 1) / threads;
+  if(tx->dtype == CMPX64){ imag_cmpx64_kernel<<<blocks, threads>>>((complex64*)tx->buf, (float32*)tz->buf, N); }
+  else{ imag_cmpx128_kernel<<<blocks, threads>>>((complex128*)tx->buf, (float64*)tz->buf, N); }
+  CUDA_CHECK(cudaDeviceSynchronize());
+  return PyCapsule_New(tz, "tensor_t on CUDA", capsule_destroyer);
+}
 
 static PyMethodDef methods[] = {
   {"add", add, METH_VARARGS, "element-wise 'add' operation on CUDA tensor"},
@@ -2494,7 +3307,11 @@ static PyMethodDef methods[] = {
   {"not_", not_, METH_VARARGS, "element-wise 'not' operation on CUDA tensor"},
   {"xor_", xor_, METH_VARARGS, "element-wise 'xor' operation on CUDA tensor"},
   {"xnor_", xnor_, METH_VARARGS, "element-wise 'xnor' operation on CUDA tensor"},
-  {"permute", permute, METH_VARARGS, "permute CUDA tensor"},
+  {"sum", (PyCFunction)sum, METH_VARARGS | METH_KEYWORDS, "returns the sum of CUDA tensor"},
+  {"permute", permute, METH_VARARGS, "permute on CUDA tensor"},
+  {"bmm", bmm, METH_VARARGS, "compute batch matrix multiplication on CUDA tensor"},
+  {"real", real, METH_VARARGS, "get real values from complex tensor on CUDA"},
+  {"imag", imag, METH_VARARGS, "get imag values from complex tensor on CUDA"},
   {NULL, NULL, 0, NULL}
 };
 
