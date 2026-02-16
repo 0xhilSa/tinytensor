@@ -1,6 +1,6 @@
 <p align="center">
   <img src="./docs/tt-logo.png" alt="tt-logo.png">
-  <p align="center">a tiny Python tensor computation library</p>
+  <p align="center">a tiny tensor computation library</p>
 </p>
 
 
