@@ -1,4 +1,5 @@
 #include <python3.10/Python.h>
+#include <python3.10/methodobject.h>
 #include "../tensor.h"
 
 void capsule_destroyer(PyObject *capsule){
@@ -2760,6 +2761,523 @@ static PyObject *sum(PyObject *self, PyObject *args, PyObject *kwargs){
   }
 }
 
+static PyObject *bmm(PyObject *self, PyObject *args){
+  PyObject *x, *y;
+  if(!PyArg_ParseTuple(args, "OO", &x, &y)) return NULL;
+  if(!PyCapsule_CheckExact(x) || !PyCapsule_CheckExact(y)){
+    PyErr_SetString(PyExc_RuntimeError, "operands must be the tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  tensor_t *ty = PyCapsule_GetPointer(y, "tensor_t on CPU");
+  if(!tx || !ty){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  if(tx->dtype != ty->dtype){
+    PyErr_SetString(PyExc_TypeError, "Both tensor_t(s) must have the same dtype");
+    return NULL;
+  }
+  if(tx->device.type != ty->device.type || tx->device.type != CPU){
+    PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CPU)");
+    return NULL;
+  }
+  if(tx->ndim < 2 || ty->ndim < 2){
+    PyErr_SetString(PyExc_RuntimeError, "Both tensors must be at least 2D for matmul");
+    return NULL;
+  }
+  if(tx->ndim != ty->ndim){
+    PyErr_SetString(PyExc_ValueError, "Both tensors must have same number of dimensions for matmul");
+    return NULL;
+  }
+  size_t m = tx->shape[tx->ndim - 2];
+  size_t k = tx->shape[tx->ndim - 1];
+  size_t k2 = ty->shape[ty->ndim - 2];
+  size_t n = ty->shape[ty->ndim - 1];
+  if(k != k2){
+    PyErr_SetString(PyExc_ValueError, "Matrix dimensions incompatible for multiplication");
+    return NULL;
+  }
+  for(size_t i = 0; i < tx->ndim - 2; i++){
+    if(tx->shape[i] != ty->shape[i]){
+      PyErr_SetString(PyExc_ValueError, "Batch dimensions must match");
+      return NULL;
+    }
+  }
+  tensor_t *tz = malloc(sizeof(tensor_t));
+  if(!tz){
+    PyErr_SetString(PyExc_MemoryError, "tensor allocation failed");
+    return NULL;
+  }
+  tz->dtype = tx->dtype;
+  tz->device = tx->device;
+  tz->element_size = tx->element_size;
+  tz->ndim = tx->ndim;
+  tz->shape = malloc(sizeof(size_t) * tz->ndim);
+  if(!tz->shape){
+    free(tz);
+    PyErr_SetString(PyExc_MemoryError, "shape allocation failed");
+    return NULL;
+  }
+  for(size_t i = 0; i < tz->ndim - 2; i++){
+    tz->shape[i] = tx->shape[i];
+  }
+  tz->shape[tz->ndim - 2] = m;
+  tz->shape[tz->ndim - 1] = n;
+  tz->stride = malloc(sizeof(size_t) * tz->ndim);
+  if(!tz->stride){
+    free(tz->shape);
+    free(tz);
+    PyErr_SetString(PyExc_MemoryError, "stride allocation failed");
+    return NULL;
+  }
+  tz->stride[tz->ndim - 1] = 1;
+  for(int i = tz->ndim - 2; i >= 0; i--){
+    tz->stride[i] = tz->shape[i + 1] * tz->stride[i + 1];
+  }
+  tz->size = 1;
+  for(size_t i = 0; i < tz->ndim; i++){
+    tz->size *= tz->shape[i];
+  }
+  tz->storage = malloc(sizeof(storage_t));
+  if(!tz->storage){
+    free(tz->stride);
+    free(tz->shape);
+    free(tz);
+    PyErr_SetString(PyExc_MemoryError, "storage allocation failed");
+    return NULL;
+  }
+  tz->storage->bytes = tz->size * tz->element_size;
+  tz->storage->device = tz->device;
+  tz->storage->refcount = 1;
+  tz->storage->ptr = calloc(1, tz->storage->bytes);
+  if(!tz->storage->ptr){
+    free(tz->storage);
+    free(tz->stride);
+    free(tz->shape);
+    free(tz);
+    PyErr_SetString(PyExc_MemoryError, "storage.ptr allocation failed");
+    return NULL;
+  }
+  tz->buf = tz->storage->ptr;
+  switch(tx->dtype){
+    case INT8: {
+      int8 *a = (int8 *)tx->buf;
+      int8 *b = (int8 *)ty->buf;
+      int8 *c = (int8 *)tz->buf;
+      size_t batch_size = 1;
+      for(size_t i = 0; i < tx->ndim - 2; i++){
+        batch_size *= tx->shape[i];
+      }
+      for(size_t batch = 0; batch < batch_size; batch++){
+        size_t a_offset = batch * m * k;
+        size_t b_offset = batch * k * n;
+        size_t c_offset = batch * m * n;
+        for(size_t i = 0; i < m; i++){
+          for(size_t kk = 0; kk < k; kk++){
+            int8 a_val = a[a_offset + i * k +kk];
+            for(size_t j = 0; j < n; j++){
+              c[c_offset + i * n +j] += a_val * b[b_offset + kk * n + j];
+            }
+          }
+        }
+      }
+      break;
+    }
+    case UINT8: {
+      uint8 *a = (uint8 *)tx->buf;
+      uint8 *b = (uint8 *)ty->buf;
+      uint8 *c = (uint8 *)tz->buf;
+      size_t batch_size = 1;
+      for(size_t i = 0; i < tx->ndim - 2; i++){
+        batch_size *= tx->shape[i];
+      }
+      for(size_t batch = 0; batch < batch_size; batch++){
+        size_t a_offset = batch * m * k;
+        size_t b_offset = batch * k * n;
+        size_t c_offset = batch * m * n;
+        for(size_t i = 0; i < m; i++){
+          for(size_t kk = 0; kk < k; kk++){
+            uint8 a_val = a[a_offset + i * k +kk];
+            for(size_t j = 0; j < n; j++){
+              c[c_offset + i * n +j] += a_val * b[b_offset + kk * n + j];
+            }
+          }
+        }
+      }
+      break;
+    }
+    case INT16: {
+      int16 *a = (int16 *)tx->buf;
+      int16 *b = (int16 *)ty->buf;
+      int16 *c = (int16 *)tz->buf;
+      size_t batch_size = 1;
+      for(size_t i = 0; i < tx->ndim - 2; i++){
+        batch_size *= tx->shape[i];
+      }
+      for(size_t batch = 0; batch < batch_size; batch++){
+        size_t a_offset = batch * m * k;
+        size_t b_offset = batch * k * n;
+        size_t c_offset = batch * m * n;
+        for(size_t i = 0; i < m; i++){
+          for(size_t kk = 0; kk < k; kk++){
+            int16 a_val = a[a_offset + i * k +kk];
+            for(size_t j = 0; j < n; j++){
+              c[c_offset + i * n +j] += a_val * b[b_offset + kk * n + j];
+            }
+          }
+        }
+      }
+      break;
+    }
+    case UINT16: {
+      uint16 *a = (uint16 *)tx->buf;
+      uint16 *b = (uint16 *)ty->buf;
+      uint16 *c = (uint16 *)tz->buf;
+      size_t batch_size = 1;
+      for(size_t i = 0; i < tx->ndim - 2; i++){
+        batch_size *= tx->shape[i];
+      }
+      for(size_t batch = 0; batch < batch_size; batch++){
+        size_t a_offset = batch * m * k;
+        size_t b_offset = batch * k * n;
+        size_t c_offset = batch * m * n;
+        for(size_t i = 0; i < m; i++){
+          for(size_t kk = 0; kk < k; kk++){
+            uint16 a_val = a[a_offset + i * k +kk];
+            for(size_t j = 0; j < n; j++){
+              c[c_offset + i * n +j] += a_val * b[b_offset + kk * n + j];
+            }
+          }
+        }
+      }
+      break;
+    }
+    case INT32: {
+      int32 *a = (int32 *)tx->buf;
+      int32 *b = (int32 *)ty->buf;
+      int32 *c = (int32 *)tz->buf;
+      size_t batch_size = 1;
+      for(size_t i = 0; i < tx->ndim - 2; i++){
+        batch_size *= tx->shape[i];
+      }
+      for(size_t batch = 0; batch < batch_size; batch++){
+        size_t a_offset = batch * m * k;
+        size_t b_offset = batch * k * n;
+        size_t c_offset = batch * m * n;
+        for(size_t i = 0; i < m; i++){
+          for(size_t kk = 0; kk < k; kk++){
+            int32 a_val = a[a_offset + i * k + kk];
+            for(size_t j = 0; j < n; j++){
+              c[c_offset + i * n + j] += a_val * b[b_offset + kk * n + j];
+            }
+          }
+        }
+      }
+      break;
+    }
+    case UINT32: {
+      uint32 *a = (uint32 *)tx->buf;
+      uint32 *b = (uint32 *)ty->buf;
+      uint32 *c = (uint32 *)tz->buf;
+      size_t batch_size = 1;
+      for(size_t i = 0; i < tx->ndim - 2; i++){
+        batch_size *= tx->shape[i];
+      }
+      for(size_t batch = 0; batch < batch_size; batch++){
+        size_t a_offset = batch * m * k;
+        size_t b_offset = batch * k * n;
+        size_t c_offset = batch * m * n;
+        for(size_t i = 0; i < m; i++){
+          for(size_t kk = 0; kk < k; kk++){
+            uint32 a_val = a[a_offset + i * k + kk];
+            for(size_t j = 0; j < n; j++){
+              c[c_offset + i * n + j] += a_val * b[b_offset + kk * n + j];
+            }
+          }
+        }
+      }
+      break;
+    }
+    case INT64: {
+      int64 *a = (int64 *)tx->buf;
+      int64 *b = (int64 *)ty->buf;
+      int64 *c = (int64 *)tz->buf;
+      size_t batch_size = 1;
+      for(size_t i = 0; i < tx->ndim - 2; i++){
+        batch_size *= tx->shape[i];
+      }
+      for(size_t batch = 0; batch < batch_size; batch++){
+        size_t a_offset = batch * m * k;
+        size_t b_offset = batch * k * n;
+        size_t c_offset = batch * m * n;
+        for(size_t i = 0; i < m; i++){
+          for(size_t kk = 0; kk < k; kk++){
+            int64 a_val = a[a_offset + i * k + kk];
+            for(size_t j = 0; j < n; j++){
+              c[c_offset + i * n + j] += a_val * b[b_offset + kk * n + j];
+            }
+          }
+        }
+      }
+      break;
+    }
+    case UINT64: {
+      uint64 *a = (uint64 *)tx->buf;
+      uint64 *b = (uint64 *)ty->buf;
+      uint64 *c = (uint64 *)tz->buf;
+      size_t batch_size = 1;
+      for(size_t i = 0; i < tx->ndim - 2; i++){
+        batch_size *= tx->shape[i];
+      }
+      for(size_t batch = 0; batch < batch_size; batch++){
+        size_t a_offset = batch * m * k;
+        size_t b_offset = batch * k * n;
+        size_t c_offset = batch * m * n;
+        for(size_t i = 0; i < m; i++){
+          for(size_t kk = 0; kk < k; kk++){
+            uint64 a_val = a[a_offset + i * k + kk];
+            for(size_t j = 0; j < n; j++){
+              c[c_offset + i * n + j] += a_val * b[b_offset + kk * n + j];
+            }
+          }
+        }
+      }
+      break;
+    }
+    case FP32: {
+      float32 *a = (float32 *)tx->buf;
+      float32 *b = (float32 *)ty->buf;
+      float32 *c = (float32 *)tz->buf;
+      size_t batch_size = 1;
+      for(size_t i = 0; i < tx->ndim - 2; i++){
+        batch_size *= tx->shape[i];
+      }
+      for(size_t batch = 0; batch < batch_size; batch++){
+        size_t a_offset = batch * m * k;
+        size_t b_offset = batch * k * n;
+        size_t c_offset = batch * m * n;
+        for(size_t i = 0; i < m; i++){
+          for(size_t kk = 0; kk < k; kk++){
+            float32 a_val = a[a_offset + i * k + kk];
+            for(size_t j = 0; j < n; j++){
+              c[c_offset + i * n + j] += a_val * b[b_offset + kk * n + j];
+            }
+          }
+        }
+      }
+      break;
+    }
+    case FP64: {
+      float64 *a = (float64 *)tx->buf;
+      float64 *b = (float64 *)ty->buf;
+      float64 *c = (float64 *)tz->buf;
+      size_t batch_size = 1;
+      for(size_t i = 0; i < tx->ndim - 2; i++){
+        batch_size *= tx->shape[i];
+      }
+      for(size_t batch = 0; batch < batch_size; batch++){
+        size_t a_offset = batch * m * k;
+        size_t b_offset = batch * k * n;
+        size_t c_offset = batch * m * n;
+        for(size_t i = 0; i < m; i++){
+          for(size_t kk = 0; kk < k; kk++){
+            float64 a_val = a[a_offset + i * k + kk];
+            for(size_t j = 0; j < n; j++){
+              c[c_offset + i * n + j] += a_val * b[b_offset + kk * n + j];
+            }
+          }
+        }
+      }
+      break;
+    }
+    case CMPX64: {
+      complex64 *a = (complex64 *)tx->buf;
+      complex64 *b = (complex64 *)ty->buf;
+      complex64 *c = (complex64 *)tz->buf;
+      size_t batch_size = 1;
+      for(size_t i = 0; i < tx->ndim - 2; i++){
+        batch_size *= tx->shape[i];
+      }
+      for(size_t batch = 0; batch < batch_size; batch++){
+        size_t a_offset = batch * m * k;
+        size_t b_offset = batch * k * n;
+        size_t c_offset = batch * m * n;
+        for(size_t i = 0; i < m; i++){
+          for(size_t kk = 0; kk < k; kk++){
+            complex64 a_val = a[a_offset + i * k + kk];
+            for(size_t j = 0; j < n; j++){
+              size_t c_idx = c_offset + i * n + j;
+              size_t b_idx = b_offset + kk * n + j;
+              float32 real_part = a_val.real * b[b_idx].real - a_val.imag * b[b_idx].imag;
+              float32 imag_part = a_val.real * b[b_idx].imag + a_val.imag * b[b_idx].real;
+              c[c_idx].real += real_part;
+              c[c_idx].imag += imag_part;
+            }
+          }
+        }
+      }
+      break;
+    }
+    case CMPX128: {
+      complex128 *a = (complex128 *)tx->buf;
+      complex128 *b = (complex128 *)ty->buf;
+      complex128 *c = (complex128 *)tz->buf;
+      size_t batch_size = 1;
+      for(size_t i = 0; i < tx->ndim - 2; i++){
+        batch_size *= tx->shape[i];
+      }
+      for(size_t batch = 0; batch < batch_size; batch++){
+        size_t a_offset = batch * m * k;
+        size_t b_offset = batch * k * n;
+        size_t c_offset = batch * m * n;
+        for(size_t i = 0; i < m; i++){
+          for(size_t kk = 0; kk < k; kk++){
+            complex128 a_val = a[a_offset + i * k + kk];
+            for(size_t j = 0; j < n; j++){
+              size_t c_idx = c_offset + i * n + j;
+              size_t b_idx = b_offset + kk * n + j;
+              float64 real_part = a_val.real * b[b_idx].real - a_val.imag * b[b_idx].imag;
+              float64 imag_part = a_val.real * b[b_idx].imag + a_val.imag * b[b_idx].real;
+              c[c_idx].real += real_part;
+              c[c_idx].imag += imag_part;
+            }
+          }
+        }
+      }
+      break;
+    }
+    default: {
+      destroy(tz);
+      PyErr_SetString(PyExc_TypeError, "matmul not supported for this dtype");
+      return NULL;
+    }
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+static PyObject *real(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "invalid tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  if(tx->dtype != CMPX64 && tx->dtype != CMPX128){
+    PyErr_SetString(PyExc_TypeError, "real() implemented only for complex dtype tensor(s)");
+    return NULL;
+  }
+  tensor_t *tz = malloc(sizeof(tensor_t));
+  tz->dtype = (tx->dtype == CMPX64) ? FP32 : FP64;
+  tz->element_size = getsize(tz->dtype);
+  tz->device = (device_t){CPU, 0};
+  tz->size = 1;
+  tz->storage = malloc(sizeof(storage_t));
+  tz->storage->device = tz->device;
+  tz->storage->refcount = 1;
+  tz->storage->bytes = tz->element_size;
+  tz->storage->ptr = malloc(tz->storage->bytes);
+  tz->buf = tz->storage->ptr;
+  if(tx->ndim == 0){
+    tz->ndim = 0;
+    tz->shape = NULL;
+    tz->stride = NULL;
+    if(tx->dtype == CMPX64){
+      ((float*)tz->buf)[0] = ((complex64*)tx->buf)[0].real;
+    }else{
+      ((double*)tz->buf)[0] = ((complex128*)tx->buf)[0].real;
+    }
+    return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+  }
+  tz->ndim = tx->ndim;
+  tz->shape = malloc(sizeof(size_t) * tz->ndim);
+  tz->stride = malloc(sizeof(size_t) * tz->ndim);
+  for(size_t i = 0; i < tz->ndim; i++){
+    tz->shape[i] = tx->shape[i];
+    tz->stride[i] = tx->stride[i];
+  }
+  tz->size = tx->size;
+  tz->storage->bytes = tz->size * tz->element_size;
+  tz->storage->ptr = malloc(tz->storage->bytes);
+  tz->buf = tz->storage->ptr;
+  if(tx->dtype == CMPX64){
+    complex64 *src = (complex64*)tx->buf;
+    float *dst = (float*)tz->buf;
+    for(size_t i = 0; i < tx->size; i++) dst[i] = src[i].real;
+  }else{
+    complex128 *src = (complex128*)tx->buf;
+    double *dst = (double*)tz->buf;
+    for(size_t i = 0; i < tx->size; i++) dst[i] = src[i].real;
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+static PyObject *imag(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "invalid tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  if(tx->dtype != CMPX64 && tx->dtype != CMPX128){
+    PyErr_SetString(PyExc_TypeError, "imag() implemented only for complex dtype tensor(s)");
+    return NULL;
+  }
+  tensor_t *tz = malloc(sizeof(tensor_t));
+  tz->dtype = (tx->dtype == CMPX64) ? FP32 : FP64;
+  tz->element_size = getsize(tz->dtype);
+  tz->device = (device_t){CPU, 0};
+  tz->size = 1;
+  tz->storage = malloc(sizeof(storage_t));
+  tz->storage->device = tz->device;
+  tz->storage->refcount = 1;
+  tz->storage->bytes = tz->element_size;
+  tz->storage->ptr = malloc(tz->storage->bytes);
+  tz->buf = tz->storage->ptr;
+  if(tx->ndim == 0){
+    tz->ndim = 0;
+    tz->shape = NULL;
+    tz->stride = NULL;
+    if(tx->dtype == CMPX64){
+      ((float*)tz->buf)[0] = ((complex64*)tx->buf)[0].imag;
+    }else{
+      ((double*)tz->buf)[0] = ((complex128*)tx->buf)[0].imag;
+    }
+    return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+  }
+  tz->ndim = tx->ndim;
+  tz->shape = malloc(sizeof(size_t) * tz->ndim);
+  tz->stride = malloc(sizeof(size_t) * tz->ndim);
+  for(size_t i = 0; i < tz->ndim; i++){
+    tz->shape[i] = tx->shape[i];
+    tz->stride[i] = tx->stride[i];
+  }
+  tz->size = tx->size;
+  tz->storage->bytes = tz->size * tz->element_size;
+  tz->storage->ptr = malloc(tz->storage->bytes);
+  tz->buf = tz->storage->ptr;
+  if(tx->dtype == CMPX64){
+    complex64 *src = (complex64*)tx->buf;
+    float *dst = (float*)tz->buf;
+    for(size_t i = 0; i < tx->size; i++) dst[i] = src[i].imag;
+  }else{
+    complex128 *src = (complex128*)tx->buf;
+    double *dst = (double*)tz->buf;
+    for(size_t i = 0; i < tx->size; i++) dst[i] = src[i].imag;
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
 static PyMethodDef methods[] = {
   {"add", add, METH_VARARGS, "element-wise 'add' operation on tensor"},
   {"sub", sub, METH_VARARGS, "element-wise 'sub' operation tensor"},
@@ -2788,6 +3306,9 @@ static PyMethodDef methods[] = {
   {"xnor_", xnor_, METH_VARARGS, "element-wise 'xnor' operation on tensor"},
   {"permute", permute, METH_VARARGS, "tensor permute"},
   {"sum", (PyCFunction)sum, METH_VARARGS | METH_KEYWORDS, "returns the sum of the tensor"},
+  {"bmm", bmm, METH_VARARGS, "compute batch matrix multiplication on tensor"},
+  {"real", real, METH_VARARGS, "get real values from complex tensor"},
+  {"imag", imag, METH_VARARGS, "get imag values from complex tensor"},
   {NULL, NULL, 0, NULL}
 };
 
