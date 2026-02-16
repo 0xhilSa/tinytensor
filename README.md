@@ -23,8 +23,8 @@ It provides basic tensor structures, memory handling, and essential operations w
 |`uint16`    | 16bit unsigned integer| ✅  |  ✅  |
 |`int32`     | 32bit signed integer  | ✅  |  ✅  |
 |`uint32`    | 32bit unsigned integer| ✅  |  ✅  |
-|`int64`     | 64bit signed intger   | ✅  |  ✅  |
-|`uint64`    | 64bit unsigned intger | ✅  |  ✅  |
+|`int64`     | 64bit signed integer  | ✅  |  ✅  |
+|`uint64`    | 64bit unsigned integer| ✅  |  ✅  |
 |`float16`   | 16bit floating point  | ❌  |  ❌  |
 |`float32`   | 32bit floating point  | ✅  |  ✅  |
 |`float64`   | 64bit floating point  | ✅  |  ✅  |
