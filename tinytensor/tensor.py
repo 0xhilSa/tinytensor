@@ -19,6 +19,7 @@ class Tensor:
     self.__shape = Shape(shape_of(buf))
     self.__stride = self.__shape.stride
     self.__ndim = self.__shape.ndim
+    self.__size = self.__shape.size
     buf = flatten(buf) if isinstance(buf, list) else buf
     buf, self.__dtype = dtype_of(buf, dtype)
     self.__device = Device(device) if not isinstance(device, Device) else device
@@ -34,6 +35,8 @@ class Tensor:
   @property
   def stride(self): return self.__stride
   @property
+  def size(self): return self.__size
+  @property
   def device(self): return self.__device
   @property
   def nbyte(self): return self.shape.size * self.__dtype.nbyte
@@ -44,14 +47,29 @@ class Tensor:
   @property
   def buf(self): return self.__buf
   def is_const(self): return self.__const
+
   def cuda(self, device_index:int=0): return Tensor(reshape(cpu.topyobj(self.__buf), self.shape.shape), dtype=self.__dtype, device=f"cuda:{device_index}") if self.__device.type == "CPU" else self # type: ignore
   def cpu(self): return Tensor(reshape(cuda.topyobj(self.__buf), self.shape.shape), dtype=self.__dtype, device=f"cpu") if self.__device.type == "CUDA" else self # type: ignore
+
   @staticmethod
   def _format_number(x):
     if isinstance(x, float):
-      if x != 0 and abs(x) < 1e-4: return float(f"{x:.0e}")
-      else: return float(f"{x:.4f}")
-    return str(x)
+      ax = abs(x)
+      if x != 0 and ax < 1e-4: return float(f"{x:0e}")
+      if ax > 1e6: return f"{x:.4e}"
+      return float(f"{x:.4f}")
+    if isinstance(x, int):
+      if abs(x) >= 10**9: return f"{x:.2e}"
+      return x
+    if isinstance(x, complex):
+      r, im = x.real, x.imag
+      if r != 0 and abs(r) < 1e-4: r_fmt = f"{r:.0e}"
+      else: r_fmt = f"{r:.4f}"
+      if im != 0 and abs(im) < 1e-4: im_fmt = f"{im:.0e}"
+      else: im_fmt = f"{im:.4f}"
+      sign = "+" if im >= 0 else "-"
+      return f"{r_fmt}{sign}{abs(float(im_fmt))}j"
+    return x
   @staticmethod
   def _format_nested(arr):
     if isinstance(arr, list): return [Tensor._format_nested(v) for v in arr]
@@ -60,9 +78,44 @@ class Tensor:
     if self.__device.type == "CUDA": x = cuda.topyobj(self.__buf)
     else: x = cpu.topyobj(self.__buf)
     return Tensor._format_nested(reshape(x, self.shape.shape)) # type: ignore
+
+  @property
+  def real(self):
+    if self.dtype == dtypes.complex64 or self.dtype == dtypes.complex128:
+      out = cpu.real(self.buf) if self.device.type == "CPU" else cuda.real(self.buf)
+      out_dtype = dtypes.float32 if self.dtype == dtypes.complex64 else dtypes.float64
+      return Tensor._from_view(buf=out, dtype=out_dtype, device=self.device)
+    return Tensor._from_view(buf=self.buf, dtype=self.dtype, device=self.device)
+
+  @property
+  def imag(self):
+    if self.dtype == dtypes.complex64 or self.dtype == dtypes.complex128:
+      out = cpu.imag(self.buf) if self.device.type == "CPU" else cuda.imag(self.buf)
+      out_dtype = dtypes.float32 if self.dtype == dtypes.complex64 else dtypes.float64
+      return Tensor._from_view(buf=out, dtype=out_dtype, device=self.device)
+    return Tensor.zeros(self.shape.shape)
+
   def __len__(self):
     if self.ndim == 0: raise ValueError("len() of a 0-d tensor")
     return len(cpu.topyobj(self.__buf)) if self.__device.type == "CPU" else len(cuda.topyobj(self.__buf)) # type: ignore
+
+  def item(self):
+    if self.ndim != 0: raise ValueError("only 0-d tensors can be converted to Python scalars")
+    return self.data()
+
+  def __bool__(self):
+    if self.ndim != 0: raise ValueError("The truth value of tensor with more than one value is ambiguous. Use tensor.any() or tensor.all()")
+    return bool(self.item())
+
+  def any(self):
+    if self.size == 0: return Tensor(False, dtype=dtypes.bool)
+    if self.ndim == 0: return Tensor(bool(self.item() != 0), dtype=dtypes.bool)
+    return Tensor(bool((self != 0).sum().item()), dtype=dtypes.bool)
+
+  def all(self):
+    if self.size == 0: return Tensor(True, dtype=dtypes.bool)
+    if self.ndim == 0: return Tensor(bool(self.item() != 0), dtype=dtypes.bool)
+    return Tensor(bool((self != 0).sum().item() == self.size), dtype=dtypes.bool)
 
   @staticmethod
   def ones(shape:Tuple[int,...], dtype:Union[dtypes.DType,dtypes.ConstType]=dtypes.int64, device:Union[str,Device]="cpu"):
@@ -429,18 +482,35 @@ class Tensor:
     return Tensor._from_view(buf=out, dtype=self.__dtype, device=self.__device)
 
   def sum(self, axis:int|None=None, keepdim:bool=False):
-    if self.__device.type != "CPU": raise NotImplementedError("sum only implemented for CPU right now")
     if axis is None:
-      result_buf = cpu.sum(self.__buf, None)
+      result_buf = cpu.sum(self.__buf, None) if self.__device.type == "CPU" else cuda.sum(self.__buf, None)
       result = Tensor._from_view(result_buf, self.__dtype, self.__device, self.__requires_grad, const=self.__const)
       return result
     if axis < 0: axis += self.__ndim
     if axis < 0 or axis >= self.__ndim: raise ValueError(f"axis {axis} is out of range for tensor with {self.__ndim} dimensions")
-    result_buf = cpu.sum(self.__buf, axis)
+    result_buf = cpu.sum(self.__buf, axis) if self.__device.type == "CPU" else cuda.sum(self.__buf, axis)
     result = Tensor._from_view(result_buf, self.__dtype, self.__device, self.__requires_grad, const=self.__const)
     if keepdim:
       new_shape = list(self.shape.shape)
       new_shape[axis] = 1
       result = result.reshape(tuple(new_shape))
     return result
+
+  def bmm(self, other:Tensor):
+    if not isinstance(other, Tensor): raise ValueError(f"given value must be the Tensor object")
+    out = cpu.topyobj(cpu.bmm(self.buf, other.buf)) if self.__device.type == "CPU" else cuda.topyobj(cuda.bmm(self.buf, other.buf))
+    batch_dims = self.shape.shape[:-2]
+    m = self.shape.shape[-2]
+    n = other.shape.shape[-1]
+    out_shape = batch_dims + (m ,n)
+    return Tensor(reshape(out, out_shape), dtype=self.dtype, device=f"{self.device.type}:{self.device.index}") # type: ignore
+
+  def numpy(self):
+    try:
+      import numpy as np
+      return np.array(self.data())
+    except ImportError:
+      import warnings
+      warnings.warn("NumPy is required for Tensor.numpy(). Install it with: pip install numpy", RuntimeWarning)
+      return None
 
