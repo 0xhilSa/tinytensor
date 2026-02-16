@@ -514,3 +514,83 @@ class Tensor:
       warnings.warn("NumPy is required for Tensor.numpy(). Install it with: pip install numpy", RuntimeWarning)
       return None
 
+  def exp(self):
+    out = cpu.exp(self.buf) if self.__device.type == "CPU" else NotImplemented
+    out_dtype = cpu.dtype(out)
+    return Tensor._from_view(out, dtype=dtypes.DType.from_ctype(out_dtype), device=self.device)
+
+  def log(self):
+    out = cpu.log(self.buf) if self.__device.type == "CPU" else NotImplemented
+    out_dtype = cpu.dtype(out)
+    return Tensor._from_view(out, dtype=dtypes.DType.from_ctype(out_dtype), device=self.device)
+
+  def log2(self):
+    out = cpu.log2(self.buf) if self.__device.type == "CPU" else NotImplemented
+    out_dtype = cpu.dtype(out)
+    return Tensor._from_view(out, dtype=dtypes.DType.from_ctype(out_dtype), device=self.device)
+
+  def log10(self):
+    out = cpu.log10(self.buf) if self.__device.type == "CPU" else NotImplemented
+    out_dtype = cpu.dtype(out)
+    return Tensor._from_view(out, dtype=dtypes.DType.from_ctype(out_dtype), device=self.device)
+
+  def sin(self):
+    out = cpu.sin(self.buf) if self.__device.type == "CPU" else NotImplemented
+    out_dtype = cpu.dtype(out)
+    return Tensor._from_view(out, dtype=dtypes.DType.from_ctype(out_dtype), device=self.device)
+
+  def cos(self):
+    out = cpu.cos(self.buf) if self.__device.type == "CPU" else NotImplemented
+    out_dtype = cpu.dtype(out)
+    return Tensor._from_view(out, dtype=dtypes.DType.from_ctype(out_dtype), device=self.device)
+
+  def tan(self):
+    out = cpu.tan(self.buf) if self.__device.type == "CPU" else NotImplemented
+    out_dtype = cpu.dtype(out)
+    return Tensor._from_view(out, dtype=dtypes.DType.from_ctype(out_dtype), device=self.device)
+
+  def asin(self):
+    out = cpu.asin(self.buf) if self.__device.type == "CPU" else NotImplemented
+    out_dtype = cpu.dtype(out)
+    return Tensor._from_view(out, dtype=dtypes.DType.from_ctype(out_dtype), device=self.device)
+
+  def acos(self):
+    out = cpu.acos(self.buf) if self.__device.type == "CPU" else NotImplemented
+    out_dtype = cpu.dtype(out)
+    return Tensor._from_view(out, dtype=dtypes.DType.from_ctype(out_dtype), device=self.device)
+
+  def atan(self):
+    out = cpu.atan(self.buf) if self.__device.type == "CPU" else NotImplemented
+    out_dtype = cpu.dtype(out)
+    return Tensor._from_view(out, dtype=dtypes.DType.from_ctype(out_dtype), device=self.device)
+
+  def sinh(self):
+    out = cpu.sinh(self.buf) if self.__device.type == "CPU" else NotImplemented
+    out_dtype = cpu.dtype(out)
+    return Tensor._from_view(out, dtype=dtypes.DType.from_ctype(out_dtype), device=self.device)
+
+  def cosh(self):
+    out = cpu.cosh(self.buf) if self.__device.type == "CPU" else NotImplemented
+    out_dtype = cpu.dtype(out)
+    return Tensor._from_view(out, dtype=dtypes.DType.from_ctype(out_dtype), device=self.device)
+
+  def tanh(self):
+    out = cpu.tanh(self.buf) if self.__device.type == "CPU" else NotImplemented
+    out_dtype = cpu.dtype(out)
+    return Tensor._from_view(out, dtype=dtypes.DType.from_ctype(out_dtype), device=self.device)
+
+  def asinh(self):
+    out = cpu.asinh(self.buf) if self.__device.type == "CPU" else NotImplemented
+    out_dtype = cpu.dtype(out)
+    return Tensor._from_view(out, dtype=dtypes.DType.from_ctype(out_dtype), device=self.device)
+
+  def acosh(self):
+    out = cpu.acosh(self.buf) if self.__device.type == "CPU" else NotImplemented
+    out_dtype = cpu.dtype(out)
+    return Tensor._from_view(out, dtype=dtypes.DType.from_ctype(out_dtype), device=self.device)
+
+  def atanh(self):
+    out = cpu.atanh(self.buf) if self.__device.type == "CPU" else NotImplemented
+    out_dtype = cpu.dtype(out)
+    return Tensor._from_view(out, dtype=dtypes.DType.from_ctype(out_dtype), device=self.device)
+
