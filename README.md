@@ -59,7 +59,7 @@ or simply run `pytest -v`
 
 ## Contributions
 Pull requests are welcome.
-If you find a bug or want to suggest an operation, feel free to open an issue.:with
+If you find a bug or want to suggest an operation, feel free to open an issue.
 
 ## LICENSE
 [MIT](./LICENSE)
