@@ -14,7 +14,7 @@ It provides basic tensor structures, memory handling, and essential operations w
 - Python ≥ 3.9
 - Linux environment
 
-## Dtype supported
+## DType supported
 | DType      |      Description      | CPU | CUDA |
 |------------|-----------------------|-----|------|
 |`int8`      | 8bit signed integer   | ✅  |  ✅  |
