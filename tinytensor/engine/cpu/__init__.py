@@ -1,8 +1,10 @@
-from tinytensor.engine.cpu.cpu import tocpu, topyobj, ndim, shape, stride, device
+from tinytensor.engine.cpu.cpu import tocpu, topyobj, ndim, shape, stride, device, dtype
 from tinytensor.engine.cpu.cpu_ops import (add, sub, mul, tdiv, fdiv, pow, mod, real, imag,
                                            eq, ne, gt, ge, lt, le, neg, pos, abs,
                                            lshift, rshift, and_, nand_, or_, nor_, not_, xor_, xnor_,
-                                           permute, sum, bmm)
+                                           permute, sum, bmm, exp, log, log2, log10,
+                                           sin, cos, tan, asin, acos, atan,
+                                           sinh, cosh, tanh, asinh, acosh, atanh)
 
 __all__ = [
   "tocpu",
@@ -11,6 +13,7 @@ __all__ = [
   "shape",
   "stride",
   "device",
+  "dtype",
   "add",
   "sub",
   "mul",
@@ -41,4 +44,20 @@ __all__ = [
   "permute",
   "sum",
   "bmm",
+  "exp",
+  "log",
+  "log2",
+  "log10",
+  "sin",
+  "cos",
+  "tan",
+  "asin",
+  "acos",
+  "atan",
+  "sinh",
+  "cosh",
+  "tanh",
+  "asinh",
+  "acosh",
+  "atanh",
 ]

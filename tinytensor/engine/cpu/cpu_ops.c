@@ -1,5 +1,6 @@
 #include <python3.10/Python.h>
-#include <python3.10/methodobject.h>
+#include <python3.10/pycapsule.h>
+#include <python3.10/pyerrors.h>
 #include "../tensor.h"
 
 void capsule_destroyer(PyObject *capsule){
@@ -3278,6 +3279,1098 @@ static PyObject *imag(PyObject *self, PyObject *args){
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
 }
 
+tensor_t *tensor_empty_like(tensor_t *tx, dtype_t dtype){
+  tensor_t *tz = malloc(sizeof(tensor_t));
+  if(!tz){
+    PyErr_SetString(PyExc_MemoryError, "tensor_t allocation failed");
+    return NULL;
+  }
+  tz->dtype = dtype;
+  tz->element_size = getsize(dtype);
+  tz->device = tx->device;
+  tz->ndim = tx->ndim;
+  tz->size = tx->size;
+  tz->shape = malloc(sizeof(size_t) * tz->ndim);
+  if(!tz->shape){
+    PyErr_SetString(PyExc_MemoryError, "shape allocation failed");
+    free(tz);
+    return NULL;
+  }
+  tz->stride = malloc(sizeof(size_t) * tz->ndim);
+  if(!tz->stride){
+    PyErr_SetString(PyExc_MemoryError, "stride allocation failed");
+    free(tz->shape);
+    free(tz);
+    return NULL;
+  }
+  for(size_t i = 0; i < tz->ndim; i++){
+    tz->shape[i] = tx->shape[i];
+    tz->stride[i] = tx->shape[i];
+  }
+  tz->storage = malloc(sizeof(storage_t));
+  if(!tz->storage){
+    PyErr_SetString(PyExc_MemoryError, "storage allocation failed");
+    free(tz->stride);
+    free(tz->shape);
+    free(tz);
+    return NULL;
+  }
+  tz->storage->device = tz->device;
+  tz->storage->refcount = 1;
+  tz->storage->bytes = tz->size * tz->element_size;
+  tz->storage->ptr = malloc(tz->storage->bytes);
+  if(!tz->storage->ptr){
+    PyErr_SetString(PyExc_MemoryError, "buffer allocation failed");
+    free(tz->storage);
+    free(tz->stride);
+    free(tz->shape);
+    free(tz);
+    return NULL;
+  }
+  tz->buf = tz->storage->ptr;
+  return tz;
+}
+
+static PyObject *exp_(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_NotImplementedError, "exp_() not implemented for complex64 and complex128 yet");
+    return NULL;
+  }
+  dtype_t out_dtype;
+  switch(tx->dtype){
+    case INT8: case UINT8:
+    case INT16: case UINT16:
+    case INT32: case UINT32: out_dtype = FP32; break;
+    case INT64: case UINT64: out_dtype = FP64; break;
+    case FP32: out_dtype = FP32; break;
+    case FP64: out_dtype = FP64; break;
+    default: PyErr_SetString(PyExc_TypeError, "exp_() unsupported dtype"); return NULL;
+  }
+  tensor_t *tz = tensor_empty_like(tx, out_dtype);
+  if(!tz){
+    PyErr_SetString(PyExc_RuntimeError, "Failed to allocate output tensor");
+    return NULL;
+  }
+  size_t N = tx->size;
+  if(out_dtype == FP32){
+    float32 *out = (float32*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float v;
+      switch(tx->dtype){
+        case INT8: v = (float)((int8*)tx->buf)[i]; break;
+        case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
+        case INT16: v = (float)((int16*)tx->buf)[i]; break;
+        case UINT16: v = (float)((uint16*)tx->buf)[i]; break;
+        case INT32: v = (float)((int32*)tx->buf)[i]; break;
+        case UINT32: v = (float)((uint32*)tx->buf)[i]; break;
+        case FP32: v = ((float32*)tx->buf)[i]; break;
+        default: v = 0.0f; break;
+      }
+      out[i] = expf(v);
+    }
+  }
+  else{
+    float64 *out = (float64*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      double v;
+      switch(tx->dtype){
+        case INT64: v = (double)((int64*)tx->buf)[i]; break;
+        case UINT64: v = (double)((uint64*)tx->buf)[i]; break;
+        case FP64: v = ((float64*)tx->buf)[i]; break;
+        default: v = 0.0; break;
+      }
+      out[i] = exp(v);
+    }
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+static PyObject *log_(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_NotImplementedError, "log_() not implemented for complex64 and complex128 yet");
+    return NULL;
+  }
+  dtype_t out_dtype;
+  switch(tx->dtype){
+    case INT8: case UINT8:
+    case INT16: case UINT16:
+    case INT32: case UINT32: out_dtype = FP32; break;
+    case INT64: case UINT64: out_dtype = FP64; break;
+    case FP32: out_dtype = FP32; break;
+    case FP64: out_dtype = FP64; break;
+    default: PyErr_SetString(PyExc_TypeError, "log_() unsupported dtype"); return NULL;
+  }
+  tensor_t *tz = tensor_empty_like(tx, out_dtype);
+  if(!tz){
+    PyErr_SetString(PyExc_RuntimeError, "Failed to allocate output tensor");
+    return NULL;
+  }
+  size_t N = tx->size;
+  if(out_dtype == FP32){
+    float32 *out = (float32*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float v;
+      switch(tx->dtype){
+        case INT8: v = (float)((int8*)tx->buf)[i]; break;
+        case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
+        case INT16: v = (float)((int16*)tx->buf)[i]; break;
+        case UINT16: v = (float)((uint16*)tx->buf)[i]; break;
+        case INT32: v = (float)((int32*)tx->buf)[i]; break;
+        case UINT32: v = (float)((uint32*)tx->buf)[i]; break;
+        case FP32: v = ((float32*)tx->buf)[i]; break;
+        default: v = 0.0f; break;
+      }
+      out[i] = logf(v);
+    }
+  }
+  else{
+    float64 *out = (float64*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      double v;
+      switch(tx->dtype){
+        case INT64: v = (double)((int64*)tx->buf)[i]; break;
+        case UINT64: v = (double)((uint64*)tx->buf)[i]; break;
+        case FP64: v = ((float64*)tx->buf)[i]; break;
+        default: v = 0.0; break;
+      }
+      out[i] = log(v);
+    }
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+static PyObject *log2_(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_NotImplementedError, "log2_() not implemented for complex64 and complex128 yet");
+    return NULL;
+  }
+  dtype_t out_dtype;
+  switch(tx->dtype){
+    case INT8: case UINT8:
+    case INT16: case UINT16:
+    case INT32: case UINT32: out_dtype = FP32; break;
+    case INT64: case UINT64: out_dtype = FP64; break;
+    case FP32: out_dtype = FP32; break;
+    case FP64: out_dtype = FP64; break;
+    default: PyErr_SetString(PyExc_TypeError, "log2_() unsupported dtype"); return NULL;
+  }
+  tensor_t *tz = tensor_empty_like(tx, out_dtype);
+  if(!tz){
+    PyErr_SetString(PyExc_RuntimeError, "Failed to allocate output tensor");
+    return NULL;
+  }
+  size_t N = tx->size;
+  if(out_dtype == FP32){
+    float32 *out = (float32*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float v;
+      switch(tx->dtype){
+        case INT8: v = (float)((int8*)tx->buf)[i]; break;
+        case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
+        case INT16: v = (float)((int16*)tx->buf)[i]; break;
+        case UINT16: v = (float)((uint16*)tx->buf)[i]; break;
+        case INT32: v = (float)((int32*)tx->buf)[i]; break;
+        case UINT32: v = (float)((uint32*)tx->buf)[i]; break;
+        case FP32: v = ((float32*)tx->buf)[i]; break;
+        default: v = 0.0f; break;
+      }
+      out[i] = log2f(v);
+    }
+  }
+  else{
+    float64 *out = (float64*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      double v;
+      switch(tx->dtype){
+        case INT64: v = (double)((int64*)tx->buf)[i]; break;
+        case UINT64: v = (double)((uint64*)tx->buf)[i]; break;
+        case FP64: v = ((float64*)tx->buf)[i]; break;
+        default: v = 0.0; break;
+      }
+      out[i] = log2(v);
+    }
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+static PyObject *log10_(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_NotImplementedError, "log10_() not implemented for complex64 and complex128 yet");
+    return NULL;
+  }
+  dtype_t out_dtype;
+  switch(tx->dtype){
+    case INT8: case UINT8:
+    case INT16: case UINT16:
+    case INT32: case UINT32: out_dtype = FP32; break;
+    case INT64: case UINT64: out_dtype = FP64; break;
+    case FP32: out_dtype = FP32; break;
+    case FP64: out_dtype = FP64; break;
+    default: PyErr_SetString(PyExc_TypeError, "log10_() unsupported dtype"); return NULL;
+  }
+  tensor_t *tz = tensor_empty_like(tx, out_dtype);
+  if(!tz){
+    PyErr_SetString(PyExc_RuntimeError, "Failed to allocate output tensor");
+    return NULL;
+  }
+  size_t N = tx->size;
+  if(out_dtype == FP32){
+    float32 *out = (float32*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float v;
+      switch(tx->dtype){
+        case INT8: v = (float)((int8*)tx->buf)[i]; break;
+        case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
+        case INT16: v = (float)((int16*)tx->buf)[i]; break;
+        case UINT16: v = (float)((uint16*)tx->buf)[i]; break;
+        case INT32: v = (float)((int32*)tx->buf)[i]; break;
+        case UINT32: v = (float)((uint32*)tx->buf)[i]; break;
+        case FP32: v = ((float32*)tx->buf)[i]; break;
+        default: v = 0.0f; break;
+      }
+      out[i] = log10f(v);
+    }
+  }
+  else{
+    float64 *out = (float64*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      double v;
+      switch(tx->dtype){
+        case INT64: v = (double)((int64*)tx->buf)[i]; break;
+        case UINT64: v = (double)((uint64*)tx->buf)[i]; break;
+        case FP64: v = ((float64*)tx->buf)[i]; break;
+        default: v = 0.0; break;
+      }
+      out[i] = log10(v);
+    }
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+static PyObject *sin_(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_NotImplementedError, "sin_() not implemented for complex64 and complex128 yet");
+    return NULL;
+  }
+  dtype_t out_dtype;
+  switch(tx->dtype){
+    case INT8: case UINT8:
+    case INT16: case UINT16:
+    case INT32: case UINT32: out_dtype = FP32; break;
+    case INT64: case UINT64: out_dtype = FP64; break;
+    case FP32: out_dtype = FP32; break;
+    case FP64: out_dtype = FP64; break;
+    default: PyErr_SetString(PyExc_TypeError, "sin_() unsupported dtype"); return NULL;
+  }
+  tensor_t *tz = tensor_empty_like(tx, out_dtype);
+  if(!tz){
+    PyErr_SetString(PyExc_RuntimeError, "Failed to allocate output tensor");
+    return NULL;
+  }
+  size_t N = tx->size;
+  if(out_dtype == FP32){
+    float32 *out = (float32*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float v;
+      switch(tx->dtype){
+        case INT8: v = (float)((int8*)tx->buf)[i]; break;
+        case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
+        case INT16: v = (float)((int16*)tx->buf)[i]; break;
+        case UINT16: v = (float)((uint16*)tx->buf)[i]; break;
+        case INT32: v = (float)((int32*)tx->buf)[i]; break;
+        case UINT32: v = (float)((uint32*)tx->buf)[i]; break;
+        case FP32: v = ((float32*)tx->buf)[i]; break;
+        default: v = 0.0f; break;
+      }
+      out[i] = sinf(v);
+    }
+  }
+  else{
+    float64 *out = (float64*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      double v;
+      switch(tx->dtype){
+        case INT64: v = (double)((int64*)tx->buf)[i]; break;
+        case UINT64: v = (double)((uint64*)tx->buf)[i]; break;
+        case FP64: v = ((float64*)tx->buf)[i]; break;
+        default: v = 0.0; break;
+      }
+      out[i] = sin(v);
+    }
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+static PyObject *cos_(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_NotImplementedError, "cos_() not implemented for complex64 and complex128 yet");
+    return NULL;
+  }
+  dtype_t out_dtype;
+  switch(tx->dtype){
+    case INT8: case UINT8:
+    case INT16: case UINT16:
+    case INT32: case UINT32: out_dtype = FP32; break;
+    case INT64: case UINT64: out_dtype = FP64; break;
+    case FP32: out_dtype = FP32; break;
+    case FP64: out_dtype = FP64; break;
+    default: PyErr_SetString(PyExc_TypeError, "cos_() unsupported dtype"); return NULL;
+  }
+  tensor_t *tz = tensor_empty_like(tx, out_dtype);
+  if(!tz){
+    PyErr_SetString(PyExc_RuntimeError, "Failed to allocate output tensor");
+    return NULL;
+  }
+  size_t N = tx->size;
+  if(out_dtype == FP32){
+    float32 *out = (float32*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float v;
+      switch(tx->dtype){
+        case INT8: v = (float)((int8*)tx->buf)[i]; break;
+        case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
+        case INT16: v = (float)((int16*)tx->buf)[i]; break;
+        case UINT16: v = (float)((uint16*)tx->buf)[i]; break;
+        case INT32: v = (float)((int32*)tx->buf)[i]; break;
+        case UINT32: v = (float)((uint32*)tx->buf)[i]; break;
+        case FP32: v = ((float32*)tx->buf)[i]; break;
+        default: v = 0.0f; break;
+      }
+      out[i] = cosf(v);
+    }
+  }
+  else{
+    float64 *out = (float64*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      double v;
+      switch(tx->dtype){
+        case INT64: v = (double)((int64*)tx->buf)[i]; break;
+        case UINT64: v = (double)((uint64*)tx->buf)[i]; break;
+        case FP64: v = ((float64*)tx->buf)[i]; break;
+        default: v = 0.0; break;
+      }
+      out[i] = cos(v);
+    }
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+static PyObject *tan_(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_NotImplementedError, "tan_() not implemented for complex64 and complex128 yet");
+    return NULL;
+  }
+  dtype_t out_dtype;
+  switch(tx->dtype){
+    case INT8: case UINT8:
+    case INT16: case UINT16:
+    case INT32: case UINT32: out_dtype = FP32; break;
+    case INT64: case UINT64: out_dtype = FP64; break;
+    case FP32: out_dtype = FP32; break;
+    case FP64: out_dtype = FP64; break;
+    default: PyErr_SetString(PyExc_TypeError, "tan_() unsupported dtype"); return NULL;
+  }
+  tensor_t *tz = tensor_empty_like(tx, out_dtype);
+  if(!tz){
+    PyErr_SetString(PyExc_RuntimeError, "Failed to allocate output tensor");
+    return NULL;
+  }
+  size_t N = tx->size;
+  if(out_dtype == FP32){
+    float32 *out = (float32*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float v;
+      switch(tx->dtype){
+        case INT8: v = (float)((int8*)tx->buf)[i]; break;
+        case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
+        case INT16: v = (float)((int16*)tx->buf)[i]; break;
+        case UINT16: v = (float)((uint16*)tx->buf)[i]; break;
+        case INT32: v = (float)((int32*)tx->buf)[i]; break;
+        case UINT32: v = (float)((uint32*)tx->buf)[i]; break;
+        case FP32: v = ((float32*)tx->buf)[i]; break;
+        default: v = 0.0f; break;
+      }
+      out[i] = tanf(v);
+    }
+  }
+  else{
+    float64 *out = (float64*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      double v;
+      switch(tx->dtype){
+        case INT64: v = (double)((int64*)tx->buf)[i]; break;
+        case UINT64: v = (double)((uint64*)tx->buf)[i]; break;
+        case FP64: v = ((float64*)tx->buf)[i]; break;
+        default: v = 0.0; break;
+      }
+      out[i] = tan(v);
+    }
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+static PyObject *asin_(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_NotImplementedError, "asin_() not implemented for complex64 and complex128 yet");
+    return NULL;
+  }
+  dtype_t out_dtype;
+  switch(tx->dtype){
+    case INT8: case UINT8:
+    case INT16: case UINT16:
+    case INT32: case UINT32: out_dtype = FP32; break;
+    case INT64: case UINT64: out_dtype = FP64; break;
+    case FP32: out_dtype = FP32; break;
+    case FP64: out_dtype = FP64; break;
+    default: PyErr_SetString(PyExc_TypeError, "asin_() unsupported dtype"); return NULL;
+  }
+  tensor_t *tz = tensor_empty_like(tx, out_dtype);
+  if(!tz){
+    PyErr_SetString(PyExc_RuntimeError, "Failed to allocate output tensor");
+    return NULL;
+  }
+  size_t N = tx->size;
+  if(out_dtype == FP32){
+    float32 *out = (float32*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float v;
+      switch(tx->dtype){
+        case INT8: v = (float)((int8*)tx->buf)[i]; break;
+        case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
+        case INT16: v = (float)((int16*)tx->buf)[i]; break;
+        case UINT16: v = (float)((uint16*)tx->buf)[i]; break;
+        case INT32: v = (float)((int32*)tx->buf)[i]; break;
+        case UINT32: v = (float)((uint32*)tx->buf)[i]; break;
+        case FP32: v = ((float32*)tx->buf)[i]; break;
+        default: v = 0.0f; break;
+      }
+      out[i] = asinf(v);
+    }
+  }
+  else{
+    float64 *out = (float64*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      double v;
+      switch(tx->dtype){
+        case INT64: v = (double)((int64*)tx->buf)[i]; break;
+        case UINT64: v = (double)((uint64*)tx->buf)[i]; break;
+        case FP64: v = ((float64*)tx->buf)[i]; break;
+        default: v = 0.0; break;
+      }
+      out[i] = asin(v);
+    }
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+static PyObject *acos_(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_NotImplementedError, "acos_() not implemented for complex64 and complex128 yet");
+    return NULL;
+  }
+  dtype_t out_dtype;
+  switch(tx->dtype){
+    case INT8: case UINT8:
+    case INT16: case UINT16:
+    case INT32: case UINT32: out_dtype = FP32; break;
+    case INT64: case UINT64: out_dtype = FP64; break;
+    case FP32: out_dtype = FP32; break;
+    case FP64: out_dtype = FP64; break;
+    default: PyErr_SetString(PyExc_TypeError, "acos_() unsupported dtype"); return NULL;
+  }
+  tensor_t *tz = tensor_empty_like(tx, out_dtype);
+  if(!tz){
+    PyErr_SetString(PyExc_RuntimeError, "Failed to allocate output tensor");
+    return NULL;
+  }
+  size_t N = tx->size;
+  if(out_dtype == FP32){
+    float32 *out = (float32*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float v;
+      switch(tx->dtype){
+        case INT8: v = (float)((int8*)tx->buf)[i]; break;
+        case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
+        case INT16: v = (float)((int16*)tx->buf)[i]; break;
+        case UINT16: v = (float)((uint16*)tx->buf)[i]; break;
+        case INT32: v = (float)((int32*)tx->buf)[i]; break;
+        case UINT32: v = (float)((uint32*)tx->buf)[i]; break;
+        case FP32: v = ((float32*)tx->buf)[i]; break;
+        default: v = 0.0f; break;
+      }
+      out[i] = acosf(v);
+    }
+  }
+  else{
+    float64 *out = (float64*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      double v;
+      switch(tx->dtype){
+        case INT64: v = (double)((int64*)tx->buf)[i]; break;
+        case UINT64: v = (double)((uint64*)tx->buf)[i]; break;
+        case FP64: v = ((float64*)tx->buf)[i]; break;
+        default: v = 0.0; break;
+      }
+      out[i] = acos(v);
+    }
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+static PyObject *atan_(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_NotImplementedError, "atan_() not implemented for complex64 and complex128 yet");
+    return NULL;
+  }
+  dtype_t out_dtype;
+  switch(tx->dtype){
+    case INT8: case UINT8:
+    case INT16: case UINT16:
+    case INT32: case UINT32: out_dtype = FP32; break;
+    case INT64: case UINT64: out_dtype = FP64; break;
+    case FP32: out_dtype = FP32; break;
+    case FP64: out_dtype = FP64; break;
+    default: PyErr_SetString(PyExc_TypeError, "atan_() unsupported dtype"); return NULL;
+  }
+  tensor_t *tz = tensor_empty_like(tx, out_dtype);
+  if(!tz){
+    PyErr_SetString(PyExc_RuntimeError, "Failed to allocate output tensor");
+    return NULL;
+  }
+  size_t N = tx->size;
+  if(out_dtype == FP32){
+    float32 *out = (float32*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float v;
+      switch(tx->dtype){
+        case INT8: v = (float)((int8*)tx->buf)[i]; break;
+        case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
+        case INT16: v = (float)((int16*)tx->buf)[i]; break;
+        case UINT16: v = (float)((uint16*)tx->buf)[i]; break;
+        case INT32: v = (float)((int32*)tx->buf)[i]; break;
+        case UINT32: v = (float)((uint32*)tx->buf)[i]; break;
+        case FP32: v = ((float32*)tx->buf)[i]; break;
+        default: v = 0.0f; break;
+      }
+      out[i] = atanf(v);
+    }
+  }
+  else{
+    float64 *out = (float64*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      double v;
+      switch(tx->dtype){
+        case INT64: v = (double)((int64*)tx->buf)[i]; break;
+        case UINT64: v = (double)((uint64*)tx->buf)[i]; break;
+        case FP64: v = ((float64*)tx->buf)[i]; break;
+        default: v = 0.0; break;
+      }
+      out[i] = atan(v);
+    }
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+static PyObject *sinh_(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_NotImplementedError, "sinh_() not implemented for complex64 and complex128 yet");
+    return NULL;
+  }
+  dtype_t out_dtype;
+  switch(tx->dtype){
+    case INT8: case UINT8:
+    case INT16: case UINT16:
+    case INT32: case UINT32: out_dtype = FP32; break;
+    case INT64: case UINT64: out_dtype = FP64; break;
+    case FP32: out_dtype = FP32; break;
+    case FP64: out_dtype = FP64; break;
+    default: PyErr_SetString(PyExc_TypeError, "sinh_() unsupported dtype"); return NULL;
+  }
+  tensor_t *tz = tensor_empty_like(tx, out_dtype);
+  if(!tz){
+    PyErr_SetString(PyExc_RuntimeError, "Failed to allocate output tensor");
+    return NULL;
+  }
+  size_t N = tx->size;
+  if(out_dtype == FP32){
+    float32 *out = (float32*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float v;
+      switch(tx->dtype){
+        case INT8: v = (float)((int8*)tx->buf)[i]; break;
+        case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
+        case INT16: v = (float)((int16*)tx->buf)[i]; break;
+        case UINT16: v = (float)((uint16*)tx->buf)[i]; break;
+        case INT32: v = (float)((int32*)tx->buf)[i]; break;
+        case UINT32: v = (float)((uint32*)tx->buf)[i]; break;
+        case FP32: v = ((float32*)tx->buf)[i]; break;
+        default: v = 0.0f; break;
+      }
+      out[i] = sinf(v);
+    }
+  }
+  else{
+    float64 *out = (float64*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      double v;
+      switch(tx->dtype){
+        case INT64: v = (double)((int64*)tx->buf)[i]; break;
+        case UINT64: v = (double)((uint64*)tx->buf)[i]; break;
+        case FP64: v = ((float64*)tx->buf)[i]; break;
+        default: v = 0.0; break;
+      }
+      out[i] = sinh(v);
+    }
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+static PyObject *cosh_(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_NotImplementedError, "cosh_() not implemented for complex64 and complex128 yet");
+    return NULL;
+  }
+  dtype_t out_dtype;
+  switch(tx->dtype){
+    case INT8: case UINT8:
+    case INT16: case UINT16:
+    case INT32: case UINT32: out_dtype = FP32; break;
+    case INT64: case UINT64: out_dtype = FP64; break;
+    case FP32: out_dtype = FP32; break;
+    case FP64: out_dtype = FP64; break;
+    default: PyErr_SetString(PyExc_TypeError, "cosh_() unsupported dtype"); return NULL;
+  }
+  tensor_t *tz = tensor_empty_like(tx, out_dtype);
+  if(!tz){
+    PyErr_SetString(PyExc_RuntimeError, "Failed to allocate output tensor");
+    return NULL;
+  }
+  size_t N = tx->size;
+  if(out_dtype == FP32){
+    float32 *out = (float32*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float v;
+      switch(tx->dtype){
+        case INT8: v = (float)((int8*)tx->buf)[i]; break;
+        case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
+        case INT16: v = (float)((int16*)tx->buf)[i]; break;
+        case UINT16: v = (float)((uint16*)tx->buf)[i]; break;
+        case INT32: v = (float)((int32*)tx->buf)[i]; break;
+        case UINT32: v = (float)((uint32*)tx->buf)[i]; break;
+        case FP32: v = ((float32*)tx->buf)[i]; break;
+        default: v = 0.0f; break;
+      }
+      out[i] = coshf(v);
+    }
+  }
+  else{
+    float64 *out = (float64*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      double v;
+      switch(tx->dtype){
+        case INT64: v = (double)((int64*)tx->buf)[i]; break;
+        case UINT64: v = (double)((uint64*)tx->buf)[i]; break;
+        case FP64: v = ((float64*)tx->buf)[i]; break;
+        default: v = 0.0; break;
+      }
+      out[i] = cosh(v);
+    }
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+static PyObject *tanh_(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_NotImplementedError, "tanh_() not implemented for complex64 and complex128 yet");
+    return NULL;
+  }
+  dtype_t out_dtype;
+  switch(tx->dtype){
+    case INT8: case UINT8:
+    case INT16: case UINT16:
+    case INT32: case UINT32: out_dtype = FP32; break;
+    case INT64: case UINT64: out_dtype = FP64; break;
+    case FP32: out_dtype = FP32; break;
+    case FP64: out_dtype = FP64; break;
+    default: PyErr_SetString(PyExc_TypeError, "tanh_() unsupported dtype"); return NULL;
+  }
+  tensor_t *tz = tensor_empty_like(tx, out_dtype);
+  if(!tz){
+    PyErr_SetString(PyExc_RuntimeError, "Failed to allocate output tensor");
+    return NULL;
+  }
+  size_t N = tx->size;
+  if(out_dtype == FP32){
+    float32 *out = (float32*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float v;
+      switch(tx->dtype){
+        case INT8: v = (float)((int8*)tx->buf)[i]; break;
+        case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
+        case INT16: v = (float)((int16*)tx->buf)[i]; break;
+        case UINT16: v = (float)((uint16*)tx->buf)[i]; break;
+        case INT32: v = (float)((int32*)tx->buf)[i]; break;
+        case UINT32: v = (float)((uint32*)tx->buf)[i]; break;
+        case FP32: v = ((float32*)tx->buf)[i]; break;
+        default: v = 0.0f; break;
+      }
+      out[i] = tanhf(v);
+    }
+  }
+  else{
+    float64 *out = (float64*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      double v;
+      switch(tx->dtype){
+        case INT64: v = (float64)((int64*)tx->buf)[i]; break;
+        case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
+        case FP64: v = ((float64*)tx->buf)[i]; break;
+        default: v = 0.0; break;
+      }
+      out[i] = tanh(v);
+    }
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+static PyObject *asinh_(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_NotImplementedError, "asinh_() not implemented for complex64 and complex128 yet");
+    return NULL;
+  }
+  dtype_t out_dtype;
+  switch(tx->dtype){
+    case INT8: case UINT8:
+    case INT16: case UINT16:
+    case INT32: case UINT32: out_dtype = FP32; break;
+    case INT64: case UINT64: out_dtype = FP64; break;
+    case FP32: out_dtype = FP32; break;
+    case FP64: out_dtype = FP64; break;
+    default: PyErr_SetString(PyExc_TypeError, "asinh_() unsupported dtype"); return NULL;
+  }
+  tensor_t *tz = tensor_empty_like(tx, out_dtype);
+  if(!tz){
+    PyErr_SetString(PyExc_RuntimeError, "Failed to allocate output tensor");
+    return NULL;
+  }
+  size_t N = tx->size;
+  if(out_dtype == FP32){
+    float32 *out = (float32*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float v;
+      switch(tx->dtype){
+        case INT8: v = (float)((int8*)tx->buf)[i]; break;
+        case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
+        case INT16: v = (float)((int16*)tx->buf)[i]; break;
+        case UINT16: v = (float)((uint16*)tx->buf)[i]; break;
+        case INT32: v = (float)((int32*)tx->buf)[i]; break;
+        case UINT32: v = (float)((uint32*)tx->buf)[i]; break;
+        case FP32: v = ((float32*)tx->buf)[i]; break;
+        default: v = 0.0f; break;
+      }
+      out[i] = asinf(v);
+    }
+  }
+  else{
+    float64 *out = (float64*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      double v;
+      switch(tx->dtype){
+        case INT64: v = (double)((int64*)tx->buf)[i]; break;
+        case UINT64: v = (double)((uint64*)tx->buf)[i]; break;
+        case FP64: v = ((float64*)tx->buf)[i]; break;
+        default: v = 0.0; break;
+      }
+      out[i] = asinh(v);
+    }
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+static PyObject *acosh_(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_NotImplementedError, "acosh_() not implemented for complex64 and complex128 yet");
+    return NULL;
+  }
+  dtype_t out_dtype;
+  switch(tx->dtype){
+    case INT8: case UINT8:
+    case INT16: case UINT16:
+    case INT32: case UINT32: out_dtype = FP32; break;
+    case INT64: case UINT64: out_dtype = FP64; break;
+    case FP32: out_dtype = FP32; break;
+    case FP64: out_dtype = FP64; break;
+    default: PyErr_SetString(PyExc_TypeError, "acosh_() unsupported dtype"); return NULL;
+  }
+  tensor_t *tz = tensor_empty_like(tx, out_dtype);
+  if(!tz){
+    PyErr_SetString(PyExc_RuntimeError, "Failed to allocate output tensor");
+    return NULL;
+  }
+  size_t N = tx->size;
+  if(out_dtype == FP32){
+    float32 *out = (float32*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float v;
+      switch(tx->dtype){
+        case INT8: v = (float)((int8*)tx->buf)[i]; break;
+        case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
+        case INT16: v = (float)((int16*)tx->buf)[i]; break;
+        case UINT16: v = (float)((uint16*)tx->buf)[i]; break;
+        case INT32: v = (float)((int32*)tx->buf)[i]; break;
+        case UINT32: v = (float)((uint32*)tx->buf)[i]; break;
+        case FP32: v = ((float32*)tx->buf)[i]; break;
+        default: v = 0.0f; break;
+      }
+      out[i] = acoshf(v);
+    }
+  }
+  else{
+    float64 *out = (float64*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      double v;
+      switch(tx->dtype){
+        case INT64: v = (double)((int64*)tx->buf)[i]; break;
+        case UINT64: v = (double)((uint64*)tx->buf)[i]; break;
+        case FP64: v = ((float64*)tx->buf)[i]; break;
+        default: v = 0.0; break;
+      }
+      out[i] = acosh(v);
+    }
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+static PyObject *atanh_(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_NotImplementedError, "atanh_() not implemented for complex64 and complex128 yet");
+    return NULL;
+  }
+  dtype_t out_dtype;
+  switch(tx->dtype){
+    case INT8: case UINT8:
+    case INT16: case UINT16:
+    case INT32: case UINT32: out_dtype = FP32; break;
+    case INT64: case UINT64: out_dtype = FP64; break;
+    case FP32: out_dtype = FP32; break;
+    case FP64: out_dtype = FP64; break;
+    default: PyErr_SetString(PyExc_TypeError, "atanh_() unsupported dtype"); return NULL;
+  }
+  tensor_t *tz = tensor_empty_like(tx, out_dtype);
+  if(!tz){
+    PyErr_SetString(PyExc_RuntimeError, "Failed to allocate output tensor");
+    return NULL;
+  }
+  size_t N = tx->size;
+  if(out_dtype == FP32){
+    float32 *out = (float32*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float v;
+      switch(tx->dtype){
+        case INT8: v = (float)((int8*)tx->buf)[i]; break;
+        case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
+        case INT16: v = (float)((int16*)tx->buf)[i]; break;
+        case UINT16: v = (float)((uint16*)tx->buf)[i]; break;
+        case INT32: v = (float)((int32*)tx->buf)[i]; break;
+        case UINT32: v = (float)((uint32*)tx->buf)[i]; break;
+        case FP32: v = ((float32*)tx->buf)[i]; break;
+        default: v = 0.0f; break;
+      }
+      out[i] = atanhf(v);
+    }
+  }
+  else{
+    float64 *out = (float64*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      double v;
+      switch(tx->dtype){
+        case INT64: v = (float64)((int64*)tx->buf)[i]; break;
+        case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
+        case FP64: v = ((float64*)tx->buf)[i]; break;
+        default: v = 0.0; break;
+      }
+      out[i] = atanh(v);
+    }
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
 static PyMethodDef methods[] = {
   {"add", add, METH_VARARGS, "element-wise 'add' operation on tensor"},
   {"sub", sub, METH_VARARGS, "element-wise 'sub' operation tensor"},
@@ -3309,6 +4402,22 @@ static PyMethodDef methods[] = {
   {"bmm", bmm, METH_VARARGS, "compute batch matrix multiplication on tensor"},
   {"real", real, METH_VARARGS, "get real values from complex tensor"},
   {"imag", imag, METH_VARARGS, "get imag values from complex tensor"},
+  {"exp", exp_, METH_VARARGS, "computes exponential of tensor"},
+  {"log", log_, METH_VARARGS, "computes log of tensor to the base `e`"},
+  {"log2", log2_, METH_VARARGS, "computes log of tensor to the base `2`"},
+  {"log10", log10_, METH_VARARGS, "computes log of tensor to the base `10`"},
+  {"sin", sin_, METH_VARARGS, "computes sine of tensor"},
+  {"cos", cos_, METH_VARARGS, "computes cosine of tensor"},
+  {"tan", tan_, METH_VARARGS, "computes tangent of tensor"},
+  {"asin", asin_, METH_VARARGS, "computes arc sine of tensor"},
+  {"acos", acos_, METH_VARARGS, "computes arc cosine of tensor"},
+  {"atan", atan_, METH_VARARGS, "computes arc cosine of tensor"},
+  {"sinh", sinh_, METH_VARARGS, "computes hyperbolic sine of tensor"},
+  {"cosh", cosh_, METH_VARARGS, "computes hyperbolic cosine of tensor"},
+  {"tanh", tanh_, METH_VARARGS, "computes hyperbolic tangent of tensor"},
+  {"asinh", asinh_, METH_VARARGS, "computes arc hyperbolic sine of tensor"},
+  {"acosh", acosh_, METH_VARARGS, "computes arc hyperbolic cosine of tensor"},
+  {"atanh", atanh_, METH_VARARGS, "computes are hyperbolic tangent of tensor"},
   {NULL, NULL, 0, NULL}
 };
 
