@@ -18,6 +18,22 @@ class DType:
   def __repr__(self): return f"<DType(ctype='{self.ctype}', fmt='{self.fmt}', nbyte={self.nbyte}, signed={self.signed})>"
   @property
   def nbit(self): return self.nbyte * 8
+  @staticmethod
+  def from_ctype(ctype:str):
+    if ctype == "bool": return bool
+    elif ctype == "char": return int8
+    elif ctype == "unsigned char": return uint8
+    elif ctype == "short": return int16
+    elif ctype == "unsigned short": return uint16
+    elif ctype == "int": return int32
+    elif ctype == "unsigned int": return uint32
+    elif ctype == "long": return int64
+    elif ctype == "unsigned long": return uint64
+    elif ctype == "float": return float32
+    elif ctype == "double": return float64
+    elif ctype == "float _Complex": return complex64
+    elif ctype == "double _Complex": return complex128
+    else: raise RuntimeError("unexpected result occured")
 
 bool:Final = DType("?", "bool", 1, False)
 int8:Final = DType.new("b", "char", 1, True)
