@@ -8,6 +8,30 @@
 TinyTensor is a lightweight tensor library written from scratch in pure C, focused on building the core foundations of deep learning frameworks.
 It provides basic tensor structures, memory handling, and essential operations with a minimal and educational design.
 
+## Requirements
+- GCC / Clang
+- CUDA Toolkit (for GPU support)
+- Python ≥ 3.9
+- Linux environment
+
+## Dtype supported
+| DType      |      Description      | CPU | CUDA |
+|------------|-----------------------|-----|------|
+|`int8`      | 8bit signed integer   | ✅  |  ✅  |
+|`uint8`     | 8bit unsigned integer | ✅  |  ✅  |
+|`int16`     | 16bit signed integer  | ✅  |  ✅  |
+|`uint16`    | 16bit unsigned integer| ✅  |  ✅  |
+|`int32`     | 32bit signed integer  | ✅  |  ✅  |
+|`uint32`    | 32bit unsigned integer| ✅  |  ✅  |
+|`int64`     | 64bit signed intger   | ✅  |  ✅  |
+|`float16`   | 16bit floating point  | ❌  |  ❌  |
+|`float32`   | 32bit floating point  | ✅  |  ✅  |
+|`float64`   | 64bit floating point  | ✅  |  ✅  |
+|`float128`  | 128bit floating point | ❌  |  ❌  |
+|`complex64` | 64bit complex dtype   | ✅  |  ✅  |
+|`complex128`| 128bit complex dtype  | ✅  |  ✅  |
+|`complex256`| 256bit complex dtype  | ❌  |  ❌  |
+
 ## Install from the source
 ```bash
 git clone https://github.com/0xhilSa/tinytensor
@@ -32,10 +56,9 @@ print(y.device)
 ```
 or simply run `pytest -v`
 
-## OS(es)
-tinytensor runs on
-- [X] Linux
-- [ ] Windows
+## Contributions
+Pull requests are welcome.
+If you find a bug or want to suggest an operation, feel free to open an issue.:with
 
 ## LICENSE
 [MIT](./LICENSE)
