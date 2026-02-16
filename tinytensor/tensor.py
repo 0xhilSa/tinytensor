@@ -496,6 +496,10 @@ class Tensor:
       result = result.reshape(tuple(new_shape))
     return result
 
+  def flatten(self):
+    out = cpu.topyobj(self.buf) if self.__device.type == "CPU" else cuda.topyobj(self.buf)
+    return Tensor(out, dtype=self.__dtype, device=self.__device) # type: ignore
+
   def bmm(self, other:Tensor):
     if not isinstance(other, Tensor): raise ValueError(f"given value must be the Tensor object")
     out = cpu.topyobj(cpu.bmm(self.buf, other.buf)) if self.__device.type == "CPU" else cuda.topyobj(cuda.bmm(self.buf, other.buf))

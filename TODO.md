@@ -1,5 +1,5 @@
 ## TODOs
-- [ ] Implement reduce op like `sum()`, `flatten()`, etc
+- [X] Implement reduce op like `sum()`, `flatten()`, etc
 - [ ] Implement autograd engine
 - [ ] Profiler for cpu/cuda based tensors
 - [ ] Supports cross dtypes tensor operation
