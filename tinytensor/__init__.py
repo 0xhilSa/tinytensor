@@ -18,7 +18,7 @@ def tensor(
 
 from tinytensor.dtypes import (bool, int8, uint8, int16, uint16,
                                int32, uint32, int64, uint64,
-                               float32, float64,
+                               float16, float32, float64,
                                complex64, complex128)
 
 def arange(
@@ -49,6 +49,7 @@ __all__ = [
   "uint32",
   "int64",
   "uint64",
+  "float16",
   "float32",
   "float64",
   "complex64",
