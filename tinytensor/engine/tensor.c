@@ -6,6 +6,7 @@
 
 #include <cuda_runtime.h>
 #include <stdlib.h>
+#include <string.h>
 #include "./complex.h"
 
 #define bool unsigned char
@@ -24,6 +25,114 @@
 
 typedef enum { CPU, CUDA } DEVICES_t;
 
+typedef struct {
+  uint16 bits;
+} float16_t;
+
+#define float16 float16_t
+#define half float16_t
+
+static inline float16_t float16_from_bits(uint16 raw){
+  float16_t h;
+  h.bits = raw;
+  return h;
+}
+
+static inline uint32 float_to_bits(float f){
+  uint32 u;
+  memcpy(&u, &f, sizeof(u));
+  return u;
+}
+
+static inline float bits_to_float(uint32 u){
+  float f;
+  memcpy(&f, &u, sizeof(f));
+  return f;
+}
+
+float fp16_to_float(float16_t h){
+  uint16 x = h.bits;
+  uint32 sign = (x >> 15) & 0x1;
+  uint32 exp = (x >> 10) & 0x1F;
+  uint32 mant = x & 0x3FF;
+  uint32 out_sign = sign << 31;
+  uint32 out_exp, out_mant;
+  if(exp == 0){
+    if(mant == 0){
+      out_exp = 0;
+      out_mant = 0;
+    }else{
+      exp = 1;
+      while((mant & 0x400) == 0){
+        mant <<= 1;
+        exp--;
+      }
+      mant &= 0x3FF;
+      out_exp  = (exp + (127 - 15)) << 23;
+      out_mant = mant << 13;
+    }
+  }
+  else if(exp == 31){
+    out_exp  = 255 << 23;
+    out_mant = mant << 13;
+  }
+  else{
+    out_exp  = (exp + (127 - 15)) << 23;
+    out_mant = mant << 13;
+  }
+  return bits_to_float(out_sign | out_exp | out_mant);
+}
+
+float16_t float_to_fp16(float f){
+  uint32 bits = float_to_bits(f);
+  uint32 sign = (bits >> 31) & 0x1;
+  int32 exp = (bits >> 23) & 0xFF;
+  uint32 mant = bits & 0x7FFFFF;
+  float16_t out;
+  if(exp == 255){
+    if(mant == 0){ out.bits = (sign << 15) | (0x1F << 10); }
+    else{ out.bits = (sign << 15) | (0x1F << 10) | 0x200; }
+    return out;
+  }
+  int32 new_exp = exp - 127 + 15;
+  if(new_exp >= 31){
+    out.bits = (sign << 15) | (0x1F << 10);
+    return out;
+  }
+  if(new_exp <= 0){
+    if(new_exp < -10){
+      out.bits = (sign << 15);
+      return out;
+    }
+    mant |= 0x800000;
+    int shift = 1 - new_exp;
+    uint32 sub_mant = mant >> (shift + 13);
+    uint32 round_bit = (mant >> (shift + 12)) & 1;
+    uint32 sticky    = mant & ((1U << (shift + 12)) - 1);
+    if(round_bit && (sticky || (sub_mant & 1))){
+      sub_mant++;
+    }
+    out.bits = (sign << 15) | (uint16)sub_mant;
+    return out;
+  }
+  uint32 half_mant = mant >> 13;
+  uint32 round_bit = (mant >> 12) & 1;
+  uint32 sticky    = mant & 0xFFF;
+  if(round_bit && (sticky || (half_mant & 1))){
+    half_mant++;
+  }
+  if(half_mant == 0x400){
+    half_mant = 0;
+    new_exp++;
+    if(new_exp >= 31){
+      out.bits = (sign << 15) | (0x1F << 10);
+      return out;
+    }
+  }
+  out.bits = (sign << 15) | (new_exp << 10) | (half_mant & 0x3FF);
+  return out;
+}
+
 typedef enum {
   ERROR, // error
   BOOL,
@@ -35,6 +144,7 @@ typedef enum {
   UINT32,
   INT64,
   UINT64,
+  FP16,
   FP32,
   FP64,
   CMPX64,
@@ -52,6 +162,7 @@ size_t getsize(dtype_t dtype){
     case UINT32: return sizeof(uint32);
     case INT64: return sizeof(int64);
     case UINT64: return sizeof(uint64);
+    case FP16: return sizeof(float16);
     case FP32: return sizeof(float32);
     case FP64: return sizeof(float64);
     case CMPX64: return sizeof(complex64);
