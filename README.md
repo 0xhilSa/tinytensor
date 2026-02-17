@@ -3,16 +3,10 @@
   <p align="center">a tiny tensor computation library</p>
 </p>
 
-
 ## What is TinyTensor?
 TinyTensor is a lightweight tensor library written from scratch in pure C, focused on building the core foundations of deep learning frameworks.
 It provides basic tensor structures, memory handling, and essential operations with a minimal and educational design.
 
-## Requirements
-- GCC / Clang
-- CUDA Toolkit (for GPU support)
-- Python ≥ 3.9
-- Linux environment
 
 ## DType supported
 | DType      |      Description      | CPU | CUDA |
@@ -56,6 +50,12 @@ print(y.buf)
 print(y.device)
 ```
 or simply run `pytest -v`
+
+## Requirements
+- GCC / Clang
+- CUDA Toolkit (for GPU support)
+- Python ≥ 3.9
+- Linux environment
 
 ## Contributions
 Pull requests are welcome.
