@@ -1,7 +1,6 @@
 #include <cuda_runtime.h>
 #include <python3.10/Python.h>
 #include <nvml.h>
-#include <python3.10/pyerrors.h>
 #include "../tensor.h"
 
 #define CUDA_CHECK(call) \
@@ -38,6 +37,7 @@ dtype_t get_dtype(const char *fmt){
     case 'I': return UINT32;
     case 'l': return INT64;
     case 'L': return UINT64;
+    case 'e': return FP16;
     case 'f': return FP32;
     case 'd': return FP64;
     case 'F': return CMPX64;
@@ -147,6 +147,11 @@ static PyObject *__list__(PyObject *list, PyObject *shape, const char *fmt, int 
       case UINT32: *(uint32 *)p = (uint32)py_to_uint(item); break;
       case INT64: *(int64 *)p = (int64)py_to_int(item); break;
       case UINT64: *(uint64 *)p = (uint64)py_to_uint(item); break;
+      case FP16: {
+        float v = (float)py_to_float(item);
+        *(float16 *)p = float_to_fp16(v);
+        break;
+      }
       case FP32: *(float32 *)p = (float32)py_to_float(item); break;
       case FP64: *(float64 *)p = (float64)py_to_float(item); break;
       case CMPX64: {
@@ -276,6 +281,12 @@ static PyObject *__scalar__(PyObject *scalar, const char *fmt, int device_idx){
       memcpy(p, &v, t->element_size);
       break;
     }
+    case FP16: {
+      double v = PyFloat_AsDouble(scalar);
+      if(PyErr_Occurred()) goto fail;
+      *(float16_t *)p = float_to_fp16((float)v);
+      break;
+    }
     case FP32:
     case FP64: {
       double v = PyFloat_AsDouble(scalar);
@@ -370,6 +381,10 @@ static PyObject *topyobj(PyObject *self, PyObject *args){
       case UINT32: return PyLong_FromUnsignedLongLong(*(uint32 *)host_buffer);
       case INT64: return PyLong_FromLongLong(*(int64 *)host_buffer);
       case UINT64: return PyLong_FromUnsignedLongLong(*(uint64 *)host_buffer);
+      case FP16: {
+        float16 h = *(float16 *)host_buffer;
+        return PyFloat_FromDouble(fp16_to_float(h));
+      }
       case FP32: return PyFloat_FromDouble(*(float32 *)host_buffer);
       case FP64: return PyFloat_FromDouble(*(float64 *)host_buffer);
       case CMPX64: {
@@ -396,36 +411,21 @@ static PyObject *topyobj(PyObject *self, PyObject *args){
       char *p = (char *)host_buffer + i * t->element_size;
       PyObject *item = NULL;
       switch(t->dtype){
-        case BOOL:
-          item = PyBool_FromLong(*(bool *)p);
+        case BOOL: item = PyBool_FromLong(*(bool *)p); break;
+        case INT8: item = PyLong_FromLongLong(*(int8 *)p); break;
+        case UINT8: item = PyLong_FromUnsignedLongLong(*(uint8 *)p); break;
+        case INT16: item = PyLong_FromLongLong(*(int16 *)p); break;
+        case UINT16: item = PyLong_FromUnsignedLongLong(*(uint16 *)p); break;
+        case INT32: item = PyLong_FromLongLong(*(int32 *)p); break;
+        case UINT32: item = PyLong_FromUnsignedLongLong(*(uint32 *)p); break;
+        case INT64: item = PyLong_FromLongLong(*(int64 *)p); break;
+        case UINT64: item = PyLong_FromUnsignedLongLong(*(uint64 *)p); break;
+        case FP16: {
+          float16_t h = *(float16_t *)p;
+          item = PyFloat_FromDouble(fp16_to_float(h));
           break;
-        case INT8:
-          item = PyLong_FromLongLong(*(int8 *)p);
-          break;
-        case UINT8:
-          item = PyLong_FromUnsignedLongLong(*(uint8 *)p);
-          break;
-        case INT16:
-          item = PyLong_FromLongLong(*(int16 *)p);
-          break;
-        case UINT16:
-          item = PyLong_FromUnsignedLongLong(*(uint16 *)p);
-          break;
-        case INT32:
-          item = PyLong_FromLongLong(*(int32 *)p);
-          break;
-        case UINT32:
-          item = PyLong_FromUnsignedLongLong(*(uint32 *)p);
-          break;
-        case INT64:
-          item = PyLong_FromLongLong(*(int64 *)p);
-          break;
-        case UINT64:
-          item = PyLong_FromUnsignedLongLong(*(uint64 *)p);
-          break;
-        case FP32:
-          item = PyFloat_FromDouble(*(float32 *)p);
-          break;
+        }
+        case FP32: item = PyFloat_FromDouble(*(float32 *)p); break;
         case FP64:
           item = PyFloat_FromDouble(*(float64 *)p);
           break;
@@ -684,12 +684,13 @@ static PyObject *dtype(PyObject *self, PyObject *args){
     case UINT32: return PyUnicode_FromString("unsigned int");
     case INT64: return PyUnicode_FromString("long");
     case UINT64: return PyUnicode_FromString("unsigned long");
+    case FP16: return PyUnicode_FromString("half");
     case FP32: return PyUnicode_FromString("float");
     case FP64: return PyUnicode_FromString("double");
     case CMPX64: return PyUnicode_FromString("float _Complex");
     case CMPX128: return PyUnicode_FromString("double _Complex");
     default: {
-      PyErr_SetString(PyExc_RuntimeError, "Something unexpected happen, check ./tinytensor/engine/cpu/cpu.c");
+      PyErr_SetString(PyExc_RuntimeError, "Something unexpected happen, check ./tinytensor/engine/cuda/cuda.cu");
       return NULL;
     }
   }
