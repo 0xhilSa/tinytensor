@@ -3,7 +3,7 @@ from typing import Literal, Final
 
 Fmts = Literal[
     "?", "b", "B", "h", "H", "i", "I", "l", "L",
-    "f", "d", "F", "D"
+    "e", "f", "d", "F", "D"
 ]
 ConstType = int|float|complex|bool
 
@@ -29,6 +29,7 @@ class DType:
     elif ctype == "unsigned int": return uint32
     elif ctype == "long": return int64
     elif ctype == "unsigned long": return uint64
+    elif ctype == "half": return float16
     elif ctype == "float": return float32
     elif ctype == "double": return float64
     elif ctype == "float _Complex": return complex64
@@ -44,6 +45,7 @@ int32:Final = DType.new("i", "int", 4, True)
 uint32:Final = DType.new("I", "unsigned int", 4, False)
 int64:Final = DType.new("l", "long", 8, True)
 uint64:Final = DType.new("L", "unsigned long", 8, False)
+float16:Final = DType.new("e", "half", 2, None)
 float32:Final = DType.new("f", "float", 4, None)
 float64:Final = DType.new("d", "double", 8, None)
 complex64:Final = DType.new("F", "float _Complex", 8, None)
@@ -52,6 +54,6 @@ complex128:Final = DType.new("D", "double _Complex", 16, None)
 BOOLEAN = [bool]
 INT = [int8, int16, int32, int64]
 UINT = [uint8, uint16, uint32, uint64]
-FLOAT = [float32, float64]
+FLOAT = [float16, float32, float64]
 COMPLEX = [complex64, complex128]
 ALL = BOOLEAN + INT + UINT + FLOAT + COMPLEX
