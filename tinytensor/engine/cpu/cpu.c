@@ -23,6 +23,7 @@ dtype_t get_dtype(const char fmt){
     case 'I': return UINT32;
     case 'l': return INT64;
     case 'L': return UINT64;
+    case 'e': return FP16;
     case 'f': return FP32;
     case 'd': return FP64;
     case 'F': return CMPX64;
@@ -112,6 +113,11 @@ static PyObject *__list__(PyObject *list, PyObject *shape, Py_ssize_t length, co
       case UINT32: *(uint32 *)p = (uint32)py_to_uint(item); break;
       case INT64: *(int64 *)p = (int64)py_to_int(item); break;
       case UINT64: *(uint64 *)p = (uint64)py_to_uint(item); break;
+      case FP16: {
+        float v = (float)py_to_float(item);
+        *(float16 *)p = float_to_fp16(v);
+        break;
+      }
       case FP32: *(float32 *)p = (float32)py_to_float(item); break;
       case FP64: *(float64 *)p = (float64)py_to_float(item); break;
       case CMPX64: {
@@ -190,6 +196,7 @@ static PyObject *__scalar__(PyObject *scalar, const char fmt){
     case UINT32: *(uint32 *)p = (uint32)PyLong_AsUnsignedLongLongMask(scalar); break;
     case INT64: *(int64 *)p = (int64)PyLong_AsLongLong(scalar); break;
     case UINT64: *(uint64 *)p = (uint64)PyLong_AsUnsignedLongLongMask(scalar); break;
+    case FP16: *(float16 *)p = float_to_fp16((float)PyFloat_AsDouble(scalar)); break;
     case FP32: *(float32 *)p = (float32)PyFloat_AsDouble(scalar); break;
     case FP64: *(float64 *)p = (float64)PyFloat_AsDouble(scalar); break;
     case CMPX64: {
@@ -237,17 +244,21 @@ static PyObject *topyobj(PyObject *self, PyObject *args){
   if(t->size == 1 && !t->shape){
     char *p = (char *)t->buf;
     switch(t->dtype){
-      case BOOL:   return PyBool_FromLong(*(bool *)p);
-      case INT8:   return PyLong_FromLong(*(int8 *)p);
-      case UINT8:  return PyLong_FromUnsignedLong(*(uint8 *)p);
-      case INT16:  return PyLong_FromLong(*(int16 *)p);
+      case BOOL: return PyBool_FromLong(*(bool *)p);
+      case INT8: return PyLong_FromLong(*(int8 *)p);
+      case UINT8: return PyLong_FromUnsignedLong(*(uint8 *)p);
+      case INT16: return PyLong_FromLong(*(int16 *)p);
       case UINT16: return PyLong_FromUnsignedLong(*(uint16 *)p);
-      case INT32:  return PyLong_FromLong(*(int32 *)p);
+      case INT32: return PyLong_FromLong(*(int32 *)p);
       case UINT32: return PyLong_FromUnsignedLong(*(uint32 *)p);
-      case INT64:  return PyLong_FromLongLong(*(int64 *)p);
+      case INT64: return PyLong_FromLongLong(*(int64 *)p);
       case UINT64: return PyLong_FromUnsignedLongLong(*(uint64 *)p);
-      case FP32:   return PyFloat_FromDouble(*(float32 *)p);
-      case FP64:   return PyFloat_FromDouble(*(float64 *)p);
+      case FP16: {
+        float16 h = *(float16 *)p;
+        return PyFloat_FromDouble(fp16_to_float(h));
+      }
+      case FP32: return PyFloat_FromDouble(*(float32 *)p);
+      case FP64: return PyFloat_FromDouble(*(float64 *)p);
       case CMPX64: {
         complex64 *c = (complex64 *)p;
         return PyComplex_FromDoubles(c->real, c->imag);
@@ -276,6 +287,11 @@ static PyObject *topyobj(PyObject *self, PyObject *args){
       case UINT32: item = PyLong_FromUnsignedLong(*(uint32 *)p); break;
       case INT64: item = PyLong_FromLongLong(*(int64 *)p); break;
       case UINT64: item = PyLong_FromUnsignedLongLong(*(uint64 *)p); break;
+      case FP16: {
+        float16_t h = *(float16_t *)p;
+        item = PyFloat_FromDouble(fp16_to_float(h));
+        break;
+      }
       case FP32: item = PyFloat_FromDouble(*(float32 *)p); break;
       case FP64: item = PyFloat_FromDouble(*(float64 *)p); break;
       case CMPX64: {
@@ -397,10 +413,15 @@ static PyObject *dtype(PyObject *self, PyObject *args){
     case UINT32: return PyUnicode_FromString("unsigned int");
     case INT64: return PyUnicode_FromString("long");
     case UINT64: return PyUnicode_FromString("unsigned long");
+    case FP16: return PyUnicode_FromString("half");
     case FP32: return PyUnicode_FromString("float");
     case FP64: return PyUnicode_FromString("double");
     case CMPX64: return PyUnicode_FromString("float _Complex");
     case CMPX128: return PyUnicode_FromString("double _Complex");
+    case ERROR: {
+      PyErr_SetString(PyExc_RuntimeError, "Something unexpected happen, check ./tinytensor/engine/cpu/cpu.c");
+      return NULL;
+    }
   }
 }
 
