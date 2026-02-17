@@ -11,6 +11,7 @@ _CAST = {
   dtypes.uint16: int,
   dtypes.uint32: int,
   dtypes.uint64: int,
+  dtypes.float16: float,
   dtypes.float32: float,
   dtypes.float64: float,
   dtypes.complex64: complex,
