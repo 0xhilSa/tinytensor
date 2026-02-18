@@ -3592,7 +3592,7 @@ static PyObject *log_(PyObject *self, PyObject *args){
     return NULL;
   }
   if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    PyErr_SetString(PyExc_NotImplementedError, "atanh_() not implemented for complex64 and complex128 yet");
+    PyErr_SetString(PyExc_NotImplementedError, "log_() not implemented for complex64 and complex128 yet");
     return NULL;
   }
   dtype_t out_dtype;
@@ -4527,6 +4527,10 @@ static PyObject *atanh_(PyObject *self, PyObject *args){
   tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
   if(!tx){
     PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_NotImplementedError, "atanh_() not implemented for complex64 and complex128 yet");
     return NULL;
   }
   dtype_t out_dtype;
