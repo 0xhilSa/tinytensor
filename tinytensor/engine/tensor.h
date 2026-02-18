@@ -3,6 +3,7 @@
 
 #include <cuda_runtime.h>
 #include <stdlib.h>
+#include "./fp.h"
 #include "./complex.h"
 
 #define bool unsigned char
@@ -24,20 +25,6 @@ extern "C" {
 #endif
 
 typedef enum { CPU, CUDA } DEVICES_t;
-
-typedef struct {
-  uint16 bits;
-} float16_t;
-
-#define float16 float16_t
-#define half float16_t
-
-static inline float16_t float16_from_bits(uint16 raw);
-static inline uint32 float_to_bits(float f);
-static inline float bits_to_float(uint32 u);
-float fp16_to_float(float16_t h);
-
-float16_t float_to_fp16(float f);
 
 typedef enum {
   ERROR, // error
