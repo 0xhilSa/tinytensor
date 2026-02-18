@@ -1,6 +1,5 @@
 #include <python3.10/Python.h>
 #include <cuda_runtime.h>
-#include <python3.10/pyerrors.h>
 #include "../tensor.h"
 
 #define CUDA_CHECK(call) \
@@ -3851,8 +3850,8 @@ __global__ void sin_cmpx128_kernel(const complex128 *x, complex128 *out, size_t 
   if(idx >= N) return;
   float64 a = x[idx].real;
   float64 b = x[idx].imag;
-  out[idx].real = sin(a) * cos(b);
-  out[idx].imag = cos(a) * sin(b);
+  out[idx].real = sin(a) * cosh(b);
+  out[idx].imag = cos(a) * sinh(b);
 }
 
 __global__ void cos_fp32_kernel(const void *x, float *out, size_t N, dtype_t dtype){
