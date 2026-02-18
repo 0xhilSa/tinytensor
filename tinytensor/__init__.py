@@ -31,6 +31,8 @@ def arange(
   if step == 0: raise ValueError("step parameter cannot be 0")
   return Tensor(list(range(start, stop, step)), dtype=dtype, device=device, requires_grad=requires_grad, const=const)
 
+__version__ = "0.3.0"
+
 __all__ = [
   "cuda_available",
   "arange",
