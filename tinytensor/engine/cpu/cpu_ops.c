@@ -4690,10 +4690,19 @@ static PyObject *sgn_(PyObject *self, PyObject *args){
       for(size_t i = 0; i < N; i++){ out[i] = (in[i] > 0) - (in[i] < 0); }
       break;
     }
+    case FP16: {
+      float16 *in = (float16 *)tx->buf;
+      float16 *out = (float16 *)tz->buf;
+      for(size_t i = 0; i < N; i++){
+        float32 x = fp16_to_float(in[i]);
+        out[i] = float_to_fp16((x > 0.f) - (x < 0.f));
+      }
+      break;
+    }
     case FP32: {
       float32 *in = (float32 *)tx->buf;
       float32 *out = (float32 *)tz->buf;
-      for(size_t i = 0; i < N; i++){ out[i] = (in[i] > 0) - (in[i] < 0); }
+      for(size_t i = 0; i < N; i++){ out[i] = (in[i] > 0.f) - (in[i] < 0.f); }
       break;
     }
     case FP64: {
