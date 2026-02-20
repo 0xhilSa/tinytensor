@@ -6,7 +6,7 @@ from tinytensor.engine.cuda.cuda_ops import (add, sub, mul, tdiv, fdiv, pow, mod
                                              lshift, rshift, and_, nand_, or_, nor_, not_, xor_, xnor_,
                                              permute, sum, bmm, exp, log, log2, log10,
                                              sin, cos, tan, asin, acos, atan,
-                                             sinh, cosh, tanh, asinh, acosh, atanh)
+                                             sinh, cosh, tanh, asinh, acosh, atanh, sgn)
 
 __all__ = [
   "shape",
@@ -70,4 +70,5 @@ __all__ = [
   "asinh",
   "acosh",
   "atanh",
+  "sgn",
 ]
