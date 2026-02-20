@@ -4647,6 +4647,119 @@ static PyObject *atanh_(PyObject *self, PyObject *args){
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
 }
 
+static PyObject *sgn_(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
+    return NULL;
+  }
+  tensor_t *tz = tensor_empty_like(tx, tx->dtype);
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Memory allocation failed");
+    return NULL;
+  }
+  size_t N = tx->size;
+  switch(tx->dtype){
+    case INT8: {
+      int8 *in = (int8 *)tx->buf;
+      int8 *out = (int8 *)tz->buf;
+      for(size_t i = 0; i < N; i++){ out[i] = (in[i] > 0) - (in[i] < 0); }
+      break;
+    }
+    case INT16: {
+      int16 *in = (int16 *)tx->buf;
+      int16 *out = (int16 *)tz->buf;
+      for(size_t i = 0; i < N; i++){ out[i] = (in[i] > 0) - (in[i] < 0); }
+      break;
+    }
+    case INT32: {
+      int32 *in = (int32 *)tx->buf;
+      int32 *out = (int32 *)tz->buf;
+      for(size_t i = 0; i < N; i++){ out[i] = (in[i] > 0) - (in[i] < 0); }
+      break;
+    }
+    case INT64: {
+      int64 *in = (int64 *)tx->buf;
+      int64 *out = (int64 *)tx-> buf;
+      for(size_t i = 0; i < N; i++){ out[i] = (in[i] > 0) - (in[i] < 0); }
+      break;
+    }
+    case FP32: {
+      float32 *in = (float32 *)tx->buf;
+      float32 *out = (float32 *)tz->buf;
+      for(size_t i = 0; i < N; i++){ out[i] = (in[i] > 0) - (in[i] < 0); }
+      break;
+    }
+    case FP64: {
+      float64 *in = (float64 *)tx->buf;
+      float64 *out = (float64 *)tz->buf;
+      for(size_t i = 0; i < N; i++){ out[i] = (in[i] > 0) - (in[i] < 0); }
+      break;
+    }
+    case CMPX64: {
+      complex64 *in = (complex64 *)tx->buf;
+      complex64 *out = (complex64 *)tz->buf;
+      for(size_t i = 0; i < N; i++){
+        float32 mag = sqrtf(in[i].real * in[i].real + in[i].imag * in[i].imag);
+        if(mag == 0.0f){
+          out[i].real = 0.0f;
+          out[i].imag = 0.0f;
+        }else{
+          out[i].real = in[i].real / mag;
+          out[i].imag = in[i].imag / mag;
+        }
+      }
+      break;
+    }
+    case CMPX128: {
+      complex128 *in = (complex128 *)tx->buf;
+      complex128 *out = (complex128 *)tz->buf;
+      for(size_t i = 0; i < N; i++){
+        float64 mag = sqrt(in[i].real * in[i].real + in[i].imag * in[i].imag);
+        if(mag == 0.0){
+          out[i].real = 0.0;
+          out[i].imag = 0.0;
+        }else{
+          out[i].real = in[i].real / mag;
+          out[i].imag = in[i].imag / mag;
+        }
+      }
+      break;
+    }
+    case UINT8: {
+      uint8 *in = (uint8 *)tx->buf;
+      uint8 *out = (uint8 *)tz->buf;
+      for(size_t i = 0; i < N; i++){ out[i] = (in[i] == 0) ? 0 : 1; }
+      break;
+    }
+    case UINT16: {
+      uint16 *in = (uint16 *)tx->buf;
+      uint16 *out = (uint16 *)tz->buf;
+      for(size_t i = 0; i < N; i++){ out[i] = (in[i] == 0) ? 0 : 1; }
+      break;
+    }
+    case UINT32: {
+      uint32 *in = (uint32 *)tx->buf;
+      uint32 *out = (uint32 *)tz->buf;
+      for(size_t i = 0; i < N; i++){ out[i] = (in[i] == 0) ? 0 : 1; }
+      break;
+    }
+    case UINT64: {
+      uint64 *in = (uint64 *)tx->buf;
+      uint64 *out = (uint64 *)tz->buf;
+      for(size_t i = 0; i < N; i++){ out[i] = (in[i] == 0) ? 0 : 1; }
+      break;
+    }
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
 static PyMethodDef methods[] = {
   {"add", add, METH_VARARGS, "element-wise 'add' operation on tensor"},
   {"sub", sub, METH_VARARGS, "element-wise 'sub' operation tensor"},
@@ -4694,6 +4807,7 @@ static PyMethodDef methods[] = {
   {"asinh", asinh_, METH_VARARGS, "computes arc hyperbolic sine of tensor"},
   {"acosh", acosh_, METH_VARARGS, "computes arc hyperbolic cosine of tensor"},
   {"atanh", atanh_, METH_VARARGS, "computes are hyperbolic tangent of tensor"},
+  {"sgn", sgn_, METH_VARARGS, "computes signum function on tensor"},
   {NULL, NULL, 0, NULL}
 };
 
