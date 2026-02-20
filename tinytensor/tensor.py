@@ -455,3 +455,5 @@ class Tensor:
   def acosh(self) -> Tensor: return self.uop("acosh", promote=True)
   def atanh(self) -> Tensor: return self.uop("atanh", promote=True)
 
+  def sgn(self) -> Tensor: return self.uop("sgn")
+
