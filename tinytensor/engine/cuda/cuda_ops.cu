@@ -5363,6 +5363,109 @@ static PyObject *atanh_(PyObject *self, PyObject *args){
   return PyCapsule_New(tz, "tensor_t on CUDA", capsule_destroyer);
 }
 
+template<typename T>
+__global__ void sgn_tensor_kernel(const T *in, T *out, size_t N){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  for(; idx < N; idx += blockDim.x * gridDim.x){
+    T v = in[idx];
+    out[idx] = (v > 0) - (v < 0);
+  }
+}
+
+template<typename T>
+__global__ void sgn_uint_tensor_kernel(const T *in, T *out, size_t N){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  for(; idx < N; idx += blockDim.x * gridDim.x){
+    T v = in[idx];
+    out[idx] = (v == 0) ? (T)0 : (T)1;
+  }
+}
+
+__global__ void sgn_fp16_tensor_kernel(const float16 *in, float16 *out, size_t N){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  for(; idx < N; idx += blockDim.x * gridDim.x){
+    float32 v = fp16_to_float(in[idx]);
+    out[idx] = float_to_fp16((v > 0.0f) - (v < 0.0f));
+  }
+}
+
+__global__ void sgn_cmpx64_tensor(const complex64 *in, complex64 *out, size_t N){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  for(; idx < N; idx += blockDim.x * gridDim.x){
+    float32 r = in[idx].real;
+    float32 i = in[idx].imag;
+    float32 mag = sqrtf(r*r + i*i);
+    if(mag == 0.0f){
+      out[idx].real = 0.0f;
+      out[idx].imag = 0.0f;
+    }else{
+      out[idx].real = r / mag;
+      out[idx].imag = i / mag;
+    }
+  }
+}
+
+__global__ void sgn_cmpx128_tensor(const complex128 *in, complex128 *out, size_t N){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  for(; idx < N; idx += blockDim.x * gridDim.x){
+    float64 r = in[idx].real;
+    float64 i = in[idx].imag;
+    float64 mag = sqrt(r*r + i*i);
+    if(mag == 0.0){
+      out[idx].real = 0.0;
+      out[idx].imag = 0.0;
+    }else{
+      out[idx].real = r / mag;
+      out[idx].imag = i / mag;
+    }
+  }
+}
+
+static PyObject *sgn_(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = (tensor_t *)PyCapsule_GetPointer(x, "tensor_t on CUDA");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
+    return NULL;
+  }
+  tensor_t *tz = tensor_empty_like(tx, tx->dtype);
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Memory allocation failed");
+    return NULL;
+  }
+  size_t N = tx->size;
+  int threads = 256;
+  int blocks = (N + threads - 1) / threads;
+  switch(tx->dtype){
+    case BOOL: sgn_uint_tensor_kernel<bool><<<blocks, threads>>>((bool *)tx->buf, (bool *)tz->buf, N); break;
+    case INT8: sgn_tensor_kernel<int8><<<blocks, threads>>>((int8 *)tx->buf, (int8 *)tz->buf, N); break;
+    case INT16: sgn_tensor_kernel<int16><<<blocks, threads>>>((int16 *)tx->buf, (int16 *)tz->buf, N); break;
+    case INT32: sgn_tensor_kernel<int32><<<blocks, threads>>>((int32 *)tx->buf, (int32 *)tz->buf, N); break;
+    case INT64: sgn_tensor_kernel<int64><<<blocks, threads>>>((int64 *)tx->buf, (int64 *)tz->buf, N); break;
+    case FP16: sgn_fp16_tensor_kernel<<<blocks, threads>>>((float16 *)tx->buf, (float16 *)tz->buf, N); break;
+    case FP32: sgn_tensor_kernel<float32><<<blocks, threads>>>((float32 *)tx->buf, (float32 *)tz->buf, N); break;
+    case FP64: sgn_tensor_kernel<float64><<<blocks, threads>>>((float64 *)tx->buf, (float64 *)tz->buf, N); break;
+    case CMPX64: sgn_cmpx64_tensor<<<blocks, threads>>>((complex64 *)tx->buf, (complex64 *)tz->buf, N); break;
+    case CMPX128: sgn_cmpx128_tensor<<<blocks, threads>>>((complex128 *)tx->buf, (complex128 *)tz->buf, N); break;
+    case UINT8: sgn_uint_tensor_kernel<uint8><<<blocks, threads>>>((uint8 *)tx->buf, (uint8 *)tz->buf, N); break;
+    case UINT16: sgn_uint_tensor_kernel<uint16><<<blocks, threads>>>((uint16 *)tx->buf, (uint16 *)tz->buf, N); break;
+    case UINT32: sgn_uint_tensor_kernel<uint32><<<blocks, threads>>>((uint32 *)tx->buf, (uint32 *)tz->buf, N); break;
+    case UINT64: sgn_uint_tensor_kernel<uint64><<<blocks, threads>>>((uint64 *)tx->buf, (uint64 *)tz->buf, N); break;
+  }
+  cudaDeviceSynchronize();
+  cudaError_t err = cudaGetLastError();
+  if(err != cudaSuccess){
+    PyErr_SetString(PyExc_RuntimeError, cudaGetErrorString(err));
+    return NULL;
+  }
+  return PyCapsule_New(tz, "tensor_t on CUDA", capsule_destroyer);
+}
+
 static PyMethodDef methods[] = {
   {"add", add, METH_VARARGS, "element-wise 'add' operation on CUDA tensor"},
   {"sub", sub, METH_VARARGS, "element-wise 'sub' operation on CUDA tensor"},
@@ -5410,6 +5513,7 @@ static PyMethodDef methods[] = {
   {"asinh", asinh_, METH_VARARGS, "computes arc hyperbolic sine of tensor on CUDA"},
   {"acosh", acosh_, METH_VARARGS, "computes arc hyperbolic cosine of tensor on CUDA"},
   {"atanh", atanh_, METH_VARARGS, "computes are hyperbolic tangent of tensor on CUDA"},
+  {"sgn", sgn_, METH_VARARGS, "computes signum of a tensor on CUDA"},
   {NULL, NULL, 0, NULL}
 };
 
