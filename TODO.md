@@ -10,3 +10,4 @@
 - [ ] Convert Image into the Tensor
 - [ ] Implement MemoryPool for CPU/GPU
 - [ ] Implement `pretty` to print tensor
+- [ ] Support complex tensor uop on CUDA device
