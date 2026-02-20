@@ -107,9 +107,9 @@ static PyObject *__add_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t
       case FP16: {
         float16 hx = *(float16 *)x_ptr;
         float16 hy = *(float16 *)y_ptr;
-        float fx = fp16_to_float(hx);
-        float fy = fp16_to_float(hy);
-        float fz = fx + fy;
+        float32 fx = fp16_to_float(hx);
+        float32 fy = fp16_to_float(hy);
+        float32 fz = fx + fy;
         *(float16 *)z_ptr = float_to_fp16(fz);
         break;
       }
@@ -164,9 +164,9 @@ static PyObject *__sub_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t
       case FP16: {
         float16 hx = *(float16 *)x_ptr;
         float16 hy = *(float16 *)y_ptr;
-        float fx = fp16_to_float(hx);
-        float fy = fp16_to_float(hy);
-        float fz = fx - fy;
+        float32 fx = fp16_to_float(hx);
+        float32 fy = fp16_to_float(hy);
+        float32 fz = fx - fy;
         *(float16 *)z_ptr = float_to_fp16(fz);
         break;
       }
@@ -221,9 +221,9 @@ static PyObject *__mul_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t
       case FP16: {
         float16 hx = *(float16 *)x_ptr;
         float16 hy = *(float16 *)y_ptr;
-        float fx = fp16_to_float(hx);
-        float fy = fp16_to_float(hy);
-        float fz = fx * fy;
+        float32 fx = fp16_to_float(hx);
+        float32 fy = fp16_to_float(hy);
+        float32 fz = fx * fy;
         *(float16 *)z_ptr = float_to_fp16(fz);
         break;
       }
@@ -256,41 +256,78 @@ static PyObject *__mul_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t
 
 static PyObject *__tdiv_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
   size_t length = tx->size;
-  dtype_t dtype = tx->dtype;
+  dtype_t in_dtype  = tx->dtype;
+  dtype_t out_dtype = tz->dtype;
   char *px = (char *)tx->buf;
   char *py = (char *)ty->buf;
   char *pz = (char *)tz->buf;
-  size_t elem_size = tx->element_size;
-  size_t tz_elem_size = tz->element_size;
-  for(size_t i = 0; i < length; i++){
-    char *x_ptr = px + i * elem_size;
-    char *y_ptr = py + i * elem_size;
-    char *z_ptr = pz + i * tz_elem_size;
-    switch(dtype){
-      case BOOL: *(float32 *)z_ptr = (float32)(*(bool *)x_ptr) / (float32)(*(bool *)y_ptr); break;
-      case INT8: *(float32 *)z_ptr = (float32)(*(int8 *)x_ptr) / (float32)(*(int8 *)y_ptr); break;
-      case UINT8: *(float32 *)z_ptr = (float32)(*(uint8 *)x_ptr) / (float32)(*(uint8 *)y_ptr); break;
-      case INT16: *(float32 *)z_ptr = (float32)(*(int16 *)x_ptr) / (float32)(*(int16 *)y_ptr); break;
-      case UINT16: *(float32 *)z_ptr = (float32)(*(uint16 *)x_ptr) / (float32)(*(uint16 *)y_ptr); break;
-      case INT32: *(float32 *)z_ptr = (float32)(*(int32 *)x_ptr) / (float32)(*(int32 *)y_ptr); break;
-      case UINT32: *(float32 *)z_ptr = (float32)(*(uint32 *)x_ptr) / (float32)(*(uint32 *)y_ptr); break;
-      case INT64: *(float32 *)z_ptr = (float32)(*(int64 *)x_ptr) / (float32)(*(int64 *)y_ptr); break;
-      case UINT64: *(float32 *)z_ptr = (float32)(*(uint64 *)x_ptr) / (float32)(*(uint64 *)y_ptr); break;
-      case FP16: {
-        float16 hx = *(float16 *)x_ptr;
-        float16 hy = *(float16 *)y_ptr;
-        float fx = fp16_to_float(hx);
-        float fy = fp16_to_float(hy);
-        float fz = fx / fy;
-        *(float16 *)z_ptr = float_to_fp16(fz);
+  size_t in_elem_size  = tx->element_size;
+  size_t out_elem_size = tz->element_size;
+  for (size_t i = 0; i < length; i++) {
+    char *x_ptr = px + i * in_elem_size;
+    char *y_ptr = py + i * in_elem_size;
+    char *z_ptr = pz + i * out_elem_size;
+    float64 fx = 0.0;
+    float64 fy = 0.0;
+    switch (in_dtype){
+      case BOOL:
+        fx = (float64)(*(bool *)x_ptr);
+        fy = (float64)(*(bool *)y_ptr);
         break;
-      }
-      case FP32: *(float32 *)z_ptr = *(float32 *)x_ptr / *(float32 *)y_ptr; break;
-      case FP64: *(float64 *)z_ptr = *(float64 *)x_ptr / *(float64 *)y_ptr; break;
-      case ERROR: {
-        PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
+      case INT8:
+        fx = (float64)(*(int8 *)x_ptr);
+        fy = (float64)(*(int8 *)y_ptr);
+        break;
+      case UINT8:
+        fx = (float64)(*(uint8 *)x_ptr);
+        fy = (float64)(*(uint8 *)y_ptr);
+        break;
+      case INT16:
+        fx = (float64)(*(int16 *)x_ptr);
+        fy = (float64)(*(int16 *)y_ptr);
+        break;
+      case UINT16:
+        fx = (float64)(*(uint16 *)x_ptr);
+        fy = (float64)(*(uint16 *)y_ptr);
+        break;
+      case INT32:
+        fx = (float64)(*(int32 *)x_ptr);
+        fy = (float64)(*(int32 *)y_ptr);
+        break;
+      case UINT32:
+        fx = (float64)(*(uint32 *)x_ptr);
+        fy = (float64)(*(uint32 *)y_ptr);
+        break;
+      case INT64:
+        fx = (float64)(*(int64 *)x_ptr);
+        fy = (float64)(*(int64 *)y_ptr);
+        break;
+      case UINT64:
+        fx = (float64)(*(uint64 *)x_ptr);
+        fy = (float64)(*(uint64 *)y_ptr);
+        break;
+      case FP16:
+        fx = (float64)fp16_to_float(*(float16 *)x_ptr);
+        fy = (float64)fp16_to_float(*(float16 *)y_ptr);
+        break;
+      case FP32:
+        fx = (float64)(*(float32 *)x_ptr);
+        fy = (float64)(*(float32 *)y_ptr);
+        break;
+      case FP64:
+        fx = *(float64 *)x_ptr;
+        fy = *(float64 *)y_ptr;
+        break;
+      default:
+        PyErr_SetString(PyExc_TypeError, "Unsupported dtype for division");
         return NULL;
-      }
+    }
+    float64 fz = fx / fy;
+    switch (out_dtype){
+      case FP16: *(float16 *)z_ptr = float_to_fp16((float)fz); break;
+      case FP32: *(float32 *)z_ptr = (float32)fz; break;
+      case FP64: *(float64 *)z_ptr = (float64)fz; break;
+      default: PyErr_SetString(PyExc_TypeError, "Invalid output dtype for division"); return NULL;
     }
   }
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
@@ -312,11 +349,11 @@ static PyObject *__tdiv_cmpx_tensor__(const tensor_t *tx, const tensor_t *ty, te
       case CMPX64: {
         complex64 x = *(complex64 *)x_ptr;
         complex64 y = *(complex64 *)y_ptr;
-        float a = x.real;
-        float b = x.imag;
-        float c = y.real;
-        float d = y.imag;
-        float denom = c*c + d*d;
+        float32 a = x.real;
+        float32 b = x.imag;
+        float32 c = y.real;
+        float32 d = y.imag;
+        float32 denom = c*c + d*d;
         if(denom == 0.0f){
           PyErr_SetString(PyExc_ZeroDivisionError, "complex64 division by zero");
           return NULL;
@@ -330,11 +367,11 @@ static PyObject *__tdiv_cmpx_tensor__(const tensor_t *tx, const tensor_t *ty, te
       case CMPX128: {
         complex128 x = *(complex128 *)x_ptr;
         complex128 y = *(complex128 *)y_ptr;
-        double a = x.real;
-        double b = x.imag;
-        double c = y.real;
-        double d = y.imag;
-        double denom = c*c + d*d;
+        float64 a = x.real;
+        float64 b = x.imag;
+        float64 c = y.real;
+        float64 d = y.imag;
+        float64 denom = c*c + d*d;
         if(denom == 0.0f){
           PyErr_SetString(PyExc_ZeroDivisionError, "complex128 division by zero");
           return NULL;
@@ -379,8 +416,8 @@ static PyObject *__fdiv_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_
       case FP16: {
         float16_t hx = *(float16_t *)x_ptr;
         float16_t hy = *(float16_t *)y_ptr;
-        float fx = fp16_to_float(hx);
-        float fy = fp16_to_float(hy);
+        float32 fx = fp16_to_float(hx);
+        float32 fy = fp16_to_float(hy);
         *(int64 *)z_ptr = (int64)(fx / fy);
         break;
       }
@@ -420,9 +457,9 @@ static PyObject *__pow_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t
       case FP16: {
         float16_t hx = *(float16_t *)x_ptr;
         float16_t hy = *(float16_t *)y_ptr;
-        float fx = fp16_to_float(hx);
-        float fy = fp16_to_float(hy);
-        float fz = powf(fx, fy);
+        float32 fx = fp16_to_float(hx);
+        float32 fy = fp16_to_float(hy);
+        float32 fz = powf(fx, fy);
         *(float16_t *)z_ptr = float_to_fp16(fz);
         break;
       }
@@ -431,11 +468,11 @@ static PyObject *__pow_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t
       case CMPX64: {
         complex64 x = *(complex64 *)x_ptr;
         complex64 y = *(complex64 *)y_ptr;
-        float r = sqrt(x.real * x.real + x.imag * x.imag);
-        float theta = atan(x.imag/x.real);
-        float A = y.real * log(r) - y.imag * theta;
-        float B = y.imag * log(r) + y.real * theta;
-        float e = exp(A);
+        float32 r = sqrt(x.real * x.real + x.imag * x.imag);
+        float32 theta = atan(x.imag/x.real);
+        float32 A = y.real * log(r) - y.imag * theta;
+        float32 B = y.imag * log(r) + y.real * theta;
+        float32 e = exp(A);
         complex64 z = {cos(B), sin(B)};
         (*(complex64 *)z_ptr).real = e * z.real;
         (*(complex64 *)z_ptr).imag = e * z.imag;
@@ -444,11 +481,11 @@ static PyObject *__pow_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t
       case CMPX128: {
         complex128 x = *(complex128 *)x_ptr;
         complex128 y = *(complex128 *)y_ptr;
-        double r = sqrt(x.real * x.real + x.imag * x.imag);
-        double theta = atan(x.imag/x.real);
-        double A = y.real * log(r) - y.imag * theta;
-        double B = y.imag * log(r) + y.real * theta;
-        double e = exp(A);
+        float64 r = sqrt(x.real * x.real + x.imag * x.imag);
+        float64 theta = atan(x.imag/x.real);
+        float64 A = y.real * log(r) - y.imag * theta;
+        float64 B = y.imag * log(r) + y.real * theta;
+        float64 e = exp(A);
         complex128 z = {cos(B), sin(B)};
         (*(complex128 *)z_ptr).real = e * z.real;
         (*(complex128 *)z_ptr).imag = e * z.imag;
@@ -488,9 +525,9 @@ static PyObject *__mod_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t
       case FP16: {
         float16_t hx = *(float16_t *)x_ptr;
         float16_t hy = *(float16_t *)y_ptr;
-        float fx = fp16_to_float(hx);
-        float fy = fp16_to_float(hy);
-        float fz = powf(fx, fy);
+        float32 fx = fp16_to_float(hx);
+        float32 fy = fp16_to_float(hy);
+        float32 fz = powf(fx, fy);
         *(float16_t *)z_ptr = float_to_fp16(fz);
         break;
       }
@@ -793,7 +830,7 @@ static PyObject *__neg_tensor__(const tensor_t *tx, tensor_t *tz){
       case UINT64: *(uint64 *)z_ptr = -(*(uint64 *)x_ptr); break;
       case FP16: {
         float16_t hx = *(float16_t *)x_ptr;
-        float fx = fp16_to_float(hx);
+        float32 fx = fp16_to_float(hx);
         *(float16_t *)z_ptr = float_to_fp16(-fx);
         break;
       }
@@ -841,7 +878,7 @@ static PyObject *__pos_tensor__(const tensor_t *tx, tensor_t *tz){
       case UINT64: *(uint64 *)z_ptr = *(uint64 *)x_ptr; break;
       case FP16: {
         float16_t hx = *(float16_t *)x_ptr;
-        float fx = fp16_to_float(hx);
+        float32 fx = fp16_to_float(hx);
         *(float16_t *)z_ptr = float_to_fp16(fx);
         break;
       }
@@ -1275,7 +1312,7 @@ static PyObject *__sum_all__(const tensor_t *tx, tensor_t *tz){
       return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
     }
     case FP16: {
-      float acc = 0.0f;
+      float32 acc = 0.0f;
       for(size_t i = 0; i < length; i++){
         char *x_ptr = px + i * elem_size;
         float16_t hx = *(float16_t *)x_ptr;
@@ -1476,6 +1513,28 @@ static PyObject *mul(PyObject *self, PyObject *args){
   return __mul_tensor__(tx, ty, tz);
 }
 
+static dtype_t promote_div(dtype_t dt) {
+  switch (dt) {
+    case INT8:
+    case UINT8:
+    case INT16:
+    case UINT16:
+      return FP16;
+    case INT32:
+    case UINT32:
+      return FP32;
+    case INT64:
+    case UINT64:
+      return FP64;
+    case FP16:
+    case FP32:
+    case FP64:
+      return dt;
+    default:
+      return ERROR;
+  }
+}
+
 // tdiv
 static PyObject *tdiv(PyObject *self, PyObject *args){
   PyObject *x, *y;
@@ -1507,7 +1566,7 @@ static PyObject *tdiv(PyObject *self, PyObject *args){
     tz->dtype = (tx->dtype == CMPX64) ? CMPX64 : CMPX128;
     tz->size = tx->size;
     tz->ndim = tx->ndim;
-    tz->element_size = (tz->dtype == CMPX64) ? sizeof(complex64) : sizeof(complex128);
+    tz->element_size = getsize(tz->dtype);
     tz->device = (device_t){CPU, 0};
     tz->stride = NULL;
     if(tx->ndim > 0 && tx->shape){
@@ -1549,10 +1608,10 @@ static PyObject *tdiv(PyObject *self, PyObject *args){
       PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
       return NULL;
     }
-    tz->dtype = (tx->dtype == FP64) ? FP64 : FP32; // assuming fp32 and fp64 will get the work done
+    tz->dtype = promote_div(tx->dtype);
     tz->size = tx->size;
     tz->ndim = tx->ndim;
-    tz->element_size = (tz->dtype == FP64) ? sizeof(float64) : sizeof(float32);
+    tz->element_size = getsize(tz->dtype);
     tz->device = (device_t){CPU, 0};
     tz->stride = NULL;
     if(tx->ndim > 0 && tx->shape){
@@ -2740,8 +2799,8 @@ static PyObject *__sum_axis_cmpx64__(tensor_t *tx, tensor_t *tz, int axis){
       tmp %= tz->stride[j];
       j++;
     }
-    float real_sum = 0.0f;
-    float imag_sum = 0.0f;
+    float32 real_sum = 0.0f;
+    float32 imag_sum = 0.0f;
     for(int r = 0; r < reduced_dim; r++){
       idx_in[axis] = r;
       int in_offset = 0;
@@ -2771,19 +2830,19 @@ static PyObject *__sum_axis_cmpx128__(tensor_t *tx, tensor_t *tz, int axis){
       tmp %= tz->stride[j];
       j++;
     }
-    double real_sum = 0.0;
-    double imag_sum = 0.0;
+    float64 real_sum = 0.0;
+    float64 imag_sum = 0.0;
     for(int r = 0; r < reduced_dim; r++){
       idx_in[axis] = r;
       int in_offset = 0;
       for(int k = 0; k < tx->ndim; k++){
         in_offset += idx_in[k] * tx->stride[k];
       }
-      real_sum += (double)in[in_offset].real;
-      imag_sum += (double)in[in_offset].imag;
+      real_sum += (float64)in[in_offset].real;
+      imag_sum += (float64)in[in_offset].imag;
     }
-    out[out_index].real = (double)real_sum;
-    out[out_index].imag = (double)imag_sum;
+    out[out_index].real = (float64)real_sum;
+    out[out_index].imag = (float64)imag_sum;
   }
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
 }
@@ -3215,10 +3274,10 @@ static PyObject *bmm(PyObject *self, PyObject *args){
         size_t c_offset = batch * m * n;
         for(size_t i = 0; i < m; i++){
           for(size_t j = 0; j < n; j++){
-            float acc = 0.0f;
+            float32 acc = 0.0f;
             for(size_t kk = 0; kk < k; kk++){
-              float ax = fp16_to_float(a[a_offset + i * k + kk]);
-              float by = fp16_to_float(b[b_offset + kk * n + j]);
+              float32 ax = fp16_to_float(a[a_offset + i * k + kk]);
+              float32 by = fp16_to_float(b[b_offset + kk * n + j]);
               acc += ax * by;
             }
             c[c_offset + i * n + j] = float_to_fp16(acc);
@@ -3372,7 +3431,7 @@ static PyObject *real(PyObject *self, PyObject *args){
     if(tx->dtype == CMPX64){
       ((float*)tz->buf)[0] = ((complex64*)tx->buf)[0].real;
     }else{
-      ((double*)tz->buf)[0] = ((complex128*)tx->buf)[0].real;
+      ((float64*)tz->buf)[0] = ((complex128*)tx->buf)[0].real;
     }
     return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
   }
@@ -3389,11 +3448,11 @@ static PyObject *real(PyObject *self, PyObject *args){
   tz->buf = tz->storage->ptr;
   if(tx->dtype == CMPX64){
     complex64 *src = (complex64*)tx->buf;
-    float *dst = (float*)tz->buf;
+    float32 *dst = (float*)tz->buf;
     for(size_t i = 0; i < tx->size; i++) dst[i] = src[i].real;
   }else{
     complex128 *src = (complex128*)tx->buf;
-    double *dst = (double*)tz->buf;
+    float64 *dst = (float64*)tz->buf;
     for(size_t i = 0; i < tx->size; i++) dst[i] = src[i].real;
   }
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
@@ -3433,7 +3492,7 @@ static PyObject *imag(PyObject *self, PyObject *args){
     if(tx->dtype == CMPX64){
       ((float*)tz->buf)[0] = ((complex64*)tx->buf)[0].imag;
     }else{
-      ((double*)tz->buf)[0] = ((complex128*)tx->buf)[0].imag;
+      ((float64*)tz->buf)[0] = ((complex128*)tx->buf)[0].imag;
     }
     return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
   }
@@ -3450,11 +3509,11 @@ static PyObject *imag(PyObject *self, PyObject *args){
   tz->buf = tz->storage->ptr;
   if(tx->dtype == CMPX64){
     complex64 *src = (complex64*)tx->buf;
-    float *dst = (float*)tz->buf;
+    float32 *dst = (float*)tz->buf;
     for(size_t i = 0; i < tx->size; i++) dst[i] = src[i].imag;
   }else{
     complex128 *src = (complex128*)tx->buf;
-    double *dst = (double*)tz->buf;
+    float64 *dst = (float64*)tz->buf;
     for(size_t i = 0; i < tx->size; i++) dst[i] = src[i].imag;
   }
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
@@ -3548,7 +3607,7 @@ static PyObject *exp_(PyObject *self, PyObject *args){
   if(out_dtype == FP32){
     float32 *out = (float32*)tz->buf;
     for(size_t i = 0; i < N; i++){
-      float v;
+      float32 v;
       switch(tx->dtype){
         case INT8: v = (float)((int8*)tx->buf)[i]; break;
         case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
@@ -3566,10 +3625,10 @@ static PyObject *exp_(PyObject *self, PyObject *args){
   else{
     float64 *out = (float64*)tz->buf;
     for(size_t i = 0; i < N; i++){
-      double v;
+      float64 v;
       switch(tx->dtype){
-        case INT64: v = (double)((int64*)tx->buf)[i]; break;
-        case UINT64: v = (double)((uint64*)tx->buf)[i]; break;
+        case INT64: v = (float64)((int64*)tx->buf)[i]; break;
+        case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
         case FP64: v = ((float64*)tx->buf)[i]; break;
         default: v = 0.0; break;
       }
@@ -3615,7 +3674,7 @@ static PyObject *log_(PyObject *self, PyObject *args){
   if(out_dtype == FP32){
     float32 *out = (float32*)tz->buf;
     for(size_t i = 0; i < N; i++){
-      float v;
+      float32 v;
       switch(tx->dtype){
         case INT8: v = (float)((int8*)tx->buf)[i]; break;
         case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
@@ -3633,10 +3692,10 @@ static PyObject *log_(PyObject *self, PyObject *args){
   else{
     float64 *out = (float64*)tz->buf;
     for(size_t i = 0; i < N; i++){
-      double v;
+      float64 v;
       switch(tx->dtype){
-        case INT64: v = (double)((int64*)tx->buf)[i]; break;
-        case UINT64: v = (double)((uint64*)tx->buf)[i]; break;
+        case INT64: v = (float64)((int64*)tx->buf)[i]; break;
+        case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
         case FP64: v = ((float64*)tx->buf)[i]; break;
         default: v = 0.0; break;
       }
@@ -3682,7 +3741,7 @@ static PyObject *log2_(PyObject *self, PyObject *args){
   if(out_dtype == FP32){
     float32 *out = (float32*)tz->buf;
     for(size_t i = 0; i < N; i++){
-      float v;
+      float32 v;
       switch(tx->dtype){
         case INT8: v = (float)((int8*)tx->buf)[i]; break;
         case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
@@ -3700,10 +3759,10 @@ static PyObject *log2_(PyObject *self, PyObject *args){
   else{
     float64 *out = (float64*)tz->buf;
     for(size_t i = 0; i < N; i++){
-      double v;
+      float64 v;
       switch(tx->dtype){
-        case INT64: v = (double)((int64*)tx->buf)[i]; break;
-        case UINT64: v = (double)((uint64*)tx->buf)[i]; break;
+        case INT64: v = (float64)((int64*)tx->buf)[i]; break;
+        case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
         case FP64: v = ((float64*)tx->buf)[i]; break;
         default: v = 0.0; break;
       }
@@ -3749,7 +3808,7 @@ static PyObject *log10_(PyObject *self, PyObject *args){
   if(out_dtype == FP32){
     float32 *out = (float32*)tz->buf;
     for(size_t i = 0; i < N; i++){
-      float v;
+      float32 v;
       switch(tx->dtype){
         case INT8: v = (float)((int8*)tx->buf)[i]; break;
         case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
@@ -3767,10 +3826,10 @@ static PyObject *log10_(PyObject *self, PyObject *args){
   else{
     float64 *out = (float64*)tz->buf;
     for(size_t i = 0; i < N; i++){
-      double v;
+      float64 v;
       switch(tx->dtype){
-        case INT64: v = (double)((int64*)tx->buf)[i]; break;
-        case UINT64: v = (double)((uint64*)tx->buf)[i]; break;
+        case INT64: v = (float64)((int64*)tx->buf)[i]; break;
+        case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
         case FP64: v = ((float64*)tx->buf)[i]; break;
         default: v = 0.0; break;
       }
@@ -3816,7 +3875,7 @@ static PyObject *sin_(PyObject *self, PyObject *args){
   if(out_dtype == FP32){
     float32 *out = (float32*)tz->buf;
     for(size_t i = 0; i < N; i++){
-      float v;
+      float32 v;
       switch(tx->dtype){
         case INT8: v = (float)((int8*)tx->buf)[i]; break;
         case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
@@ -3834,10 +3893,10 @@ static PyObject *sin_(PyObject *self, PyObject *args){
   else{
     float64 *out = (float64*)tz->buf;
     for(size_t i = 0; i < N; i++){
-      double v;
+      float64 v;
       switch(tx->dtype){
-        case INT64: v = (double)((int64*)tx->buf)[i]; break;
-        case UINT64: v = (double)((uint64*)tx->buf)[i]; break;
+        case INT64: v = (float64)((int64*)tx->buf)[i]; break;
+        case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
         case FP64: v = ((float64*)tx->buf)[i]; break;
         default: v = 0.0; break;
       }
@@ -3883,7 +3942,7 @@ static PyObject *cos_(PyObject *self, PyObject *args){
   if(out_dtype == FP32){
     float32 *out = (float32*)tz->buf;
     for(size_t i = 0; i < N; i++){
-      float v;
+      float32 v;
       switch(tx->dtype){
         case INT8: v = (float)((int8*)tx->buf)[i]; break;
         case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
@@ -3901,10 +3960,10 @@ static PyObject *cos_(PyObject *self, PyObject *args){
   else{
     float64 *out = (float64*)tz->buf;
     for(size_t i = 0; i < N; i++){
-      double v;
+      float64 v;
       switch(tx->dtype){
-        case INT64: v = (double)((int64*)tx->buf)[i]; break;
-        case UINT64: v = (double)((uint64*)tx->buf)[i]; break;
+        case INT64: v = (float64)((int64*)tx->buf)[i]; break;
+        case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
         case FP64: v = ((float64*)tx->buf)[i]; break;
         default: v = 0.0; break;
       }
@@ -3950,7 +4009,7 @@ static PyObject *tan_(PyObject *self, PyObject *args){
   if(out_dtype == FP32){
     float32 *out = (float32*)tz->buf;
     for(size_t i = 0; i < N; i++){
-      float v;
+      float32 v;
       switch(tx->dtype){
         case INT8: v = (float)((int8*)tx->buf)[i]; break;
         case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
@@ -3968,10 +4027,10 @@ static PyObject *tan_(PyObject *self, PyObject *args){
   else{
     float64 *out = (float64*)tz->buf;
     for(size_t i = 0; i < N; i++){
-      double v;
+      float64 v;
       switch(tx->dtype){
-        case INT64: v = (double)((int64*)tx->buf)[i]; break;
-        case UINT64: v = (double)((uint64*)tx->buf)[i]; break;
+        case INT64: v = (float64)((int64*)tx->buf)[i]; break;
+        case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
         case FP64: v = ((float64*)tx->buf)[i]; break;
         default: v = 0.0; break;
       }
@@ -4017,7 +4076,7 @@ static PyObject *asin_(PyObject *self, PyObject *args){
   if(out_dtype == FP32){
     float32 *out = (float32*)tz->buf;
     for(size_t i = 0; i < N; i++){
-      float v;
+      float32 v;
       switch(tx->dtype){
         case INT8: v = (float)((int8*)tx->buf)[i]; break;
         case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
@@ -4035,10 +4094,10 @@ static PyObject *asin_(PyObject *self, PyObject *args){
   else{
     float64 *out = (float64*)tz->buf;
     for(size_t i = 0; i < N; i++){
-      double v;
+      float64 v;
       switch(tx->dtype){
-        case INT64: v = (double)((int64*)tx->buf)[i]; break;
-        case UINT64: v = (double)((uint64*)tx->buf)[i]; break;
+        case INT64: v = (float64)((int64*)tx->buf)[i]; break;
+        case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
         case FP64: v = ((float64*)tx->buf)[i]; break;
         default: v = 0.0; break;
       }
@@ -4084,7 +4143,7 @@ static PyObject *acos_(PyObject *self, PyObject *args){
   if(out_dtype == FP32){
     float32 *out = (float32*)tz->buf;
     for(size_t i = 0; i < N; i++){
-      float v;
+      float32 v;
       switch(tx->dtype){
         case INT8: v = (float)((int8*)tx->buf)[i]; break;
         case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
@@ -4102,10 +4161,10 @@ static PyObject *acos_(PyObject *self, PyObject *args){
   else{
     float64 *out = (float64*)tz->buf;
     for(size_t i = 0; i < N; i++){
-      double v;
+      float64 v;
       switch(tx->dtype){
-        case INT64: v = (double)((int64*)tx->buf)[i]; break;
-        case UINT64: v = (double)((uint64*)tx->buf)[i]; break;
+        case INT64: v = (float64)((int64*)tx->buf)[i]; break;
+        case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
         case FP64: v = ((float64*)tx->buf)[i]; break;
         default: v = 0.0; break;
       }
@@ -4151,7 +4210,7 @@ static PyObject *atan_(PyObject *self, PyObject *args){
   if(out_dtype == FP32){
     float32 *out = (float32*)tz->buf;
     for(size_t i = 0; i < N; i++){
-      float v;
+      float32 v;
       switch(tx->dtype){
         case INT8: v = (float)((int8*)tx->buf)[i]; break;
         case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
@@ -4169,10 +4228,10 @@ static PyObject *atan_(PyObject *self, PyObject *args){
   else{
     float64 *out = (float64*)tz->buf;
     for(size_t i = 0; i < N; i++){
-      double v;
+      float64 v;
       switch(tx->dtype){
-        case INT64: v = (double)((int64*)tx->buf)[i]; break;
-        case UINT64: v = (double)((uint64*)tx->buf)[i]; break;
+        case INT64: v = (float64)((int64*)tx->buf)[i]; break;
+        case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
         case FP64: v = ((float64*)tx->buf)[i]; break;
         default: v = 0.0; break;
       }
@@ -4218,7 +4277,7 @@ static PyObject *sinh_(PyObject *self, PyObject *args){
   if(out_dtype == FP32){
     float32 *out = (float32*)tz->buf;
     for(size_t i = 0; i < N; i++){
-      float v;
+      float32 v;
       switch(tx->dtype){
         case INT8: v = (float)((int8*)tx->buf)[i]; break;
         case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
@@ -4236,10 +4295,10 @@ static PyObject *sinh_(PyObject *self, PyObject *args){
   else{
     float64 *out = (float64*)tz->buf;
     for(size_t i = 0; i < N; i++){
-      double v;
+      float64 v;
       switch(tx->dtype){
-        case INT64: v = (double)((int64*)tx->buf)[i]; break;
-        case UINT64: v = (double)((uint64*)tx->buf)[i]; break;
+        case INT64: v = (float64)((int64*)tx->buf)[i]; break;
+        case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
         case FP64: v = ((float64*)tx->buf)[i]; break;
         default: v = 0.0; break;
       }
@@ -4285,7 +4344,7 @@ static PyObject *cosh_(PyObject *self, PyObject *args){
   if(out_dtype == FP32){
     float32 *out = (float32*)tz->buf;
     for(size_t i = 0; i < N; i++){
-      float v;
+      float32 v;
       switch(tx->dtype){
         case INT8: v = (float)((int8*)tx->buf)[i]; break;
         case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
@@ -4303,10 +4362,10 @@ static PyObject *cosh_(PyObject *self, PyObject *args){
   else{
     float64 *out = (float64*)tz->buf;
     for(size_t i = 0; i < N; i++){
-      double v;
+      float64 v;
       switch(tx->dtype){
-        case INT64: v = (double)((int64*)tx->buf)[i]; break;
-        case UINT64: v = (double)((uint64*)tx->buf)[i]; break;
+        case INT64: v = (float64)((int64*)tx->buf)[i]; break;
+        case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
         case FP64: v = ((float64*)tx->buf)[i]; break;
         default: v = 0.0; break;
       }
@@ -4352,7 +4411,7 @@ static PyObject *tanh_(PyObject *self, PyObject *args){
   if(out_dtype == FP32){
     float32 *out = (float32*)tz->buf;
     for(size_t i = 0; i < N; i++){
-      float v;
+      float32 v;
       switch(tx->dtype){
         case INT8: v = (float)((int8*)tx->buf)[i]; break;
         case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
@@ -4370,7 +4429,7 @@ static PyObject *tanh_(PyObject *self, PyObject *args){
   else{
     float64 *out = (float64*)tz->buf;
     for(size_t i = 0; i < N; i++){
-      double v;
+      float64 v;
       switch(tx->dtype){
         case INT64: v = (float64)((int64*)tx->buf)[i]; break;
         case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
@@ -4419,7 +4478,7 @@ static PyObject *asinh_(PyObject *self, PyObject *args){
   if(out_dtype == FP32){
     float32 *out = (float32*)tz->buf;
     for(size_t i = 0; i < N; i++){
-      float v;
+      float32 v;
       switch(tx->dtype){
         case INT8: v = (float)((int8*)tx->buf)[i]; break;
         case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
@@ -4437,10 +4496,10 @@ static PyObject *asinh_(PyObject *self, PyObject *args){
   else{
     float64 *out = (float64*)tz->buf;
     for(size_t i = 0; i < N; i++){
-      double v;
+      float64 v;
       switch(tx->dtype){
-        case INT64: v = (double)((int64*)tx->buf)[i]; break;
-        case UINT64: v = (double)((uint64*)tx->buf)[i]; break;
+        case INT64: v = (float64)((int64*)tx->buf)[i]; break;
+        case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
         case FP64: v = ((float64*)tx->buf)[i]; break;
         default: v = 0.0; break;
       }
@@ -4486,7 +4545,7 @@ static PyObject *acosh_(PyObject *self, PyObject *args){
   if(out_dtype == FP32){
     float32 *out = (float32*)tz->buf;
     for(size_t i = 0; i < N; i++){
-      float v;
+      float32 v;
       switch(tx->dtype){
         case INT8: v = (float)((int8*)tx->buf)[i]; break;
         case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
@@ -4504,10 +4563,10 @@ static PyObject *acosh_(PyObject *self, PyObject *args){
   else{
     float64 *out = (float64*)tz->buf;
     for(size_t i = 0; i < N; i++){
-      double v;
+      float64 v;
       switch(tx->dtype){
-        case INT64: v = (double)((int64*)tx->buf)[i]; break;
-        case UINT64: v = (double)((uint64*)tx->buf)[i]; break;
+        case INT64: v = (float64)((int64*)tx->buf)[i]; break;
+        case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
         case FP64: v = ((float64*)tx->buf)[i]; break;
         default: v = 0.0; break;
       }
@@ -4557,7 +4616,7 @@ static PyObject *atanh_(PyObject *self, PyObject *args){
   if(out_dtype == FP32){
     float32 *out = (float32*)tz->buf;
     for(size_t i = 0; i < N; i++){
-      float v;
+      float32 v;
       switch(tx->dtype){
         case INT8: v = (float)((int8*)tx->buf)[i]; break;
         case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
@@ -4575,7 +4634,7 @@ static PyObject *atanh_(PyObject *self, PyObject *args){
   else{
     float64 *out = (float64*)tz->buf;
     for(size_t i = 0; i < N; i++){
-      double v;
+      float64 v;
       switch(tx->dtype){
         case INT64: v = (float64)((int64*)tx->buf)[i]; break;
         case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
