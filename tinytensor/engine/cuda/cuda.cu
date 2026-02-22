@@ -696,6 +696,149 @@ static PyObject *dtype(PyObject *self, PyObject *args){
   }
 }
 
+static PyObject *getitem(PyObject *self, PyObject *args){
+  PyObject *capsule;
+  unsigned long long index;
+  if(!PyArg_ParseTuple(args, "OK", &capsule, &index)) return NULL;
+  if(!PyCapsule_CheckExact(capsule)){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid capsule pointer");
+    return NULL;
+  }
+  tensor_t *tx = (tensor_t *)PyCapsule_GetPointer(capsule, "tensor_t on CUDA");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t pointer");
+    return NULL;
+  }
+  if(index >= tx->size){
+    PyErr_SetString(PyExc_IndexError, "Index out of range");
+    return NULL;
+  }
+  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  if(!tz){
+    PyErr_SetString(PyExc_RuntimeError, "tensor allocation failed");
+    return NULL;
+  }
+  tz->dtype = tx->dtype;
+  tz->device = tx->device;
+  tz->size = 1;
+  tz->ndim = 0;
+  tz->shape = NULL;
+  tz->stride = NULL;
+  tz->element_size = tx->element_size;
+  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  if(!tz->storage){
+    free(tz);
+    PyErr_SetString(PyExc_RuntimeError, "storage allocation failed");
+    return NULL;
+  }
+  tz->storage->bytes = tz->element_size;
+  tz->storage->device = tz->device;
+  tz->storage->refcount = 1;
+  cudaMalloc(&tz->storage->ptr, tz->element_size);
+  tz->buf = tz->storage->ptr;
+  char *src = (char*)tx->buf + index * tx->element_size;
+  cudaMemcpy(
+    tz->buf,
+    src,
+    tz->element_size,
+    cudaMemcpyDeviceToDevice
+  );
+  return PyCapsule_New(tz, "tensor_t on CUDA", capsule_destroyer);
+}
+
+static PyObject *empty(PyObject *self, PyObject *args){
+  PyObject *shape_obj;
+  const char *fmt;
+  int device_idx;
+  if(!PyArg_ParseTuple(args, "Osi", &shape_obj, &fmt, &device_idx)) return NULL;
+  if(!PyTuple_Check(shape_obj)){
+    PyErr_SetString(PyExc_TypeError, "shape must be a tuple");
+    return NULL;
+  }
+  dtype_t dtype = get_dtype(fmt);
+  if(dtype == ERROR){
+    PyErr_Format(PyExc_TypeError, "Invalid dtype fmt: '%c'", fmt);
+    return NULL;
+  }
+  int device_count = 0;
+  cudaError_t err = cudaGetDeviceCount(&device_count);
+  if(err != cudaSuccess){
+    PyErr_SetString(PyExc_RuntimeError, cudaGetErrorString(err));
+    return NULL;
+  }
+  if(device_idx < 0 || device_idx >= device_count){
+    PyErr_Format(PyExc_ValueError, "Invalid CUDA device index: %d (available: 0-%d)", device_idx, device_count - 1);
+    return NULL;
+  }
+  CUDA_CHECK(cudaSetDevice(device_idx));
+  tensor_t *t = (tensor_t *)malloc(sizeof(tensor_t));
+  if(!t){
+    PyErr_NoMemory();
+    return NULL;
+  }
+  t->dtype = dtype;
+  t->ndim = PyTuple_Size(shape_obj);
+  if(t->ndim == 0){
+    PyErr_SetString(PyExc_ValueError, "empty() shape cannot be scalar. Use scalar constructor instead.");
+    free(t);
+    return NULL;
+  }
+  t->shape = (size_t *)malloc(sizeof(size_t) * t->ndim);
+  if(!t->shape){
+    free(t);
+    PyErr_NoMemory();
+    return NULL;
+  }
+  size_t total = 1;
+  for(int i = 0; i < t->ndim; i++){
+    PyObject *dim = PyTuple_GetItem(shape_obj, i);
+    if(!PyLong_Check(dim)){
+      free(t->shape);
+      free(t);
+      PyErr_SetString(PyExc_TypeError, "shape must contain integers");
+      return NULL;
+    }
+    t->shape[i] = PyLong_AsSize_t(dim);
+    total *= t->shape[i];
+  }
+  t->size = total;
+  t->stride = (size_t *)malloc(sizeof(size_t) * t->ndim);
+  if(!t->stride){
+    free(t->shape);
+    free(t);
+    PyErr_NoMemory();
+    return NULL;
+  }
+  t->stride[t->ndim - 1] = 1;
+  for(int i = t->ndim - 2; i >= 0; i--){
+    t->stride[i] = t->shape[i + 1] * t->stride[i + 1];
+  }
+  t->element_size = getsize(dtype);
+  t->device = (device_t){CUDA, (unsigned short)device_idx};
+  t->storage = (storage_t *)malloc(sizeof(storage_t));
+  if(!t->storage){
+    free(t->stride);
+    free(t->shape);
+    free(t);
+    PyErr_NoMemory();
+    return NULL;
+  }
+  t->storage->bytes = t->size * t->element_size;
+  t->storage->device = t->device;
+  t->storage->refcount = 1;
+  err = cudaMalloc(&t->storage->ptr, t->storage->bytes);
+  if(err != cudaSuccess){
+    free(t->storage);
+    free(t->stride);
+    free(t->shape);
+    free(t);
+    PyErr_Format(PyExc_RuntimeError, "CUDA memory allocation failed: %s", cudaGetErrorString(err));
+    return NULL;
+  }
+  t->buf = t->storage->ptr;
+  return PyCapsule_New(t, "tensor_t on CUDA", capsule_destroyer_cuda);
+}
+
 static PyMethodDef methods[] = {
   {"tocuda", tocuda, METH_VARARGS, "returns CUDA tensor_t capsule"},
   {"topyobj", topyobj, METH_VARARGS, "returns CPU tensor_t capsule from CUDA tensor_t"},
@@ -712,6 +855,7 @@ static PyMethodDef methods[] = {
   {"stride", stride, METH_VARARGS, "returns tensor_t stride"},
   {"device", device, METH_VARARGS, "returns tensor_t device"},
   {"dtype", dtype, METH_VARARGS, "returns tensor_t dtype"},
+  {"getitem", getitem, METH_VARARGS, "get item from tensor_t on CUDA"},
   {NULL, NULL, 0, NULL}
 };
 
