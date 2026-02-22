@@ -29,14 +29,14 @@ def dtype_of(
   elif not isinstance(buf, list): raise TypeError("buf must be a scalar or a list of scalars")
   if dtype is None:
     if not buf: raise TypeError("Cannot infer dtype from empty buffer")
-    if any(isinstance(x, complex) for x in buf): dtype = dtypes.complex128
-    elif any(isinstance(x, float) for x in buf): dtype = dtypes.float64
+    if any(isinstance(x, complex) for x in buf): dtype = dtypes.complex64
+    elif any(isinstance(x, float) for x in buf): dtype = dtypes.float32
     elif all(isinstance(x, bool) for x in buf): dtype = dtypes.bool
-    elif all(isinstance(x, int) for x in buf): dtype = dtypes.int64
+    elif all(isinstance(x, int) for x in buf): dtype = dtypes.int32
     else: raise TypeError("Unsupported buffer element types")
-  if dtype is int: dtype = dtypes.int64
-  elif dtype is float: dtype = dtypes.float64
-  elif dtype is complex: dtype = dtypes.complex128
+  if dtype is int: dtype = dtypes.int32
+  elif dtype is float: dtype = dtypes.float32
+  elif dtype is complex: dtype = dtypes.complex64
   elif dtype is bool: dtype = dtypes.bool
   if not isinstance(dtype, dtypes.DType): raise TypeError("dtype must be a DType or Python scalar type")
   caster = _CAST.get(dtype)
