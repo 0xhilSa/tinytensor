@@ -1,4 +1,6 @@
 #include <python3.10/Python.h>
+#include <python3.10/longobject.h>
+#include <python3.10/pyerrors.h>
 #include "../tensor.h"
 
 void capsule_destroyer(PyObject *capsule){
@@ -425,6 +427,133 @@ static PyObject *dtype(PyObject *self, PyObject *args){
   }
 }
 
+static PyObject *getitem(PyObject *self, PyObject *args){
+  PyObject *capsule;
+  unsigned long long index;
+  if(!PyArg_ParseTuple(args, "OK", &capsule, &index)) return NULL;
+  if(!PyCapsule_CheckExact(capsule)){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid capsule pointer");
+    return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(capsule, "tensor_t on CPU");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t pointer");
+    return NULL;
+  }
+  if(index >= tx->size){
+    PyErr_SetString(PyExc_IndexError, "Index out of range");
+    return NULL;
+  }
+  tensor_t *tz = malloc(sizeof(tensor_t));
+  if(!tz){
+      PyErr_SetString(PyExc_RuntimeError, "tensor allocation failed");
+      return NULL;
+  }
+  tz->dtype = tx->dtype;
+  tz->device = tx->device;
+  tz->size = 1;
+  tz->ndim = 0;
+  tz->shape = NULL;
+  tz->stride = NULL;
+  tz->element_size = tx->element_size;
+  tz->storage = malloc(sizeof(storage_t));
+  if(!tz->storage){
+    free(tz);
+    PyErr_SetString(PyExc_RuntimeError, "storage allocation failed");
+    return NULL;
+  }
+  tz->storage->bytes = tz->element_size;
+  tz->storage->device = tz->device;
+  tz->storage->refcount++;
+  tz->storage->ptr = malloc(tz->storage->bytes);
+  if(!tz->storage->ptr){
+    free(tz->storage);
+    free(tz);
+    PyErr_SetString(PyExc_RuntimeError, "data allocation failed");
+    return NULL;
+  }
+  tz->buf = tz->storage->ptr;
+  char *src = (char*)tx->buf + index * tx->element_size;
+  memcpy(tz->buf, src, tz->element_size);
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+static PyObject *empty(PyObject *self, PyObject *args){
+  PyObject *shape_obj;
+  const char *fmt;
+  if(!PyArg_ParseTuple(args, "Os", &shape_obj, &fmt)) return NULL;
+  if(!PyTuple_Check(shape_obj)){
+    PyErr_SetString(PyExc_TypeError, "shape must be a tuple");
+    return NULL;
+  }
+  tensor_t *t = malloc(sizeof(tensor_t));
+  if(!t){
+    PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed");
+    return NULL;
+  }
+  size_t ndim = PyTuple_Size(shape_obj);
+  t->ndim = ndim;
+  t->shape  = malloc(ndim * sizeof(size_t));
+  t->stride = malloc(ndim * sizeof(size_t));
+  if(!t->shape || !t->stride){
+    free(t->shape);
+    free(t->stride);
+    free(t);
+    PyErr_SetString(PyExc_RuntimeError, "shape/stride allocation failed");
+    return NULL;
+  }
+  size_t numel = 1;
+  for(size_t i = 0; i < ndim; i++){
+    size_t dim = PyLong_AsSize_t(PyTuple_GetItem(shape_obj, i));
+    if(PyErr_Occurred()){
+      free(t->shape);
+      free(t->stride);
+      free(t);
+      return NULL;
+    }
+    t->shape[i] = dim;
+    numel *= dim;
+  }
+  t->size = numel;
+  t->device = (device_t){CPU, 0};
+  t->dtype = get_dtype(*fmt);
+  if(PyErr_Occurred()){
+    free(t->shape);
+    free(t->stride);
+    free(t);
+    return NULL;
+  }
+  t->element_size = getsize(t->dtype);
+  if(ndim > 0){
+    t->stride[ndim - 1] = 1;
+    for(ssize_t i = ndim - 2; i >= 0; i--){
+      t->stride[i] = t->stride[i + 1] * t->shape[i + 1];
+    }
+  }
+  t->storage = malloc(sizeof(storage_t));
+  if(!t->storage){
+    free(t->shape);
+    free(t->stride);
+    free(t);
+    PyErr_SetString(PyExc_RuntimeError, "storage allocation failed");
+    return NULL;
+  }
+  t->storage->bytes = t->size * t->element_size;
+  t->storage->device = t->device;
+  t->storage->refcount = 1;
+  t->storage->ptr = malloc(t->storage->bytes);
+  if(!t->storage->ptr){
+    free(t->storage);
+    free(t->shape);
+    free(t->stride);
+    free(t);
+    PyErr_SetString(PyExc_RuntimeError, "storage memory allocation failed");
+    return NULL;
+  }
+  t->buf = t->storage->ptr;
+  return PyCapsule_New(t, "tensor_t on CPU", capsule_destroyer);
+}
+
 static PyMethodDef methods[] = {
   {"tocpu", tocpu, METH_VARARGS, "store tensor in tensor_t"},
   {"topyobj", topyobj, METH_VARARGS, "returns python list"},
@@ -433,6 +562,8 @@ static PyMethodDef methods[] = {
   {"stride", stride, METH_VARARGS, "returns tensor_t stride"},
   {"device", device, METH_VARARGS, "returns tensor_t device"},
   {"dtype", dtype, METH_VARARGS, "returns tensor_t dtype"},
+  {"getitem", getitem, METH_VARARGS, "get item from tensor_t"},
+  {"empty", empty, METH_VARARGS, "returns empty tensor_t"},
   {NULL, NULL, 0, NULL}
 };
 
