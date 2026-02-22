@@ -132,7 +132,7 @@ static PyObject *__add_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t
         break;
       }
       case ERROR: {
-        PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
+        PyErr_SetString(PyExc_RuntimeError, "something went wrong");
         return NULL;
       }
     }
@@ -189,7 +189,7 @@ static PyObject *__sub_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t
         break;
       }
       case ERROR: {
-        PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
+        PyErr_SetString(PyExc_RuntimeError, "something went wrong");
         return NULL;
       }
     }
@@ -246,7 +246,7 @@ static PyObject *__mul_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t
         break;
       }
       case ERROR: {
-        PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
+        PyErr_SetString(PyExc_RuntimeError, "something went wrong");
         return NULL;
       }
     }
@@ -383,7 +383,7 @@ static PyObject *__tdiv_cmpx_tensor__(const tensor_t *tx, const tensor_t *ty, te
         break;
       }
       case ERROR: {
-        PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
+        PyErr_SetString(PyExc_RuntimeError, "something went wrong");
         return NULL;
       }
     }
@@ -424,7 +424,7 @@ static PyObject *__fdiv_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_
       case FP32: *(int64 *)z_ptr = (int64)(*(float32 *)x_ptr / *(float32 *)y_ptr); break;
       case FP64: *(int64 *)z_ptr = (int64)(*(float64 *)x_ptr / *(float64 *)y_ptr); break;
       case ERROR: {
-        PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
+        PyErr_SetString(PyExc_RuntimeError, "something went wrong");
         return NULL;
       }
     }
@@ -492,7 +492,7 @@ static PyObject *__pow_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t
         break;
       }
       case ERROR: {
-        PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
+        PyErr_SetString(PyExc_RuntimeError, "something went wrong");
         return NULL;
       }
     }
@@ -534,7 +534,7 @@ static PyObject *__mod_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t
       case FP32: *(float32 *)z_ptr = (float32)fmodf(*(float32 *)x_ptr, *(float32 *)y_ptr); break;
       case FP64: *(float64 *)z_ptr = (float64)fmodl(*(float64 *)x_ptr, *(float64 *)y_ptr); break;
       case ERROR: {
-        PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
+        PyErr_SetString(PyExc_RuntimeError, "something went wrong");
         return NULL;
       }
     }
@@ -585,7 +585,7 @@ static PyObject *__eq_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t 
         break;
       }
       case ERROR: {
-        PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
+        PyErr_SetString(PyExc_RuntimeError, "something went wrong");
         return NULL;
       }
     }
@@ -995,7 +995,7 @@ static PyObject *__lshift_tensor__(const tensor_t *tx, const tensor_t *ty, tenso
       case INT64: *(int64 *)z_ptr = *(int64 *)x_ptr << *(int64 *)y_ptr; break;
       case UINT64: *(uint64 *)z_ptr = *(uint64 *)x_ptr << *(uint64 *)y_ptr; break;
       case ERROR: {
-        PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
+        PyErr_SetString(PyExc_RuntimeError, "something went wrong");
         return NULL;
       }
     }
@@ -1025,7 +1025,7 @@ static PyObject *__rshift_tensor__(const tensor_t *tx, const tensor_t *ty, tenso
       case INT64: *(int64 *)z_ptr = *(int64 *)x_ptr >> *(int64 *)y_ptr; break;
       case UINT64: *(uint64 *)z_ptr = *(uint64 *)x_ptr >> *(uint64 *)y_ptr; break;
       case ERROR: {
-        PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
+        PyErr_SetString(PyExc_RuntimeError, "something went wrong");
         return NULL;
       }
     }
@@ -1033,8 +1033,8 @@ static PyObject *__rshift_tensor__(const tensor_t *tx, const tensor_t *ty, tenso
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
 }
 
-// and
-static PyObject *__and_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
+// bitwise and kernel
+static PyObject *__bitwise_and_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
   size_t length = tx->size;
   dtype_t dtype = tx->dtype;
   char *px = (char *)tx->buf;
@@ -1046,6 +1046,7 @@ static PyObject *__and_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t
     char *y_ptr = py + i * elem_size;
     char *z_ptr = pz + i * elem_size;
     switch(dtype){
+      case BOOL: *(bool *)z_ptr = *(bool *)x_ptr & *(bool *)y_ptr; break;
       case INT8: *(int8 *)z_ptr = *(int8 *)x_ptr & *(int8 *)y_ptr; break;
       case UINT8: *(uint8 *)z_ptr = *(uint8 *)x_ptr & *(uint8 *)y_ptr; break;
       case INT16: *(int16 *)z_ptr = *(int16 *)x_ptr & *(int16 *)y_ptr; break;
@@ -1055,7 +1056,7 @@ static PyObject *__and_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t
       case INT64: *(int64 *)z_ptr = *(int64 *)x_ptr & *(int64 *)y_ptr; break;
       case UINT64: *(uint64 *)z_ptr = *(uint64 *)x_ptr & *(uint64 *)y_ptr; break;
       case ERROR: {
-        PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
+        PyErr_SetString(PyExc_RuntimeError, "something went wrong");
         return NULL;
       }
     }
@@ -1063,8 +1064,60 @@ static PyObject *__and_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
 }
 
-// and
-static PyObject *__nand_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
+// logical and kernel
+static PyObject *__logical_and_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
+  size_t length = tx->size;
+  dtype_t dtype = tx->dtype;
+  char *px = (char *)tx->buf;
+  char *py = (char *)ty->buf;
+  char *pz = (char *)tz->buf;
+  size_t elem_size = tx->element_size;
+  for(size_t i = 0; i < length; i++){
+    char *x_ptr = px + i * elem_size;
+    char *y_ptr = py + i * elem_size;
+    uint8 *z_ptr = (uint8 *)(pz + i);
+    switch(dtype){
+      case BOOL: *z_ptr = (uint8)((*(bool *)x_ptr != 0) & (*(bool *)y_ptr != 0)); break;
+      case INT8: *z_ptr = (uint8)((*(int8 *)x_ptr != 0) & (*(int8 *)y_ptr != 0)); break;
+      case UINT8: *z_ptr = (uint8)((*(uint8 *)x_ptr != 0) & (*(uint8 *)y_ptr != 0)); break;
+      case INT16: *z_ptr = (uint8)((*(int16 *)x_ptr != 0) & (*(int16 *)y_ptr != 0)); break;
+      case UINT16: *z_ptr = (uint8)((*(uint16 *)x_ptr != 0) & (*(uint16 *)y_ptr != 0)); break;
+      case INT32: *z_ptr = (uint8)((*(int32 *)x_ptr != 0) & (*(int32 *)y_ptr != 0)); break;
+      case UINT32: *z_ptr = (uint8)((*(uint32 *)x_ptr != 0) & (*(uint32 *)y_ptr != 0)); break;
+      case INT64: *z_ptr = (uint8)((*(int64 *)x_ptr != 0) & (*(int64 *)y_ptr != 0)); break;
+      case UINT64: *z_ptr = (uint8)((*(uint64 *)x_ptr != 0) & (*(uint64 *)y_ptr != 0)); break;
+      case FP16: {
+        float32 x = fp16_to_float(*(float16 *)x_ptr);
+        float32 y = fp16_to_float(*(float16 *)y_ptr);
+        *z_ptr = (uint8)((x != 0.0f) & (y != 0.0f));
+        break;
+      }
+      case FP32: *z_ptr = (uint8)((*(float32 *)x_ptr != 0.0f) & (*(float32 *)y_ptr != 0.0f)); break;
+      case FP64: *z_ptr = (uint8)((*(float64 *)x_ptr != 0.0) & (*(float64 *)y_ptr != 0.0)); break;
+      case CMPX64: {
+        complex64 *x = (complex64 *)x_ptr;
+        complex64 *y = (complex64 *)y_ptr;
+        int x_true = (x->real != 0.0f) || (x->imag != 0.0f);
+        int y_true = (y->real != 0.0f) || (y->imag != 0.0f);
+        *z_ptr = (uint8)(x_true & y_true);
+        break;
+      }
+      case CMPX128: {
+        complex128 *x = (complex128 *)x_ptr;
+        complex128 *y = (complex128 *)y_ptr;
+        int x_true = (x->real != 0.0) || (x->imag != 0.0);
+        int y_true = (y->real != 0.0) || (y->imag != 0.0);
+        *z_ptr = (uint8)(x_true & y_true);
+        break;
+      }
+      case ERROR: PyErr_SetString(PyExc_RuntimeError, "Invalid dtype in logical_and"); return NULL;
+    }
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+// bitwise nand kernel
+static PyObject *__bitwise_nand_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
   size_t length = tx->size;
   dtype_t dtype = tx->dtype;
   char *px = (char *)tx->buf;
@@ -1076,6 +1129,7 @@ static PyObject *__nand_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_
     char *y_ptr = py + i * elem_size;
     char *z_ptr = pz + i * elem_size;
     switch(dtype){
+      case BOOL: *(bool *)z_ptr = ~(*(bool *)x_ptr & *(bool *)y_ptr); break;
       case INT8: *(int8 *)z_ptr = ~(*(int8 *)x_ptr & *(int8 *)y_ptr); break;
       case UINT8: *(uint8 *)z_ptr = ~(*(uint8 *)x_ptr & *(uint8 *)y_ptr); break;
       case INT16: *(int16 *)z_ptr = ~(*(int16 *)x_ptr & *(int16 *)y_ptr); break;
@@ -1085,7 +1139,7 @@ static PyObject *__nand_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_
       case INT64: *(int64 *)z_ptr = ~(*(int64 *)x_ptr & *(int64 *)y_ptr); break;
       case UINT64: *(uint64 *)z_ptr = ~(*(uint64 *)x_ptr & *(uint64 *)y_ptr); break;
       case ERROR: {
-        PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
+        PyErr_SetString(PyExc_RuntimeError, "something went wrong");
         return NULL;
       }
     }
@@ -1093,8 +1147,60 @@ static PyObject *__nand_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
 }
 
-// or
-static PyObject *__or_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
+// logical nand kernel
+static PyObject *__logical_nand_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
+  size_t length = tx->size;
+  dtype_t dtype = tx->dtype;
+  char *px = (char *)tx->buf;
+  char *py = (char *)ty->buf;
+  char *pz = (char *)tz->buf;
+  size_t elem_size = tx->element_size;
+  for(size_t i = 0; i < length; i++){
+    char *x_ptr = px + i * elem_size;
+    char *y_ptr = py + i * elem_size;
+    uint8 *z_ptr = (uint8 *)(pz + i);
+    switch(dtype){
+      case BOOL: *z_ptr = !((*(bool *)x_ptr != 0) & (*(bool *)y_ptr != 0)); break;
+      case INT8: *z_ptr = !((*(int8 *)x_ptr != 0) & (*(int8 *)y_ptr != 0)); break;
+      case UINT8: *z_ptr = !((*(uint8 *)x_ptr != 0) & (*(uint8 *)y_ptr != 0)); break;
+      case INT16: *z_ptr = !((*(int16 *)x_ptr != 0) & (*(int16 *)y_ptr != 0)); break;
+      case UINT16: *z_ptr = !((*(uint16 *)x_ptr != 0) & (*(uint16 *)y_ptr != 0)); break;
+      case INT32: *z_ptr = !((*(int32 *)x_ptr != 0) & (*(int32 *)y_ptr != 0)); break;
+      case UINT32: *z_ptr = !((*(uint32 *)x_ptr != 0) & (*(uint32 *)y_ptr != 0)); break;
+      case INT64: *z_ptr = !((*(int64 *)x_ptr != 0) & (*(int64 *)y_ptr != 0)); break;
+      case UINT64: *z_ptr = !((*(uint64 *)x_ptr != 0) & (*(uint64 *)y_ptr != 0)); break;
+      case FP16: {
+        float32 x = fp16_to_float(*(float16 *)x_ptr);
+        float32 y = fp16_to_float(*(float16 *)y_ptr);
+        *z_ptr = !((x != 0.0f) & (y != 0.0f));
+        break;
+      }
+      case FP32: *z_ptr = !((*(float32 *)x_ptr != 0.0f) & (*(float32 *)y_ptr != 0.0f)); break;
+      case FP64: *z_ptr = !((*(float64 *)x_ptr != 0.0) & (*(float64 *)y_ptr != 0.0)); break;
+      case CMPX64: {
+        complex64 *x = (complex64 *)x_ptr;
+        complex64 *y = (complex64 *)y_ptr;
+        int x_true = (x->real != 0.0f) || (x->imag != 0.0f);
+        int y_true = (y->real != 0.0f) || (y->imag != 0.0f);
+        *z_ptr = !(x_true & y_true);
+        break;
+      }
+      case CMPX128: {
+        complex128 *x = (complex128 *)x_ptr;
+        complex128 *y = (complex128 *)y_ptr;
+        int x_true = (x->real != 0.0) || (x->imag != 0.0);
+        int y_true = (y->real != 0.0) || (y->imag != 0.0);
+        *z_ptr = !(x_true & y_true);
+        break;
+      }
+      case ERROR: PyErr_SetString(PyExc_RuntimeError, "Invalid dtype in logical_and"); return NULL;
+    }
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+// bitwise or kernel
+static PyObject *__bitwise_or_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
   size_t length = tx->size;
   dtype_t dtype = tx->dtype;
   char *px = (char *)tx->buf;
@@ -1106,6 +1212,7 @@ static PyObject *__or_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t 
     char *y_ptr = py + i * elem_size;
     char *z_ptr = pz + i * elem_size;
     switch(dtype){
+      case BOOL: *(bool *)z_ptr = *(bool *)x_ptr | *(bool *)y_ptr; break;
       case INT8: *(int8 *)z_ptr = *(int8 *)x_ptr | *(int8 *)y_ptr; break;
       case UINT8: *(uint8 *)z_ptr = *(uint8 *)x_ptr | *(uint8 *)y_ptr; break;
       case INT16: *(int16 *)z_ptr = *(int16 *)x_ptr | *(int16 *)y_ptr; break;
@@ -1115,7 +1222,7 @@ static PyObject *__or_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t 
       case INT64: *(int64 *)z_ptr = *(int64 *)x_ptr | *(int64 *)y_ptr; break;
       case UINT64: *(uint64 *)z_ptr = *(uint64 *)x_ptr | *(uint64 *)y_ptr; break;
       case ERROR: {
-        PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
+        PyErr_SetString(PyExc_RuntimeError, "something went wrong");
         return NULL;
       }
     }
@@ -1123,8 +1230,60 @@ static PyObject *__or_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t 
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
 }
 
-// nor
-static PyObject *__nor_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
+// logical or kernel
+static PyObject *__logical_or_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
+  size_t length = tx->size;
+  dtype_t dtype = tx->dtype;
+  char *px = (char *)tx->buf;
+  char *py = (char *)ty->buf;
+  char *pz = (char *)tz->buf;
+  size_t elem_size = tx->element_size;
+  for(size_t i = 0; i < length; i++){
+    char *x_ptr = px + i * elem_size;
+    char *y_ptr = py + i * elem_size;
+    uint8 *z_ptr = (uint8 *)(pz + i);
+    switch(dtype){
+      case BOOL: *z_ptr = ((*(bool *)x_ptr != 0) | (*(bool *)y_ptr != 0)); break;
+      case INT8: *z_ptr = ((*(int8 *)x_ptr != 0) | (*(int8 *)y_ptr != 0)); break;
+      case UINT8: *z_ptr = ((*(uint8 *)x_ptr != 0) | (*(uint8 *)y_ptr != 0)); break;
+      case INT16: *z_ptr = ((*(int16 *)x_ptr != 0) | (*(int16 *)y_ptr != 0)); break;
+      case UINT16: *z_ptr = ((*(uint16 *)x_ptr != 0) | (*(uint16 *)y_ptr != 0)); break;
+      case INT32: *z_ptr = ((*(int32 *)x_ptr != 0) | (*(int32 *)y_ptr != 0)); break;
+      case UINT32: *z_ptr = ((*(uint32 *)x_ptr != 0) | (*(uint32 *)y_ptr != 0)); break;
+      case INT64: *z_ptr = ((*(int64 *)x_ptr != 0) | (*(int64 *)y_ptr != 0)); break;
+      case UINT64: *z_ptr = ((*(uint64 *)x_ptr != 0) | (*(uint64 *)y_ptr != 0)); break;
+      case FP16: {
+        float32 x = fp16_to_float(*(float16 *)x_ptr);
+        float32 y = fp16_to_float(*(float16 *)y_ptr);
+        *z_ptr = ((x != 0.0f) | (y != 0.0f));
+        break;
+      }
+      case FP32: *z_ptr = ((*(float32 *)x_ptr != 0.0f) | (*(float32 *)y_ptr != 0.0f)); break;
+      case FP64: *z_ptr = ((*(float64 *)x_ptr != 0.0) | (*(float64 *)y_ptr != 0.0)); break;
+      case CMPX64: {
+        complex64 *x = (complex64 *)x_ptr;
+        complex64 *y = (complex64 *)y_ptr;
+        int x_true = (x->real != 0.0f) || (x->imag != 0.0f);
+        int y_true = (y->real != 0.0f) || (y->imag != 0.0f);
+        *z_ptr = (x_true | y_true);
+        break;
+      }
+      case CMPX128: {
+        complex128 *x = (complex128 *)x_ptr;
+        complex128 *y = (complex128 *)y_ptr;
+        int x_true = (x->real != 0.0) || (x->imag != 0.0);
+        int y_true = (y->real != 0.0) || (y->imag != 0.0);
+        *z_ptr = (x_true | y_true);
+        break;
+      }
+      case ERROR: PyErr_SetString(PyExc_RuntimeError, "Invalid dtype in logical_and"); return NULL;
+    }
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+// bitwise nor kernel
+static PyObject *__bitwise_nor_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
   size_t length = tx->size;
   dtype_t dtype = tx->dtype;
   char *px = (char *)tx->buf;
@@ -1136,6 +1295,7 @@ static PyObject *__nor_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t
     char *y_ptr = py + i * elem_size;
     char *z_ptr = pz + i * elem_size;
     switch(dtype){
+      case BOOL: *(bool *)z_ptr = ~(*(bool *)x_ptr | *(bool *)y_ptr); break;
       case INT8: *(int8 *)z_ptr = ~(*(int8 *)x_ptr | *(int8 *)y_ptr); break;
       case UINT8: *(uint8 *)z_ptr = ~(*(uint8 *)x_ptr | *(uint8 *)y_ptr); break;
       case INT16: *(int16 *)z_ptr = ~(*(int16 *)x_ptr | *(int16 *)y_ptr); break;
@@ -1145,7 +1305,7 @@ static PyObject *__nor_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t
       case INT64: *(int64 *)z_ptr = ~(*(int64 *)x_ptr | *(int64 *)y_ptr); break;
       case UINT64: *(uint64 *)z_ptr = ~(*(uint64 *)x_ptr | *(uint64 *)y_ptr); break;
       case ERROR: {
-        PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
+        PyErr_SetString(PyExc_RuntimeError, "something went wrong");
         return NULL;
       }
     }
@@ -1153,8 +1313,59 @@ static PyObject *__nor_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
 }
 
-// not
-static PyObject *__not_tensor__(const tensor_t *tx, tensor_t *tz){
+// logical nor kernel
+static PyObject *__logical_nor_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
+  size_t length = tx->size;
+  dtype_t dtype = tx->dtype;
+  char *px = (char *)tx->buf;
+  char *py = (char *)ty->buf;
+  char *pz = (char *)tz->buf;
+  size_t elem_size = tx->element_size;
+  for(size_t i = 0; i < length; i++){
+    char *x_ptr = px + i * elem_size;
+    char *y_ptr = py + i * elem_size;
+    uint8 *z_ptr = (uint8 *)(pz + i);
+    switch(dtype){
+      case INT8: *z_ptr = !((*(int8 *)x_ptr != 0) | (*(int8 *)y_ptr != 0)); break;
+      case UINT8: *z_ptr = !((*(uint8 *)x_ptr != 0) | (*(uint8 *)y_ptr != 0)); break;
+      case INT16: *z_ptr = !((*(int16 *)x_ptr != 0) | (*(int16 *)y_ptr != 0)); break;
+      case UINT16: *z_ptr = !((*(uint16 *)x_ptr != 0) | (*(uint16 *)y_ptr != 0)); break;
+      case INT32: *z_ptr = !((*(int32 *)x_ptr != 0) | (*(int32 *)y_ptr != 0)); break;
+      case UINT32: *z_ptr = !((*(uint32 *)x_ptr != 0) | (*(uint32 *)y_ptr != 0)); break;
+      case INT64: *z_ptr = !((*(int64 *)x_ptr != 0) | (*(int64 *)y_ptr != 0)); break;
+      case UINT64: *z_ptr = !((*(uint64 *)x_ptr != 0) | (*(uint64 *)y_ptr != 0)); break;
+      case FP16: {
+        float32 x = fp16_to_float(*(float16 *)x_ptr);
+        float32 y = fp16_to_float(*(float16 *)y_ptr);
+        *z_ptr = !((x != 0.0f) | (y != 0.0f));
+        break;
+      }
+      case FP32: *z_ptr = !((*(float32 *)x_ptr != 0.0f) | (*(float32 *)y_ptr != 0.0f)); break;
+      case FP64: *z_ptr = !((*(float64 *)x_ptr != 0.0) | (*(float64 *)y_ptr != 0.0)); break;
+      case CMPX64: {
+        complex64 *x = (complex64 *)x_ptr;
+        complex64 *y = (complex64 *)y_ptr;
+        int x_true = (x->real != 0.0f) || (x->imag != 0.0f);
+        int y_true = (y->real != 0.0f) || (y->imag != 0.0f);
+        *z_ptr = !(x_true | y_true);
+        break;
+      }
+      case CMPX128: {
+        complex128 *x = (complex128 *)x_ptr;
+        complex128 *y = (complex128 *)y_ptr;
+        int x_true = (x->real != 0.0) || (x->imag != 0.0);
+        int y_true = (y->real != 0.0) || (y->imag != 0.0);
+        *z_ptr = !(x_true | y_true);
+        break;
+      }
+      case ERROR: PyErr_SetString(PyExc_RuntimeError, "Invalid dtype in logical_and"); return NULL;
+    }
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+// bitwise not kernel
+static PyObject *__bitwise_not_tensor__(const tensor_t *tx, tensor_t *tz){
   size_t length = tx->size;
   dtype_t dtype = tx->dtype;
   char *px = (char *)tx->buf;
@@ -1164,6 +1375,7 @@ static PyObject *__not_tensor__(const tensor_t *tx, tensor_t *tz){
     char *x_ptr = px + i * elem_size;
     char *z_ptr = pz + i * elem_size;
     switch(dtype){
+      case BOOL: *(bool *)z_ptr = ~(*(bool *)x_ptr); break;
       case INT8: *(int8 *)z_ptr = ~(*(int8 *)x_ptr); break;
       case UINT8: *(uint8 *)z_ptr = ~(*(uint8 *)x_ptr); break;
       case INT16: *(int16 *)z_ptr = ~(*(int16 *)x_ptr); break;
@@ -1173,7 +1385,7 @@ static PyObject *__not_tensor__(const tensor_t *tx, tensor_t *tz){
       case INT64: *(int64 *)z_ptr = ~(*(int64 *)x_ptr); break;
       case UINT64: *(uint64 *)z_ptr = ~(*(uint64 *)x_ptr); break;
       case ERROR: {
-        PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
+        PyErr_SetString(PyExc_RuntimeError, "something went wrong");
         return NULL;
       }
     }
@@ -1181,8 +1393,55 @@ static PyObject *__not_tensor__(const tensor_t *tx, tensor_t *tz){
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
 }
 
-// xor
-static PyObject *__xor_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
+// logical not kernel
+static PyObject *__logical_not_tensor__(const tensor_t *tx, tensor_t *tz){
+  size_t length = tx->size;
+  dtype_t dtype = tx->dtype;
+  char *px = (char *)tx->buf;
+  char *pz = (char *)tz->buf;
+  size_t elem_size = tx->element_size;
+  for(size_t i = 0; i < length; i++){
+    char *x_ptr = px + i * elem_size;
+    uint8 *z_ptr = (uint8 *)(pz + i);
+    uint8 xt = 0;
+    switch(dtype){
+      case BOOL: xt = (*(bool *)x_ptr != 0); break;
+      case INT8: xt = (*(int8 *)x_ptr != 0); break;
+      case UINT8: xt = (*(uint8 *)x_ptr != 0); break;
+      case INT16: xt = (*(int16 *)x_ptr != 0); break;
+      case UINT16: xt = (*(uint16 *)x_ptr != 0); break;
+      case INT32: xt = (*(int32 *)x_ptr != 0); break;
+      case UINT32: xt = (*(uint32 *)x_ptr != 0); break;
+      case INT64: xt = (*(int64 *)x_ptr != 0); break;
+      case UINT64: xt = (*(uint64 *)x_ptr != 0); break;
+      case FP16: {
+        float32 v = fp16_to_float(*(float16 *)x_ptr);
+        xt = (v != 0.0f);
+        break;
+      }
+      case FP32: xt = (*(float32 *)x_ptr != 0.0f); break;
+      case FP64: xt = (*(float64 *)x_ptr != 0.0); break;
+      case CMPX64: {
+        complex64 *x = (complex64 *)x_ptr;
+        xt = (x->real != 0.0f || x->imag != 0.0f);
+        break;
+      }
+      case CMPX128: {
+        complex128 *x = (complex128 *)x_ptr;
+        xt = (x->real != 0.0 || x->imag != 0.0);
+        break;
+      }
+      default:
+        PyErr_SetString(PyExc_RuntimeError, "Unsupported dtype in logical_not");
+        return NULL;
+    }
+    *z_ptr = !xt;
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+// bitwise xor kernel
+static PyObject *__bitwise_xor_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
   size_t length = tx->size;
   dtype_t dtype = tx->dtype;
   char *px = (char *)tx->buf;
@@ -1194,6 +1453,7 @@ static PyObject *__xor_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t
     char *y_ptr = py + i * elem_size;
     char *z_ptr = pz + i * elem_size;
     switch(dtype){
+      case BOOL: *(bool *)z_ptr = *(bool *)x_ptr ^ *(bool *)y_ptr; break;
       case INT8: *(int8 *)z_ptr = *(int8 *)x_ptr ^ *(int8 *)y_ptr; break;
       case UINT8: *(uint8 *)z_ptr = *(uint8 *)x_ptr ^ *(uint8 *)y_ptr; break;
       case INT16: *(int16 *)z_ptr = *(int16 *)x_ptr ^ *(int16 *)y_ptr; break;
@@ -1203,7 +1463,7 @@ static PyObject *__xor_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t
       case INT64: *(int64 *)z_ptr = *(int64 *)x_ptr ^ *(int64 *)y_ptr; break;
       case UINT64: *(uint64 *)z_ptr = *(uint64 *)x_ptr ^ *(uint64 *)y_ptr; break;
       case ERROR: {
-        PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
+        PyErr_SetString(PyExc_RuntimeError, "something went wrong");
         return NULL;
       }
     }
@@ -1211,8 +1471,69 @@ static PyObject *__xor_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
 }
 
-// xnor
-static PyObject *__xnor_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
+// logical xor kernel
+static PyObject *__logical_xor_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
+  size_t length = tx->size;
+  dtype_t dtype = tx->dtype;
+  char *px = (char *)tx->buf;
+  char *py = (char *)ty->buf;
+  char *pz = (char *)tz->buf;
+  size_t elem_size = tx->element_size;
+  for(size_t i = 0; i < length; i++){
+    char *x_ptr = px + i * elem_size;
+    char *y_ptr = py + i * elem_size;
+    uint8 *z_ptr = (uint8 *)(pz + i);
+    uint8 xt = 0, yt = 0;
+    switch(dtype){
+      case BOOL: xt = (*(bool *)x_ptr != 0); yt = (*(bool *)y_ptr != 0); break;
+      case INT8: xt = (*(int8 *)x_ptr != 0); yt = (*(int8 *)y_ptr != 0); break;
+      case UINT8: xt = (*(uint8 *)x_ptr != 0); yt = (*(uint8 *)y_ptr != 0); break;
+      case INT16: xt = (*(int16 *)x_ptr != 0); yt = (*(int16 *)y_ptr != 0); break;
+      case UINT16: xt = (*(uint16 *)x_ptr != 0); yt = (*(uint16 *)y_ptr != 0); break;
+      case INT32: xt = (*(int32 *)x_ptr != 0); yt = (*(int32 *)y_ptr != 0); break;
+      case UINT32: xt = (*(uint32 *)x_ptr != 0); yt = (*(uint32 *)y_ptr != 0); break;
+      case INT64: xt = (*(int64 *)x_ptr != 0); yt = (*(int64 *)y_ptr != 0); break;
+      case UINT64: xt = (*(uint64 *)x_ptr != 0); yt = (*(uint64 *)y_ptr != 0); break;
+      case FP16: {
+        float32 xv = fp16_to_float(*(float16 *)x_ptr);
+        float32 yv = fp16_to_float(*(float16 *)y_ptr);
+        xt = (xv != 0.0f);
+        yt = (yv != 0.0f);
+        break;
+      }
+      case FP32:
+        xt = (*(float32 *)x_ptr != 0.0f);
+        yt = (*(float32 *)y_ptr != 0.0f);
+        break;
+      case FP64:
+        xt = (*(float64 *)x_ptr != 0.0);
+        yt = (*(float64 *)y_ptr != 0.0);
+        break;
+      case CMPX64: {
+        complex64 *x = (complex64 *)x_ptr;
+        complex64 *y = (complex64 *)y_ptr;
+        xt = (x->real != 0.0f || x->imag != 0.0f);
+        yt = (y->real != 0.0f || y->imag != 0.0f);
+        break;
+      }
+      case CMPX128: {
+        complex128 *x = (complex128 *)x_ptr;
+        complex128 *y = (complex128 *)y_ptr;
+        xt = (x->real != 0.0 || x->imag != 0.0);
+        yt = (y->real != 0.0 || y->imag != 0.0);
+        break;
+      }
+      default:
+        PyErr_SetString(PyExc_RuntimeError, "Unsupported dtype in logical_xor");
+        return NULL;
+    }
+    *z_ptr = xt ^ yt;
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+// bitwise xnor kernel
+static PyObject *__bitwise_xnor_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
   size_t length = tx->size;
   dtype_t dtype = tx->dtype;
   char *px = (char *)tx->buf;
@@ -1224,6 +1545,7 @@ static PyObject *__xnor_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_
     char *y_ptr = py + i * elem_size;
     char *z_ptr = pz + i * elem_size;
     switch(dtype){
+      case BOOL: *(bool *)z_ptr = ~(*(bool *)x_ptr ^ *(bool *)y_ptr); break;
       case INT8: *(int8 *)z_ptr = ~(*(int8 *)x_ptr ^ *(int8 *)y_ptr); break;
       case UINT8: *(uint8 *)z_ptr = ~(*(uint8 *)x_ptr ^ *(uint8 *)y_ptr); break;
       case INT16: *(int16 *)z_ptr = ~(*(int16 *)x_ptr ^ *(int16 *)y_ptr); break;
@@ -1233,10 +1555,71 @@ static PyObject *__xnor_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_
       case INT64: *(int64 *)z_ptr = ~(*(int64 *)x_ptr ^ *(int64 *)y_ptr); break;
       case UINT64: *(uint64 *)z_ptr = ~(*(uint64 *)x_ptr ^ *(uint64 *)y_ptr); break;
       case ERROR: {
-        PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
+        PyErr_SetString(PyExc_RuntimeError, "something went wrong");
         return NULL;
       }
     }
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+//logical xnor kernel
+static PyObject *__logical_xnor_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
+  size_t length = tx->size;
+  dtype_t dtype = tx->dtype;
+  char *px = (char *)tx->buf;
+  char *py = (char *)ty->buf;
+  char *pz = (char *)tz->buf;
+  size_t elem_size = tx->element_size;
+  for(size_t i = 0; i < length; i++){
+    char *x_ptr = px + i * elem_size;
+    char *y_ptr = py + i * elem_size;
+    uint8 *z_ptr = (uint8 *)(pz + i);
+    uint8 xt = 0, yt = 0;
+    switch(dtype){
+      case BOOL: xt = (*(bool *)x_ptr != 0); yt = (*(bool *)y_ptr != 0); break;
+      case INT8: xt = (*(int8 *)x_ptr != 0); yt = (*(int8 *)y_ptr != 0); break;
+      case UINT8: xt = (*(uint8 *)x_ptr != 0); yt = (*(uint8 *)y_ptr != 0); break;
+      case INT16: xt = (*(int16 *)x_ptr != 0); yt = (*(int16 *)y_ptr != 0); break;
+      case UINT16: xt = (*(uint16 *)x_ptr != 0); yt = (*(uint16 *)y_ptr != 0); break;
+      case INT32: xt = (*(int32 *)x_ptr != 0); yt = (*(int32 *)y_ptr != 0); break;
+      case UINT32: xt = (*(uint32 *)x_ptr != 0); yt = (*(uint32 *)y_ptr != 0); break;
+      case INT64: xt = (*(int64 *)x_ptr != 0); yt = (*(int64 *)y_ptr != 0); break;
+      case UINT64: xt = (*(uint64 *)x_ptr != 0); yt = (*(uint64 *)y_ptr != 0); break;
+      case FP16: {
+        float32 xv = fp16_to_float(*(float16 *)x_ptr);
+        float32 yv = fp16_to_float(*(float16 *)y_ptr);
+        xt = (xv != 0.0f);
+        yt = (yv != 0.0f);
+        break;
+      }
+      case FP32:
+        xt = (*(float32 *)x_ptr != 0.0f);
+        yt = (*(float32 *)y_ptr != 0.0f);
+        break;
+      case FP64:
+        xt = (*(float64 *)x_ptr != 0.0);
+        yt = (*(float64 *)y_ptr != 0.0);
+        break;
+      case CMPX64: {
+        complex64 *x = (complex64 *)x_ptr;
+        complex64 *y = (complex64 *)y_ptr;
+        xt = (x->real != 0.0f || x->imag != 0.0f);
+        yt = (y->real != 0.0f || y->imag != 0.0f);
+        break;
+      }
+      case CMPX128: {
+        complex128 *x = (complex128 *)x_ptr;
+        complex128 *y = (complex128 *)y_ptr;
+        xt = (x->real != 0.0 || x->imag != 0.0);
+        yt = (y->real != 0.0 || y->imag != 0.0);
+        break;
+      }
+      default:
+        PyErr_SetString(PyExc_RuntimeError, "Unsupported dtype in logical_xnor");
+        return NULL;
+    }
+    *z_ptr = !(xt ^ yt);
   }
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
 }
@@ -1359,7 +1742,7 @@ static PyObject *__sum_all__(const tensor_t *tx, tensor_t *tz){
     }
     default: {
       free(tz);
-      PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
+      PyErr_SetString(PyExc_RuntimeError, "something went wrong");
       return NULL;
     }
   }
@@ -2430,7 +2813,8 @@ static PyObject *lshift(PyObject *self, PyObject *args){
   return __lshift_tensor__(tx, ty, tz);
 }
 
-static PyObject *and_(PyObject *self, PyObject *args){
+// bitwise and
+static PyObject *bitwise_and(PyObject *self, PyObject *args){
   PyObject *x, *y;
   if(!PyArg_ParseTuple(args, "OO", &x, &y)) return NULL;
   if(!PyCapsule_CheckExact(x) || !PyCapsule_CheckExact(y)){
@@ -2448,7 +2832,7 @@ static PyObject *and_(PyObject *self, PyObject *args){
     return NULL;
   }
   if(tx->dtype != ty->dtype){
-    PyErr_SetString(PyExc_TypeError, "dtype mismatch in eq");
+    PyErr_SetString(PyExc_TypeError, "tensor_t must have same dtype");
     return NULL;
   }
   if(tx->dtype == FP32 || tx->dtype == FP64){
@@ -2465,10 +2849,81 @@ static PyObject *and_(PyObject *self, PyObject *args){
   }
   tensor_t *tz = NULL;
   tz = alloc_result_tensor(tx);
-  return __and_tensor__(tx, ty, tz);
+  return __bitwise_and_tensor__(tx, ty, tz);
 }
 
-static PyObject *nand_(PyObject *self, PyObject *args){
+// logical and
+static PyObject *logical_and(PyObject *self, PyObject *args){
+  PyObject *x, *y;
+  if(!PyArg_ParseTuple(args, "OO", &x, &y)) return NULL;
+  if(!PyCapsule_CheckExact(x) || !PyCapsule_CheckExact(y)){
+    PyErr_SetString(PyExc_RuntimeError, "operands must be the tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = (tensor_t *)PyCapsule_GetPointer(x, "tensor_t on CPU");
+  tensor_t *ty = (tensor_t *)PyCapsule_GetPointer(y, "tensor_t on CPU");
+  if(!tx || !ty){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  if(tx->dtype != ty->dtype){
+    PyErr_SetString(PyExc_TypeError, "Both tensor_t(s) must have the same dtype");
+    return NULL;
+  }
+  if(tx->device.type != ty->device.type || tx->device.type != CPU){
+    PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device");
+    return NULL;
+  }
+  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  if(!tz){
+    PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
+    return NULL;
+  }
+  tz->dtype = (dtype_t)UINT8;
+  tz->element_size = getsize(tz->dtype);
+  tz->size = tx->size;
+  tz->ndim = tx->ndim;
+  tz->device = (device_t){CPU, 0};
+  if(tx->ndim > 0 && tx->shape){
+    tz->shape = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+    tz->stride = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+    if(!tz->shape || !tz->stride){
+      free(tz);
+      PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape or tensor_t.stride allocation failed!");
+      return NULL;
+    }
+    for(size_t i = 0; i < tz->ndim; i++){
+      tz->shape[i] = tx->shape[i];
+      tz->stride[i] = tx->stride[i];
+    }
+  }else{
+    tz->shape = NULL;
+    tz->stride = NULL;
+  }
+  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  if(!tz->storage){
+    if(tz->shape) free(tz->shape);
+    free(tz);
+    PyErr_SetString(PyExc_RuntimeError, "tensor_t.storage allocation failed!");
+    return NULL;
+  }
+  tz->storage->bytes = tz->size * tz->element_size;
+  tz->storage->device = tz->device;
+  tz->storage->refcount = 1;
+  tz->storage->ptr = malloc(tx->storage->bytes);
+  if(!tz->storage->ptr){
+    if(tz->shape) free(tz->shape);
+    free(tz->storage);
+    free(tz);
+    PyErr_Format(PyExc_RuntimeError, "tensor_t.storage_t.ptr allocation failed");
+    return NULL;
+  }
+  tz->buf = tz->storage->ptr;
+  return __logical_and_tensor__(tx, ty, tz);
+}
+
+// bitwise nand
+static PyObject *bitwise_nand(PyObject *self, PyObject *args){
   PyObject *x, *y;
   if(!PyArg_ParseTuple(args, "OO", &x, &y)) return NULL;
   if(!PyCapsule_CheckExact(x) || !PyCapsule_CheckExact(y)){
@@ -2486,7 +2941,7 @@ static PyObject *nand_(PyObject *self, PyObject *args){
     return NULL;
   }
   if(tx->dtype != ty->dtype){
-    PyErr_SetString(PyExc_TypeError, "dtype mismatch in eq");
+    PyErr_SetString(PyExc_TypeError, "tensor_t must have same dtype");
     return NULL;
   }
   if(tx->dtype == FP32 || tx->dtype == FP64){
@@ -2503,10 +2958,38 @@ static PyObject *nand_(PyObject *self, PyObject *args){
   }
   tensor_t *tz = NULL;
   tz = alloc_result_tensor(tx);
-  return __nand_tensor__(tx, ty, tz);
+  return __bitwise_nand_tensor__(tx, ty, tz);
 }
 
-static PyObject *or_(PyObject *self, PyObject *args){
+// logical nand
+static PyObject *logical_nand(PyObject *self, PyObject *args){
+  PyObject *x, *y;
+  if(!PyArg_ParseTuple(args, "OO", &x, &y)) return NULL;
+  if(!PyCapsule_CheckExact(x) || !PyCapsule_CheckExact(y)){
+    PyErr_SetString(PyExc_RuntimeError, "operands must be tensor capsules"); return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  tensor_t *ty = PyCapsule_GetPointer(y, "tensor_t on CPU");
+  if(!tx || !ty){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule"); return NULL;
+  }
+  if(tx->device.type != CPU || ty->device.type != CPU){
+    PyErr_SetString(PyExc_RuntimeError, "Only CPU tensors supported"); return NULL;
+  }
+  if(tx->dtype != ty->dtype){
+    PyErr_SetString(PyExc_TypeError, "tensor_t must have same dtype"); return NULL;
+  }
+  if(tx->size != ty->size){
+    PyErr_SetString(PyExc_RuntimeError, "Size mismatch"); return NULL;
+  }
+  tensor_t *tz = alloc_result_tensor(tx);
+  tz->dtype = BOOL;
+  tz->element_size = getsize(tz->dtype);
+  return __logical_nand_tensor__(tx, ty, tz);
+}
+
+// bitwise or
+static PyObject *bitwise_or(PyObject *self, PyObject *args){
   PyObject *x, *y;
   if(!PyArg_ParseTuple(args, "OO", &x, &y)) return NULL;
   if(!PyCapsule_CheckExact(x) || !PyCapsule_CheckExact(y)){
@@ -2524,7 +3007,7 @@ static PyObject *or_(PyObject *self, PyObject *args){
     return NULL;
   }
   if(tx->dtype != ty->dtype){
-    PyErr_SetString(PyExc_TypeError, "dtype mismatch in eq");
+    PyErr_SetString(PyExc_TypeError, "tensor_t must have same dtype");
     return NULL;
   }
   if(tx->dtype == FP32 || tx->dtype == FP64){
@@ -2541,10 +3024,11 @@ static PyObject *or_(PyObject *self, PyObject *args){
   }
   tensor_t *tz = NULL;
   tz = alloc_result_tensor(tx);
-  return __or_tensor__(tx, ty, tz);
+  return __bitwise_or_tensor__(tx, ty, tz);
 }
 
-static PyObject *nor_(PyObject *self, PyObject *args){
+// logical or
+static PyObject *logical_or(PyObject *self, PyObject *args){
   PyObject *x, *y;
   if(!PyArg_ParseTuple(args, "OO", &x, &y)) return NULL;
   if(!PyCapsule_CheckExact(x) || !PyCapsule_CheckExact(y)){
@@ -2562,7 +3046,39 @@ static PyObject *nor_(PyObject *self, PyObject *args){
     return NULL;
   }
   if(tx->dtype != ty->dtype){
-    PyErr_SetString(PyExc_TypeError, "dtype mismatch in eq");
+    PyErr_SetString(PyExc_TypeError, "tensor_t must have same dtype");
+    return NULL;
+  }
+  if(tx->size != ty->size){
+    PyErr_SetString(PyExc_RuntimeError, "Size mismatch");
+    return NULL;
+  }
+  tensor_t *tz = alloc_result_tensor(tx);
+  tz->dtype = BOOL;
+  tz->element_size = getsize(tz->dtype);
+  return __logical_or_tensor__(tx, ty, tz);
+}
+
+// bitwise nor
+static PyObject *bitwise_nor(PyObject *self, PyObject *args){
+  PyObject *x, *y;
+  if(!PyArg_ParseTuple(args, "OO", &x, &y)) return NULL;
+  if(!PyCapsule_CheckExact(x) || !PyCapsule_CheckExact(y)){
+    PyErr_SetString(PyExc_RuntimeError, "operands must be tensor capsules");
+    return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  tensor_t *ty = PyCapsule_GetPointer(y, "tensor_t on CPU");
+  if(!tx || !ty){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  if(tx->device.type != CPU || ty->device.type != CPU){
+    PyErr_SetString(PyExc_RuntimeError, "Only CPU tensors supported");
+    return NULL;
+  }
+  if(tx->dtype != ty->dtype){
+    PyErr_SetString(PyExc_TypeError, "tensor_t musr have same dtype");
     return NULL;
   }
   if(tx->dtype == FP32 || tx->dtype == FP64){
@@ -2579,10 +3095,43 @@ static PyObject *nor_(PyObject *self, PyObject *args){
   }
   tensor_t *tz = NULL;
   tz = alloc_result_tensor(tx);
-  return __nor_tensor__(tx, ty, tz);
+  return __bitwise_nor_tensor__(tx, ty, tz);
 }
 
-static PyObject *not_(PyObject *self, PyObject *args){
+// logical nor
+static PyObject *logical_nor(PyObject *self, PyObject *args){
+  PyObject *x, *y;
+  if(!PyArg_ParseTuple(args, "OO", &x, &y)) return NULL;
+  if(!PyCapsule_CheckExact(x) || !PyCapsule_CheckExact(y)){
+    PyErr_SetString(PyExc_RuntimeError, "operands must be tensor capsules");
+    return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  tensor_t *ty = PyCapsule_GetPointer(y, "tensor_t on CPU");
+  if(!tx || !ty){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  if(tx->device.type != CPU || ty->device.type != CPU){
+    PyErr_SetString(PyExc_RuntimeError, "Only CPU tensors supported");
+    return NULL;
+  }
+  if(tx->dtype != ty->dtype){
+    PyErr_SetString(PyExc_TypeError, "tensor_t must have same dtype");
+    return NULL;
+  }
+  if(tx->size != ty->size){
+    PyErr_SetString(PyExc_RuntimeError, "Size mismatch");
+    return NULL;
+  }
+  tensor_t *tz = alloc_result_tensor(tx);
+  tz->dtype = BOOL;
+  tz->element_size = getsize(tz->dtype);
+  return __logical_nor_tensor__(tx, ty, tz);
+}
+
+// bitwise not
+static PyObject *bitwise_not(PyObject *self, PyObject *args){
   PyObject *x;
   if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
   if(!PyCapsule_CheckExact(x)){
@@ -2608,10 +3157,34 @@ static PyObject *not_(PyObject *self, PyObject *args){
   }
   tensor_t *tz = NULL;
   tz = alloc_result_tensor(tx);
-  return __not_tensor__(tx, tz);
+  return __bitwise_not_tensor__(tx, tz);
 }
 
-static PyObject *xor_(PyObject *self, PyObject *args){
+// logical not
+static PyObject *logical_not(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "operand must be tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  if(tx->device.type != CPU){
+    PyErr_SetString(PyExc_RuntimeError, "Only CPU tensors supported");
+    return NULL;
+  }
+  tensor_t *tz = alloc_result_tensor(tx);
+  tz->dtype = BOOL;
+  tz->element_size = getsize(tz->dtype);
+  return __logical_not_tensor__(tx, tz);
+}
+
+// bitwise xor
+static PyObject *bitwise_xor(PyObject *self, PyObject *args){
   PyObject *x, *y;
   if(!PyArg_ParseTuple(args, "OO", &x, &y)) return NULL;
   if(!PyCapsule_CheckExact(x) || !PyCapsule_CheckExact(y)){
@@ -2646,10 +3219,43 @@ static PyObject *xor_(PyObject *self, PyObject *args){
   }
   tensor_t *tz = NULL;
   tz = alloc_result_tensor(tx);
-  return __xor_tensor__(tx, ty, tz);
+  return __bitwise_xor_tensor__(tx, ty, tz);
 }
 
-static PyObject *xnor_(PyObject *self, PyObject *args){
+// logical xor
+static PyObject *logical_xor(PyObject *self, PyObject *args){
+  PyObject *x, *y;
+  if(!PyArg_ParseTuple(args, "OO", &x, &y)) return NULL;
+  if(!PyCapsule_CheckExact(x) || !PyCapsule_CheckExact(y)){
+    PyErr_SetString(PyExc_RuntimeError, "operands must be tensor capsules");
+    return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  tensor_t *ty = PyCapsule_GetPointer(y, "tensor_t on CPU");
+  if(!tx || !ty){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  if(tx->device.type != CPU || ty->device.type != CPU){
+    PyErr_SetString(PyExc_RuntimeError, "Only CPU tensors supported");
+    return NULL;
+  }
+  if(tx->dtype != ty->dtype){
+    PyErr_SetString(PyExc_TypeError, "tensor_t must have same dtype");
+    return NULL;
+  }
+  if(tx->size != ty->size){
+    PyErr_SetString(PyExc_RuntimeError, "Size mismatch");
+    return NULL;
+  }
+  tensor_t *tz = alloc_result_tensor(tx);
+  tz->dtype = BOOL;
+  tz->element_size = getsize(tz->dtype);
+  return __logical_xor_tensor__(tx, ty, tz);
+}
+
+// bitwise xnor
+static PyObject *bitwise_xnor(PyObject *self, PyObject *args){
   PyObject *x, *y;
   if(!PyArg_ParseTuple(args, "OO", &x, &y)) return NULL;
   if(!PyCapsule_CheckExact(x) || !PyCapsule_CheckExact(y)){
@@ -2684,93 +3290,39 @@ static PyObject *xnor_(PyObject *self, PyObject *args){
   }
   tensor_t *tz = NULL;
   tz = alloc_result_tensor(tx);
-  return __xnor_tensor__(tx, ty, tz);
+  return __bitwise_xnor_tensor__(tx, ty, tz);
 }
 
-static PyObject *permute(PyObject *self, PyObject *args){
-  PyObject *x;
-  PyObject *axes_tuple;
-  if(!PyArg_ParseTuple(args, "OO", &x, &axes_tuple)) return NULL;
-  if(!PyCapsule_CheckExact(x)){
-    PyErr_SetString(PyExc_TypeError, "expected tensor capsule");
+// logical xnor
+static PyObject *logical_xnor(PyObject *self, PyObject *args){
+  PyObject *x, *y;
+  if(!PyArg_ParseTuple(args, "OO", &x, &y)) return NULL;
+  if(!PyCapsule_CheckExact(x) || !PyCapsule_CheckExact(y)){
+    PyErr_SetString(PyExc_RuntimeError, "operands must be tensor capsules");
     return NULL;
   }
-  tensor_t *t = PyCapsule_GetPointer(x, "tensor_t on CPU");
-  if(!t){
-    PyErr_SetString(PyExc_RuntimeError, "invalid tensor capsule");
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  tensor_t *ty = PyCapsule_GetPointer(y, "tensor_t on CPU");
+  if(!tx || !ty){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
     return NULL;
   }
-  if(!PyTuple_Check(axes_tuple)){
-    PyErr_SetString(PyExc_TypeError, "permute expects tuple");
+  if(tx->device.type != CPU || ty->device.type != CPU){
+    PyErr_SetString(PyExc_RuntimeError, "Only CPU tensors supported");
     return NULL;
   }
-  int ndim = t->ndim;
-  if(PyTuple_Size(axes_tuple) != ndim){
-    PyErr_SetString(PyExc_ValueError, "axes must match ndim");
+  if(tx->dtype != ty->dtype){
+    PyErr_SetString(PyExc_TypeError, "tensor_t must have same dtype");
     return NULL;
   }
-  int *axes = malloc(sizeof(int) * ndim);
-  bool *used = calloc(ndim, sizeof(bool));
-  for(int i = 0; i < ndim; i++){
-    int ax = (int)PyLong_AsLong(PyTuple_GetItem(axes_tuple, i));
-    if(ax < 0) ax += ndim;
-    if(ax < 0 || ax >= ndim){
-      free(axes);
-      free(used);
-      PyErr_SetString(PyExc_IndexError, "axis out of range");
-      return NULL;
-    }
-    if(used[ax]){
-      free(axes);
-      free(used);
-      PyErr_SetString(PyExc_ValueError, "duplicate axis");
-      return NULL;
-    }
-    used[ax] = 1;
-    axes[i] = ax;
+  if(tx->size != ty->size){
+    PyErr_SetString(PyExc_RuntimeError, "Size mismatch");
+    return NULL;
   }
-  free(used);
-  tensor_t *out = malloc(sizeof(tensor_t));
-  out->dtype = t->dtype;
-  out->ndim  = ndim;
-  out->element_size = t->element_size;
-  out->size  = t->size;
-  out->shape  = malloc(sizeof(size_t) * ndim);
-  out->stride = malloc(sizeof(size_t) * ndim);
-  for(int i = 0; i < ndim; i++){
-    out->shape[i] = t->shape[axes[i]];
-  }
-  out->stride[ndim - 1] = 1;
-  for(int i = ndim - 2; i >= 0; i--){
-    out->stride[i] = out->stride[i + 1] * out->shape[i + 1];
-  }
-  size_t itemsize = getsize(out->dtype);
-  out->storage = malloc(sizeof(storage_t));
-  out->storage->refcount = 1;
-  out->storage->bytes = out->size * itemsize;
-  out->storage->ptr = malloc(out->storage->bytes);
-  out->buf = out->storage->ptr;
-  size_t *out_index = malloc(sizeof(size_t) * ndim);
-  for(size_t linear = 0; linear < out->size; linear++){
-    size_t tmp = linear;
-    for(int d = ndim - 1; d >= 0; d--){
-      out_index[d] = tmp % out->shape[d];
-      tmp /= out->shape[d];
-    }
-    size_t in_offset = 0;
-    for(int d = 0; d < ndim; d++){
-      int orig_axis = axes[d];
-      in_offset += out_index[d] * t->stride[orig_axis];
-    }
-    memcpy(
-      (char*)out->buf + linear * itemsize,
-      (char*)t->buf   + in_offset * itemsize,
-      itemsize
-    );
-  }
-  free(out_index);
-  free(axes);
-  return PyCapsule_New(out, "tensor_t on CPU", capsule_destroyer);
+  tensor_t *tz = alloc_result_tensor(tx);
+  tz->dtype = BOOL;
+  tz->element_size = getsize(tz->dtype);
+  return __logical_xnor_tensor__(tx, ty, tz);
 }
 
 SUM_AXIS_KERNEL(int8, int8, int32);
@@ -2902,7 +3454,7 @@ static PyObject *sum(PyObject *self, PyObject *args, PyObject *kwargs){
       case CMPX128: return __sum_axis_cmpx128__(tx, tz, axis);
       case ERROR: {
         destroy(tz);
-        PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
+        PyErr_SetString(PyExc_RuntimeError, "something went wrong");
         return NULL;
       }
       default: {
@@ -2965,7 +3517,7 @@ static PyObject *sum(PyObject *self, PyObject *args, PyObject *kwargs){
     case CMPX128: return __sum_axis_cmpx128__(tx, tz, axis);
     case ERROR: {
       destroy(tz);
-      PyErr_SetString(PyExc_RuntimeError, "something is wrong i can feel it");
+      PyErr_SetString(PyExc_RuntimeError, "something went wrong");
       return NULL;
     }
     default: {
@@ -4788,14 +5340,20 @@ static PyMethodDef methods[] = {
   {"abs", abs_, METH_VARARGS, "element-wise 'abs' operation on tensor"},
   {"rshift", rshift, METH_VARARGS, "element-wise 'rshift' operation on tensor"},
   {"lshift", lshift, METH_VARARGS, "element-wise 'lshift' operation on tensor"},
-  {"and_", and_, METH_VARARGS, "element-wise 'and' operation on tensor"},
-  {"nand_", nand_, METH_VARARGS, "element-wise 'nand' operation on tensor"},
-  {"or_", or_, METH_VARARGS, "element-wise 'or' operation on tensor"},
-  {"nor_", nor_, METH_VARARGS, "element-wise 'nor' operation on tensor"},
-  {"not_", not_, METH_VARARGS, "element-wise 'not' operation on tensor"},
-  {"xor_", xor_, METH_VARARGS, "element-wise 'xor' operation on tensor"},
-  {"xnor_", xnor_, METH_VARARGS, "element-wise 'xnor' operation on tensor"},
-  {"permute", permute, METH_VARARGS, "tensor permute"},
+  {"bitwise_and", bitwise_and, METH_VARARGS, "element-wise bitwise 'and' operation on tensor"},
+  {"bitwise_nand", bitwise_nand, METH_VARARGS, "element-wise bitwise 'nand' operation on tensor"},
+  {"bitwise_or", bitwise_or, METH_VARARGS, "element-wise bitwise 'or' operation on tensor"},
+  {"bitwise_nor", bitwise_nor, METH_VARARGS, "element-wise bitwise 'nor' operation on tensor"},
+  {"bitwise_not", bitwise_not, METH_VARARGS, "element-wise bitwise 'not' operation on tensor"},
+  {"bitwise_xor", bitwise_xor, METH_VARARGS, "element-wise bitwise 'xor' operation on tensor"},
+  {"bitwise_xnor", bitwise_xnor, METH_VARARGS, "element-wise bitwise 'xnor' operation on tensor"},
+  {"logical_and", logical_and, METH_VARARGS, "element-wise logical 'and' operation on tensor"},
+  {"logical_nand", logical_nand, METH_VARARGS, "element-wise logical 'nand' operation on tensor"},
+  {"logical_or", logical_or, METH_VARARGS, "element-wise logical 'or' operation on tensor"},
+  {"logical_nor", logical_nor, METH_VARARGS, "element-wise logical 'nor' operation on tensor"},
+  {"logical_not", logical_not, METH_VARARGS, "element-wise logical 'not' operation on tensor"},
+  {"logical_xor", logical_xor, METH_VARARGS, "element-wise logical 'xor' operation on tensor"},
+  {"logical_xnor", logical_xnor, METH_VARARGS, "element-wise logical 'xnor' operation on tensor"},
   {"sum", (PyCFunction)sum, METH_VARARGS | METH_KEYWORDS, "returns the sum of the tensor"},
   {"bmm", bmm, METH_VARARGS, "compute batch matrix multiplication on tensor"},
   {"real", real, METH_VARARGS, "get real values from complex tensor"},
