@@ -1,6 +1,6 @@
 __pycache__
-./test.py
 .venv
+"/test.py
 test.py
 *.ipynb_checkpoints
 *.py[cod]
@@ -8,3 +8,4 @@ test.py
 *.bak
 *.egg-info
 *dist/
+*build/
