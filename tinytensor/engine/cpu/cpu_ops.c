@@ -4135,10 +4135,6 @@ static PyObject *exp_(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
     return NULL;
   }
-  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    PyErr_SetString(PyExc_NotImplementedError, "exp_() not implemented for complex64 and complex128 yet");
-    return NULL;
-  }
   dtype_t out_dtype;
   switch(tx->dtype){
     case INT8: case UINT8:
@@ -4148,6 +4144,8 @@ static PyObject *exp_(PyObject *self, PyObject *args){
     case FP16: out_dtype = FP32; break;
     case FP32: out_dtype = FP32; break;
     case FP64: out_dtype = FP64; break;
+    case CMPX64: out_dtype = CMPX64; break;
+    case CMPX128: out_dtype = CMPX128; break;
     default: PyErr_SetString(PyExc_TypeError, "exp_() unsupported dtype"); return NULL;
   }
   tensor_t *tz = tensor_empty_like(tx, out_dtype);
@@ -4169,12 +4167,15 @@ static PyObject *exp_(PyObject *self, PyObject *args){
         case UINT32: v = (float)((uint32*)tx->buf)[i]; break;
         case FP16: v = fp16_to_float(((float16 *)tx->buf)[i]); break;
         case FP32: v = ((float32*)tx->buf)[i]; break;
-        default: v = 0.0f; break;
+        default:
+          PyErr_SetString(PyExc_TypeError, "exp_(): internal unsupported dtype");
+          destroy(tz);
+          return NULL;
       }
       out[i] = expf(v);
     }
   }
-  else{
+  else if(out_dtype == FP64){
     float64 *out = (float64*)tz->buf;
     for(size_t i = 0; i < N; i++){
       float64 v;
@@ -4182,9 +4183,36 @@ static PyObject *exp_(PyObject *self, PyObject *args){
         case INT64: v = (float64)((int64*)tx->buf)[i]; break;
         case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
         case FP64: v = ((float64*)tx->buf)[i]; break;
-        default: v = 0.0; break;
+        default:
+          PyErr_SetString(PyExc_TypeError, "exp_(): internal unsupported dtype");
+          destroy(tz);
+          return NULL;
       }
       out[i] = exp(v);
+    }
+  }else if(out_dtype == CMPX64){
+    complex64 *in = (complex64 *)tx->buf;
+    complex64 *out = (complex64 *)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float32 a = in[i].real;
+      float32 b = in[i].imag;
+      float32 expa = expf(a);
+      float32 cosb = cosf(b);
+      float32 sinb = sinf(b);
+      out[i].real = expa * cosb;
+      out[i].imag = expa * sinb;
+    }
+  }else if(out_dtype == CMPX128){
+    complex128 *in = (complex128 *)tx->buf;
+    complex128 *out = (complex128 *)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float64 a = in[i].real;
+      float64 b = in[i].imag;
+      float64 expa = exp(a);
+      float64 cosb = cos(b);
+      float64 sinb = sin(b);
+      out[i].real = expa * cosb;
+      out[i].imag = expa * sinb;
     }
   }
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
@@ -4202,10 +4230,6 @@ static PyObject *log_(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
     return NULL;
   }
-  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    PyErr_SetString(PyExc_NotImplementedError, "log_() not implemented for complex64 and complex128 yet");
-    return NULL;
-  }
   dtype_t out_dtype;
   switch(tx->dtype){
     case INT8: case UINT8:
@@ -4215,6 +4239,8 @@ static PyObject *log_(PyObject *self, PyObject *args){
     case FP16: out_dtype = FP32; break;
     case FP32: out_dtype = FP32; break;
     case FP64: out_dtype = FP64; break;
+    case CMPX64: out_dtype = CMPX64; break;
+    case CMPX128: out_dtype = CMPX128; break;
     default: PyErr_SetString(PyExc_TypeError, "log_() unsupported dtype"); return NULL;
   }
   tensor_t *tz = tensor_empty_like(tx, out_dtype);
@@ -4228,20 +4254,22 @@ static PyObject *log_(PyObject *self, PyObject *args){
     for(size_t i = 0; i < N; i++){
       float32 v;
       switch(tx->dtype){
-        case INT8: v = (float)((int8*)tx->buf)[i]; break;
-        case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
-        case INT16: v = (float)((int16*)tx->buf)[i]; break;
-        case UINT16: v = (float)((uint16*)tx->buf)[i]; break;
-        case INT32: v = (float)((int32*)tx->buf)[i]; break;
-        case UINT32: v = (float)((uint32*)tx->buf)[i]; break;
+        case INT8: v = (float32)((int8*)tx->buf)[i]; break;
+        case UINT8: v = (float32)((uint8*)tx->buf)[i]; break;
+        case INT16: v = (float32)((int16*)tx->buf)[i]; break;
+        case UINT16: v = (float32)((uint16*)tx->buf)[i]; break;
+        case INT32: v = (float32)((int32*)tx->buf)[i]; break;
+        case UINT32: v = (float32)((uint32*)tx->buf)[i]; break;
         case FP16: v = fp16_to_float(((float16 *)tx->buf)[i]); break;
         case FP32: v = ((float32*)tx->buf)[i]; break;
-        default: v = 0.0f; break;
+        default:
+          PyErr_SetString(PyExc_TypeError, "log_(): internal unsupported dtype");
+          destroy(tz);
+          return NULL;
       }
       out[i] = logf(v);
     }
-  }
-  else{
+  }else if(out_dtype == FP64){
     float64 *out = (float64*)tz->buf;
     for(size_t i = 0; i < N; i++){
       float64 v;
@@ -4249,9 +4277,34 @@ static PyObject *log_(PyObject *self, PyObject *args){
         case INT64: v = (float64)((int64*)tx->buf)[i]; break;
         case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
         case FP64: v = ((float64*)tx->buf)[i]; break;
-        default: v = 0.0; break;
+        default:
+          PyErr_SetString(PyExc_TypeError, "log_(): internal unsupported dtype");
+          destroy(tz);
+          return NULL;
       }
       out[i] = log(v);
+    }
+  }else if(out_dtype == CMPX64){
+    complex64 *in = (complex64 *)tx->buf;
+    complex64 *out = (complex64 *)tz->buf;
+    for(size_t i = 0; i < N; i++){
+        float32 a = in[i].real;
+        float32 b = in[i].imag;
+        float32 mag = sqrtf(a*a + b*b);
+        float32 angle = atan2f(b, a);
+        out[i].real = logf(mag);
+        out[i].imag = angle;
+    }
+  }else if(out_dtype == CMPX128){
+    complex128 *in  = (complex128*)tx->buf;
+    complex128 *out = (complex128*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+        float64 a = in[i].real;
+        float64 b = in[i].imag;
+        float64 modulus = sqrt(a*a + b*b);
+        float64 angle = atan2(b, a);
+        out[i].real = log(modulus);
+        out[i].imag = angle;
     }
   }
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
@@ -4269,10 +4322,6 @@ static PyObject *log2_(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
     return NULL;
   }
-  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    PyErr_SetString(PyExc_NotImplementedError, "log2_() not implemented for complex64 and complex128 yet");
-    return NULL;
-  }
   dtype_t out_dtype;
   switch(tx->dtype){
     case INT8: case UINT8:
@@ -4282,6 +4331,8 @@ static PyObject *log2_(PyObject *self, PyObject *args){
     case FP16: out_dtype = FP32; break;
     case FP32: out_dtype = FP32; break;
     case FP64: out_dtype = FP64; break;
+    case CMPX64: out_dtype = CMPX64; break;
+    case CMPX128: out_dtype = CMPX128; break;
     default: PyErr_SetString(PyExc_TypeError, "log2_() unsupported dtype"); return NULL;
   }
   tensor_t *tz = tensor_empty_like(tx, out_dtype);
@@ -4295,20 +4346,22 @@ static PyObject *log2_(PyObject *self, PyObject *args){
     for(size_t i = 0; i < N; i++){
       float32 v;
       switch(tx->dtype){
-        case INT8: v = (float)((int8*)tx->buf)[i]; break;
-        case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
-        case INT16: v = (float)((int16*)tx->buf)[i]; break;
-        case UINT16: v = (float)((uint16*)tx->buf)[i]; break;
-        case INT32: v = (float)((int32*)tx->buf)[i]; break;
-        case UINT32: v = (float)((uint32*)tx->buf)[i]; break;
+        case INT8: v = (float32)((int8*)tx->buf)[i]; break;
+        case UINT8: v = (float32)((uint8*)tx->buf)[i]; break;
+        case INT16: v = (float32)((int16*)tx->buf)[i]; break;
+        case UINT16: v = (float32)((uint16*)tx->buf)[i]; break;
+        case INT32: v = (float32)((int32*)tx->buf)[i]; break;
+        case UINT32: v = (float32)((uint32*)tx->buf)[i]; break;
         case FP16: v = fp16_to_float(((float16 *)tx->buf)[i]); break;
         case FP32: v = ((float32*)tx->buf)[i]; break;
-        default: v = 0.0f; break;
+        default:
+          PyErr_SetString(PyExc_TypeError, "log2_(): internal unsupported dtype");
+          destroy(tz);
+          return NULL;
       }
       out[i] = log2f(v);
     }
-  }
-  else{
+  }else if(out_dtype == FP64){
     float64 *out = (float64*)tz->buf;
     for(size_t i = 0; i < N; i++){
       float64 v;
@@ -4316,9 +4369,36 @@ static PyObject *log2_(PyObject *self, PyObject *args){
         case INT64: v = (float64)((int64*)tx->buf)[i]; break;
         case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
         case FP64: v = ((float64*)tx->buf)[i]; break;
-        default: v = 0.0; break;
+        default:
+          PyErr_SetString(PyExc_TypeError, "log2_(): internal unsupported dtype");
+          destroy(tz);
+          return NULL;
       }
       out[i] = log2(v);
+    }
+  }else if(out_dtype == CMPX64){
+    float32 inv_ln2 = 1.0f / logf(2.0f);
+    complex64 *in  = (complex64*)tx->buf;
+    complex64 *out = (complex64*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float32 a = in[i].real;
+      float32 b = in[i].imag;
+      float32 modulus = sqrtf(a*a + b*b);
+      float32 angle = atan2f(b, a);
+      out[i].real = logf(modulus) * inv_ln2;
+      out[i].imag = angle * inv_ln2;
+    }
+  }else if(out_dtype == CMPX128){
+    float64 inv_ln2 = 1.0 / log(2.0);
+    complex128 *in  = (complex128*)tx->buf;
+    complex128 *out = (complex128*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float64 a = in[i].real;
+      float64 b = in[i].imag;
+      float64 modulus = sqrt(a*a + b*b);
+      float64 angle   = atan2(b, a);
+      out[i].real = log(modulus) * inv_ln2;
+      out[i].imag = angle * inv_ln2;
     }
   }
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
@@ -4336,10 +4416,6 @@ static PyObject *log10_(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
     return NULL;
   }
-  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    PyErr_SetString(PyExc_NotImplementedError, "log10_() not implemented for complex64 and complex128 yet");
-    return NULL;
-  }
   dtype_t out_dtype;
   switch(tx->dtype){
     case INT8: case UINT8:
@@ -4349,6 +4425,8 @@ static PyObject *log10_(PyObject *self, PyObject *args){
     case FP16: out_dtype = FP32; break;
     case FP32: out_dtype = FP32; break;
     case FP64: out_dtype = FP64; break;
+    case CMPX64: out_dtype = CMPX64; break;
+    case CMPX128: out_dtype = CMPX128; break;
     default: PyErr_SetString(PyExc_TypeError, "log10_() unsupported dtype"); return NULL;
   }
   tensor_t *tz = tensor_empty_like(tx, out_dtype);
@@ -4370,12 +4448,14 @@ static PyObject *log10_(PyObject *self, PyObject *args){
         case UINT32: v = (float)((uint32*)tx->buf)[i]; break;
         case FP16: v = fp16_to_float(((float16 *)tx->buf)[i]); break;
         case FP32: v = ((float32*)tx->buf)[i]; break;
-        default: v = 0.0f; break;
+        default:
+          PyErr_SetString(PyExc_TypeError, "log10_(): internal unsupported dtype");
+          destroy(tz);
+          return NULL;
       }
       out[i] = log10f(v);
     }
-  }
-  else{
+  }else if(out_dtype == FP64){
     float64 *out = (float64*)tz->buf;
     for(size_t i = 0; i < N; i++){
       float64 v;
@@ -4383,9 +4463,36 @@ static PyObject *log10_(PyObject *self, PyObject *args){
         case INT64: v = (float64)((int64*)tx->buf)[i]; break;
         case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
         case FP64: v = ((float64*)tx->buf)[i]; break;
-        default: v = 0.0; break;
+        default:
+          PyErr_SetString(PyExc_TypeError, "log10_(): internal unsupported dtype");
+          destroy(tz);
+          return NULL;
       }
       out[i] = log10(v);
+    }
+  }else if(out_dtype == CMPX64){
+    float32 inv_ln10 = 1.0f / logf(10.0f);
+    complex64 *in  = (complex64*)tx->buf;
+    complex64 *out = (complex64*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float32 a = in[i].real;
+      float32 b = in[i].imag;
+      float32 modulus = sqrtf(a*a + b*b);
+      float32 angle   = atan2f(b, a);
+      out[i].real = logf(modulus) * inv_ln10;
+      out[i].imag = angle * inv_ln10;
+    }
+  }else if(out_dtype == CMPX128){
+    float64 inv_ln10 = 1.0 / log(10.0);
+    complex128 *in  = (complex128*)tx->buf;
+    complex128 *out = (complex128*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float64 a = in[i].real;
+      float64 b = in[i].imag;
+      float64 modulus = sqrt(a*a + b*b);
+      float64 angle   = atan2(b, a);
+      out[i].real = log(modulus) * inv_ln10;
+      out[i].imag = angle * inv_ln10;
     }
   }
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
@@ -4403,10 +4510,6 @@ static PyObject *sin_(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
     return NULL;
   }
-  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    PyErr_SetString(PyExc_NotImplementedError, "sin_() not implemented for complex64 and complex128 yet");
-    return NULL;
-  }
   dtype_t out_dtype;
   switch(tx->dtype){
     case INT8: case UINT8:
@@ -4416,6 +4519,8 @@ static PyObject *sin_(PyObject *self, PyObject *args){
     case FP16: out_dtype = FP32; break;
     case FP32: out_dtype = FP32; break;
     case FP64: out_dtype = FP64; break;
+    case CMPX64: out_dtype = CMPX64; break;
+    case CMPX128: out_dtype = CMPX128; break;
     default: PyErr_SetString(PyExc_TypeError, "sin_() unsupported dtype"); return NULL;
   }
   tensor_t *tz = tensor_empty_like(tx, out_dtype);
@@ -4429,20 +4534,22 @@ static PyObject *sin_(PyObject *self, PyObject *args){
     for(size_t i = 0; i < N; i++){
       float32 v;
       switch(tx->dtype){
-        case INT8: v = (float)((int8*)tx->buf)[i]; break;
-        case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
-        case INT16: v = (float)((int16*)tx->buf)[i]; break;
-        case UINT16: v = (float)((uint16*)tx->buf)[i]; break;
-        case INT32: v = (float)((int32*)tx->buf)[i]; break;
-        case UINT32: v = (float)((uint32*)tx->buf)[i]; break;
+        case INT8: v = (float32)((int8*)tx->buf)[i]; break;
+        case UINT8: v = (float32)((uint8*)tx->buf)[i]; break;
+        case INT16: v = (float32)((int16*)tx->buf)[i]; break;
+        case UINT16: v = (float32)((uint16*)tx->buf)[i]; break;
+        case INT32: v = (float32)((int32*)tx->buf)[i]; break;
+        case UINT32: v = (float32)((uint32*)tx->buf)[i]; break;
         case FP16: v = fp16_to_float(((float16 *)tx->buf)[i]); break;
         case FP32: v = ((float32*)tx->buf)[i]; break;
-        default: v = 0.0f; break;
+        default:
+          PyErr_SetString(PyExc_TypeError, "sin_(): internal unsupported dtype");
+          destroy(tz);
+          return NULL;
       }
       out[i] = sinf(v);
     }
-  }
-  else{
+  }else if(out_dtype == FP64){
     float64 *out = (float64*)tz->buf;
     for(size_t i = 0; i < N; i++){
       float64 v;
@@ -4450,9 +4557,30 @@ static PyObject *sin_(PyObject *self, PyObject *args){
         case INT64: v = (float64)((int64*)tx->buf)[i]; break;
         case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
         case FP64: v = ((float64*)tx->buf)[i]; break;
-        default: v = 0.0; break;
+        default:
+          PyErr_SetString(PyExc_TypeError, "sin_(): internal unsupported dtype");
+          destroy(tz);
+          return NULL;
       }
       out[i] = sin(v);
+    }
+  }else if(out_dtype == CMPX64){
+    complex64 *in  = (complex64*)tx->buf;
+    complex64 *out = (complex64*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float32 a = in[i].real;
+      float32 b = in[i].imag;
+      out[i].real = sinf(a) * coshf(b);
+      out[i].imag = cosf(a) * sinhf(b);
+    }
+  }else if(out_dtype == CMPX128){
+    complex128 *in  = (complex128*)tx->buf;
+    complex128 *out = (complex128*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float64 a = in[i].real;
+      float64 b = in[i].imag;
+      out[i].real = sin(a) * cosh(b);
+      out[i].imag = cos(a) * sinh(b);
     }
   }
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
@@ -4470,10 +4598,6 @@ static PyObject *cos_(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
     return NULL;
   }
-  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    PyErr_SetString(PyExc_NotImplementedError, "cos_() not implemented for complex64 and complex128 yet");
-    return NULL;
-  }
   dtype_t out_dtype;
   switch(tx->dtype){
     case INT8: case UINT8:
@@ -4483,6 +4607,8 @@ static PyObject *cos_(PyObject *self, PyObject *args){
     case FP16: out_dtype = FP32; break;
     case FP32: out_dtype = FP32; break;
     case FP64: out_dtype = FP64; break;
+    case CMPX64: out_dtype = CMPX64; break;
+    case CMPX128: out_dtype = CMPX128; break;
     default: PyErr_SetString(PyExc_TypeError, "cos_() unsupported dtype"); return NULL;
   }
   tensor_t *tz = tensor_empty_like(tx, out_dtype);
@@ -4504,7 +4630,10 @@ static PyObject *cos_(PyObject *self, PyObject *args){
         case UINT32: v = (float)((uint32*)tx->buf)[i]; break;
         case FP16: v = fp16_to_float(((float16 *)tx->buf)[i]); break;
         case FP32: v = ((float32*)tx->buf)[i]; break;
-        default: v = 0.0f; break;
+        default:
+          PyErr_SetString(PyExc_TypeError, "cos_(): internal unsupported dtype");
+          destroy(tz);
+          return NULL;
       }
       out[i] = cosf(v);
     }
@@ -4517,7 +4646,10 @@ static PyObject *cos_(PyObject *self, PyObject *args){
         case INT64: v = (float64)((int64*)tx->buf)[i]; break;
         case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
         case FP64: v = ((float64*)tx->buf)[i]; break;
-        default: v = 0.0; break;
+        default:
+          PyErr_SetString(PyExc_TypeError, "cos_(): internal unsupported dtype");
+          destroy(tz);
+          return NULL;
       }
       out[i] = cos(v);
     }
@@ -4537,10 +4669,6 @@ static PyObject *tan_(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
     return NULL;
   }
-  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    PyErr_SetString(PyExc_NotImplementedError, "tan_() not implemented for complex64 and complex128 yet");
-    return NULL;
-  }
   dtype_t out_dtype;
   switch(tx->dtype){
     case INT8: case UINT8:
@@ -4550,6 +4678,8 @@ static PyObject *tan_(PyObject *self, PyObject *args){
     case FP16: out_dtype = FP32; break;
     case FP32: out_dtype = FP32; break;
     case FP64: out_dtype = FP64; break;
+    case CMPX64: out_dtype = CMPX64; break;
+    case CMPX128: out_dtype = CMPX128; break;
     default: PyErr_SetString(PyExc_TypeError, "tan_() unsupported dtype"); return NULL;
   }
   tensor_t *tz = tensor_empty_like(tx, out_dtype);
@@ -4571,12 +4701,14 @@ static PyObject *tan_(PyObject *self, PyObject *args){
         case UINT32: v = (float)((uint32*)tx->buf)[i]; break;
         case FP16: v = fp16_to_float(((float16 *)tx->buf)[i]); break;
         case FP32: v = ((float32*)tx->buf)[i]; break;
-        default: v = 0.0f; break;
+        default:
+          PyErr_SetString(PyExc_TypeError, "tan_(): internal unsupported dtype");
+          destroy(tz);
+          return NULL;
       }
       out[i] = tanf(v);
     }
-  }
-  else{
+  }else if(out_dtype == FP64){
     float64 *out = (float64*)tz->buf;
     for(size_t i = 0; i < N; i++){
       float64 v;
@@ -4584,9 +4716,30 @@ static PyObject *tan_(PyObject *self, PyObject *args){
         case INT64: v = (float64)((int64*)tx->buf)[i]; break;
         case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
         case FP64: v = ((float64*)tx->buf)[i]; break;
-        default: v = 0.0; break;
+        default:
+          PyErr_SetString(PyExc_TypeError, "tan_(): internal unsupported dtype");
+          destroy(tz);
+          return NULL;
       }
       out[i] = tan(v);
+    }
+  }else if(out_dtype == CMPX64){
+    complex64 *in  = (complex64*)tx->buf;
+    complex64 *out = (complex64*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float32 a = in[i].real;
+      float32 b = in[i].imag;
+      out[i].real = sinf(a) * coshf(b);
+      out[i].imag = cosf(a) * sinhf(b);
+    }
+  }else if(out_dtype == CMPX128){
+    complex128 *in  = (complex128*)tx->buf;
+    complex128 *out = (complex128*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float64 a = in[i].real;
+      float64 b = in[i].imag;
+      out[i].real = sinf(a) * coshf(b);
+      out[i].imag = cosf(a) * sinhf(b);
     }
   }
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
@@ -4604,10 +4757,6 @@ static PyObject *asin_(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
     return NULL;
   }
-  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    PyErr_SetString(PyExc_NotImplementedError, "asin_() not implemented for complex64 and complex128 yet");
-    return NULL;
-  }
   dtype_t out_dtype;
   switch(tx->dtype){
     case INT8: case UINT8:
@@ -4617,6 +4766,8 @@ static PyObject *asin_(PyObject *self, PyObject *args){
     case FP16: out_dtype = FP32; break;
     case FP32: out_dtype = FP32; break;
     case FP64: out_dtype = FP64; break;
+    case CMPX64: out_dtype = CMPX64; break;
+    case CMPX128: out_dtype = CMPX128; break;
     default: PyErr_SetString(PyExc_TypeError, "asin_() unsupported dtype"); return NULL;
   }
   tensor_t *tz = tensor_empty_like(tx, out_dtype);
@@ -4630,20 +4781,22 @@ static PyObject *asin_(PyObject *self, PyObject *args){
     for(size_t i = 0; i < N; i++){
       float32 v;
       switch(tx->dtype){
-        case INT8: v = (float)((int8*)tx->buf)[i]; break;
-        case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
-        case INT16: v = (float)((int16*)tx->buf)[i]; break;
-        case UINT16: v = (float)((uint16*)tx->buf)[i]; break;
-        case INT32: v = (float)((int32*)tx->buf)[i]; break;
-        case UINT32: v = (float)((uint32*)tx->buf)[i]; break;
+        case INT8: v = (float32)((int8*)tx->buf)[i]; break;
+        case UINT8: v = (float32)((uint8*)tx->buf)[i]; break;
+        case INT16: v = (float32)((int16*)tx->buf)[i]; break;
+        case UINT16: v = (float32)((uint16*)tx->buf)[i]; break;
+        case INT32: v = (float32)((int32*)tx->buf)[i]; break;
+        case UINT32: v = (float32)((uint32*)tx->buf)[i]; break;
         case FP16: v = fp16_to_float(((float16 *)tx->buf)[i]); break;
         case FP32: v = ((float32*)tx->buf)[i]; break;
-        default: v = 0.0f; break;
+        default:
+          PyErr_SetString(PyExc_TypeError, "asin_(): internal unsupported dtype");
+          destroy(tz);
+          return NULL;
       }
       out[i] = asinf(v);
     }
-  }
-  else{
+  }else if(out_dtype == FP64){
     float64 *out = (float64*)tz->buf;
     for(size_t i = 0; i < N; i++){
       float64 v;
@@ -4651,9 +4804,60 @@ static PyObject *asin_(PyObject *self, PyObject *args){
         case INT64: v = (float64)((int64*)tx->buf)[i]; break;
         case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
         case FP64: v = ((float64*)tx->buf)[i]; break;
-        default: v = 0.0; break;
+        default:
+          PyErr_SetString(PyExc_TypeError, "asin_(): internal unsupported dtype");
+          destroy(tz);
+          return NULL;
       }
       out[i] = asin(v);
+    }
+  }else if(out_dtype == CMPX64){
+    complex64 *in  = (complex64*)tx->buf;
+    complex64 *out = (complex64*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float32 a = in[i].real;
+      float32 b = in[i].imag;
+      float32 z2_r = a*a - b*b;
+      float32 z2_i = 2.0f*a*b;
+      float32 w_r = 1.0f - z2_r;
+      float32 w_i = -z2_i;
+      float32 r = sqrtf(w_r*w_r + w_i*w_i);
+      float32 s_r = sqrtf((r + w_r) * 0.5f);
+      float32 s_i = (w_i >= 0 ? 1.0f : -1.0f) * sqrtf((r - w_r) * 0.5f);
+      float32 iz_r = -b;
+      float32 iz_i =  a;
+      float32 t_r = iz_r + s_r;
+      float32 t_i = iz_i + s_i;
+      float32 mod = sqrtf(t_r*t_r + t_i*t_i);
+      float32 ang = atan2f(t_i, t_r);
+      float32 ln_r = logf(mod);
+      float32 ln_i = ang;
+      out[i].real =  ln_i;
+      out[i].imag = -ln_r;
+    }
+  }else if(out_dtype == CMPX128){
+    complex128 *in  = (complex128*)tx->buf;
+    complex128 *out = (complex128*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float64 a = in[i].real;
+      float64 b = in[i].imag;
+      float64 z2_r = a*a - b*b;
+      float64 z2_i = 2.0f*a*b;
+      float64 w_r = 1.0f - z2_r;
+      float64 w_i = -z2_i;
+      float64 r = sqrt(w_r*w_r + w_i*w_i);
+      float64 s_r = sqrt((r + w_r) * 0.5f);
+      float64 s_i = (w_i >= 0 ? 1.0f : -1.0f) * sqrt((r - w_r) * 0.5f);
+      float64 iz_r = -b;
+      float64 iz_i =  a;
+      float64 t_r = iz_r + s_r;
+      float64 t_i = iz_i + s_i;
+      float64 mod = sqrt(t_r*t_r + t_i*t_i);
+      float64 ang = atan2(t_i, t_r);
+      float64 ln_r = log(mod);
+      float64 ln_i = ang;
+      out[i].real =  ln_i;
+      out[i].imag = -ln_r;
     }
   }
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
@@ -4671,10 +4875,6 @@ static PyObject *acos_(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
     return NULL;
   }
-  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    PyErr_SetString(PyExc_NotImplementedError, "acos_() not implemented for complex64 and complex128 yet");
-    return NULL;
-  }
   dtype_t out_dtype;
   switch(tx->dtype){
     case INT8: case UINT8:
@@ -4684,6 +4884,8 @@ static PyObject *acos_(PyObject *self, PyObject *args){
     case FP16: out_dtype = FP32; break;
     case FP32: out_dtype = FP32; break;
     case FP64: out_dtype = FP64; break;
+    case CMPX64: out_dtype = CMPX64; break;
+    case CMPX128: out_dtype = CMPX128; break;
     default: PyErr_SetString(PyExc_TypeError, "acos_() unsupported dtype"); return NULL;
   }
   tensor_t *tz = tensor_empty_like(tx, out_dtype);
@@ -4697,20 +4899,22 @@ static PyObject *acos_(PyObject *self, PyObject *args){
     for(size_t i = 0; i < N; i++){
       float32 v;
       switch(tx->dtype){
-        case INT8: v = (float)((int8*)tx->buf)[i]; break;
-        case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
-        case INT16: v = (float)((int16*)tx->buf)[i]; break;
-        case UINT16: v = (float)((uint16*)tx->buf)[i]; break;
-        case INT32: v = (float)((int32*)tx->buf)[i]; break;
-        case UINT32: v = (float)((uint32*)tx->buf)[i]; break;
+        case INT8: v = (float32)((int8*)tx->buf)[i]; break;
+        case UINT8: v = (float32)((uint8*)tx->buf)[i]; break;
+        case INT16: v = (float32)((int16*)tx->buf)[i]; break;
+        case UINT16: v = (float32)((uint16*)tx->buf)[i]; break;
+        case INT32: v = (float32)((int32*)tx->buf)[i]; break;
+        case UINT32: v = (float32)((uint32*)tx->buf)[i]; break;
         case FP16: v = fp16_to_float(((float16 *)tx->buf)[i]); break;
         case FP32: v = ((float32*)tx->buf)[i]; break;
-        default: v = 0.0f; break;
+        default:
+          PyErr_SetString(PyExc_TypeError, "acos_(): internal unsupported dtype");
+          destroy(tz);
+          return NULL;
       }
       out[i] = acosf(v);
     }
-  }
-  else{
+  }else if(out_dtype == FP64){
     float64 *out = (float64*)tz->buf;
     for(size_t i = 0; i < N; i++){
       float64 v;
@@ -4718,9 +4922,56 @@ static PyObject *acos_(PyObject *self, PyObject *args){
         case INT64: v = (float64)((int64*)tx->buf)[i]; break;
         case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
         case FP64: v = ((float64*)tx->buf)[i]; break;
-        default: v = 0.0; break;
+        default:
+          PyErr_SetString(PyExc_TypeError, "acos_(): internal unsupported dtype");
+          destroy(tz);
+          return NULL;
       }
       out[i] = acos(v);
+    }
+  }else if(out_dtype == CMPX64){
+    complex64 *in  = (complex64*)tx->buf;
+    complex64 *out = (complex64*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float32 a = in[i].real;
+      float32 b = in[i].imag;
+      float32 z2_r = a*a - b*b;
+      float32 z2_i = 2.0f*a*b;
+      float32 w_r = z2_r - 1.0f;
+      float32 w_i = z2_i;
+      float32 r = sqrtf(w_r*w_r + w_i*w_i);
+      float32 s_r = sqrtf((r + w_r) * 0.5f);
+      float32 s_i = (w_i >= 0 ? 1.0f : -1.0f) * sqrtf((r - w_r) * 0.5f);
+      float32 t_r = a + s_r;
+      float32 t_i = b + s_i;
+      float32 mod = sqrtf(t_r*t_r + t_i*t_i);
+      float32 ang = atan2f(t_i, t_r);
+      float32 ln_r = logf(mod);
+      float32 ln_i = ang;
+      out[i].real =  ln_i;
+      out[i].imag = -ln_r;
+    }
+  }else if(out_dtype == CMPX128){
+    complex128 *in  = (complex128*)tx->buf;
+    complex128 *out = (complex128*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float64 a = in[i].real;
+      float64 b = in[i].imag;
+      float64 z2_r = a*a - b*b;
+      float64 z2_i = 2.0f*a*b;
+      float64 w_r = z2_r - 1.0f;
+      float64 w_i = z2_i;
+      float64 r = sqrt(w_r*w_r + w_i*w_i);
+      float64 s_r = sqrt((r + w_r) * 0.5f);
+      float64 s_i = (w_i >= 0 ? 1.0f : -1.0f) * sqrt((r - w_r) * 0.5f);
+      float64 t_r = a + s_r;
+      float64 t_i = b + s_i;
+      float64 mod = sqrt(t_r*t_r + t_i*t_i);
+      float64 ang = atan2(t_i, t_r);
+      float64 ln_r = log(mod);
+      float64 ln_i = ang;
+      out[i].real =  ln_i;
+      out[i].imag = -ln_r;
     }
   }
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
@@ -4738,10 +4989,6 @@ static PyObject *atan_(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
     return NULL;
   }
-  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    PyErr_SetString(PyExc_NotImplementedError, "atan_() not implemented for complex64 and complex128 yet");
-    return NULL;
-  }
   dtype_t out_dtype;
   switch(tx->dtype){
     case INT8: case UINT8:
@@ -4751,6 +4998,8 @@ static PyObject *atan_(PyObject *self, PyObject *args){
     case FP16: out_dtype = FP32; break;
     case FP32: out_dtype = FP32; break;
     case FP64: out_dtype = FP64; break;
+    case CMPX64: out_dtype = CMPX64; break;
+    case CMPX128: out_dtype = CMPX128; break;
     default: PyErr_SetString(PyExc_TypeError, "atan_() unsupported dtype"); return NULL;
   }
   tensor_t *tz = tensor_empty_like(tx, out_dtype);
@@ -4764,20 +5013,22 @@ static PyObject *atan_(PyObject *self, PyObject *args){
     for(size_t i = 0; i < N; i++){
       float32 v;
       switch(tx->dtype){
-        case INT8: v = (float)((int8*)tx->buf)[i]; break;
-        case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
-        case INT16: v = (float)((int16*)tx->buf)[i]; break;
-        case UINT16: v = (float)((uint16*)tx->buf)[i]; break;
-        case INT32: v = (float)((int32*)tx->buf)[i]; break;
-        case UINT32: v = (float)((uint32*)tx->buf)[i]; break;
+        case INT8: v = (float32)((int8*)tx->buf)[i]; break;
+        case UINT8: v = (float32)((uint8*)tx->buf)[i]; break;
+        case INT16: v = (float32)((int16*)tx->buf)[i]; break;
+        case UINT16: v = (float32)((uint16*)tx->buf)[i]; break;
+        case INT32: v = (float32)((int32*)tx->buf)[i]; break;
+        case UINT32: v = (float32)((uint32*)tx->buf)[i]; break;
         case FP16: v = fp16_to_float(((float16 *)tx->buf)[i]); break;
         case FP32: v = ((float32*)tx->buf)[i]; break;
-        default: v = 0.0f; break;
+        default:
+          PyErr_SetString(PyExc_TypeError, "atan_(): internal unsupported dtype");
+          destroy(tz);
+          return NULL;
       }
       out[i] = atanf(v);
     }
-  }
-  else{
+  }else if(out_dtype == FP64){
     float64 *out = (float64*)tz->buf;
     for(size_t i = 0; i < N; i++){
       float64 v;
@@ -4785,9 +5036,56 @@ static PyObject *atan_(PyObject *self, PyObject *args){
         case INT64: v = (float64)((int64*)tx->buf)[i]; break;
         case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
         case FP64: v = ((float64*)tx->buf)[i]; break;
-        default: v = 0.0; break;
+        default:
+          PyErr_SetString(PyExc_TypeError, "atan_(): internal unsupported dtype");
+          destroy(tz);
+          return NULL;
       }
       out[i] = atan(v);
+    }
+  }else if(out_dtype == CMPX64){
+    complex64 *in  = (complex64*)tx->buf;
+    complex64 *out = (complex64*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float32 a = in[i].real;
+      float32 b = in[i].imag;
+      float32 iz_r = -b;
+      float32 iz_i =  a;
+      float32 n_r = 1.0f + iz_r;
+      float32 n_i = iz_i;
+      float32 d_r = 1.0f - iz_r;
+      float32 d_i = -iz_i;
+      float32 denom = d_r*d_r + d_i*d_i;
+      float32 r_r = (n_r*d_r + n_i*d_i) / denom;
+      float32 r_i = (n_i*d_r - n_r*d_i) / denom;
+      float32 mod = sqrtf(r_r*r_r + r_i*r_i);
+      float32 ang = atan2f(r_i, r_r);
+      float32 ln_r = logf(mod);
+      float32 ln_i = ang;
+      out[i].real =  0.5f * ln_i;
+      out[i].imag = -0.5f * ln_r;
+    }
+  }else if(out_dtype == CMPX128){
+    complex128 *in  = (complex128*)tx->buf;
+    complex128 *out = (complex128*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float64 a = in[i].real;
+      float64 b = in[i].imag;
+      float64 iz_r = -b;
+      float64 iz_i =  a;
+      float64 n_r = 1.0 + iz_r;
+      float64 n_i = iz_i;
+      float64 d_r = 1.0 - iz_r;
+      float64 d_i = -iz_i;
+      float64 denom = d_r*d_r + d_i*d_i;
+      float64 r_r = (n_r*d_r + n_i*d_i) / denom;
+      float64 r_i = (n_i*d_r - n_r*d_i) / denom;
+      float64 mod = sqrt(r_r*r_r + r_i*r_i);
+      float64 ang = atan2(r_i, r_r);
+      float64 ln_r = log(mod);
+      float64 ln_i = ang;
+      out[i].real =  0.5 * ln_i;
+      out[i].imag = -0.5 * ln_r;
     }
   }
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
@@ -4805,10 +5103,6 @@ static PyObject *sinh_(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
     return NULL;
   }
-  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    PyErr_SetString(PyExc_NotImplementedError, "sinh_() not implemented for complex64 and complex128 yet");
-    return NULL;
-  }
   dtype_t out_dtype;
   switch(tx->dtype){
     case INT8: case UINT8:
@@ -4818,6 +5112,8 @@ static PyObject *sinh_(PyObject *self, PyObject *args){
     case FP16: out_dtype = FP32; break;
     case FP32: out_dtype = FP32; break;
     case FP64: out_dtype = FP64; break;
+    case CMPX64: out_dtype = CMPX64; break;
+    case CMPX128: out_dtype = CMPX128; break;
     default: PyErr_SetString(PyExc_TypeError, "sinh_() unsupported dtype"); return NULL;
   }
   tensor_t *tz = tensor_empty_like(tx, out_dtype);
@@ -4831,20 +5127,22 @@ static PyObject *sinh_(PyObject *self, PyObject *args){
     for(size_t i = 0; i < N; i++){
       float32 v;
       switch(tx->dtype){
-        case INT8: v = (float)((int8*)tx->buf)[i]; break;
-        case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
-        case INT16: v = (float)((int16*)tx->buf)[i]; break;
-        case UINT16: v = (float)((uint16*)tx->buf)[i]; break;
-        case INT32: v = (float)((int32*)tx->buf)[i]; break;
-        case UINT32: v = (float)((uint32*)tx->buf)[i]; break;
+        case INT8: v = (float32)((int8*)tx->buf)[i]; break;
+        case UINT8: v = (float32)((uint8*)tx->buf)[i]; break;
+        case INT16: v = (float32)((int16*)tx->buf)[i]; break;
+        case UINT16: v = (float32)((uint16*)tx->buf)[i]; break;
+        case INT32: v = (float32)((int32*)tx->buf)[i]; break;
+        case UINT32: v = (float32)((uint32*)tx->buf)[i]; break;
         case FP16: v = fp16_to_float(((float16 *)tx->buf)[i]); break;
         case FP32: v = ((float32*)tx->buf)[i]; break;
-        default: v = 0.0f; break;
+        default:
+          PyErr_SetString(PyExc_TypeError, "sinh_(): internal unsupported dtype");
+          destroy(tz);
+          return NULL;
       }
       out[i] = sinf(v);
     }
-  }
-  else{
+  }else if(out_dtype == FP64){
     float64 *out = (float64*)tz->buf;
     for(size_t i = 0; i < N; i++){
       float64 v;
@@ -4852,9 +5150,30 @@ static PyObject *sinh_(PyObject *self, PyObject *args){
         case INT64: v = (float64)((int64*)tx->buf)[i]; break;
         case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
         case FP64: v = ((float64*)tx->buf)[i]; break;
-        default: v = 0.0; break;
+        default:
+          PyErr_SetString(PyExc_TypeError, "sinh_(): internal unsupported dtype");
+          destroy(tz);
+          return NULL;
       }
       out[i] = sinh(v);
+    }
+  }else if(out_dtype == CMPX64){
+    complex64 *in  = (complex64*)tx->buf;
+    complex64 *out = (complex64*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float32 a = in[i].real;
+      float32 b = in[i].imag;
+      out[i].real = sinhf(a) * cosf(b);
+      out[i].imag = coshf(a) * sinf(b);
+    }
+  }else if(out_dtype == CMPX128){
+    complex128 *in  = (complex128*)tx->buf;
+    complex128 *out = (complex128*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float64 a = in[i].real;
+      float64 b = in[i].imag;
+      out[i].real = sinh(a) * cos(b);
+      out[i].imag = cosh(a) * sin(b);
     }
   }
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
@@ -4872,10 +5191,6 @@ static PyObject *cosh_(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
     return NULL;
   }
-  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    PyErr_SetString(PyExc_NotImplementedError, "cosh_() not implemented for complex64 and complex128 yet");
-    return NULL;
-  }
   dtype_t out_dtype;
   switch(tx->dtype){
     case INT8: case UINT8:
@@ -4885,6 +5200,8 @@ static PyObject *cosh_(PyObject *self, PyObject *args){
     case FP16: out_dtype = FP32; break;
     case FP32: out_dtype = FP32; break;
     case FP64: out_dtype = FP64; break;
+    case CMPX64: out_dtype = CMPX64; break;
+    case CMPX128: out_dtype = CMPX128; break;
     default: PyErr_SetString(PyExc_TypeError, "cosh_() unsupported dtype"); return NULL;
   }
   tensor_t *tz = tensor_empty_like(tx, out_dtype);
@@ -4906,12 +5223,14 @@ static PyObject *cosh_(PyObject *self, PyObject *args){
         case UINT32: v = (float)((uint32*)tx->buf)[i]; break;
         case FP16: v = fp16_to_float(((float16 *)tx->buf)[i]); break;
         case FP32: v = ((float32*)tx->buf)[i]; break;
-        default: v = 0.0f; break;
+        default:
+          PyErr_SetString(PyExc_TypeError, "cosh_(): internal unsupported dtype");
+          destroy(tz);
+          return NULL;
       }
       out[i] = coshf(v);
     }
-  }
-  else{
+  }else if(out_dtype == FP64){
     float64 *out = (float64*)tz->buf;
     for(size_t i = 0; i < N; i++){
       float64 v;
@@ -4919,9 +5238,30 @@ static PyObject *cosh_(PyObject *self, PyObject *args){
         case INT64: v = (float64)((int64*)tx->buf)[i]; break;
         case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
         case FP64: v = ((float64*)tx->buf)[i]; break;
-        default: v = 0.0; break;
+        default:
+          PyErr_SetString(PyExc_TypeError, "cosh_(): internal unsupported dtype");
+          destroy(tz);
+          return NULL;
       }
       out[i] = cosh(v);
+    }
+  }else if(CMPX64){
+    complex64 *in  = (complex64*)tx->buf;
+    complex64 *out = (complex64*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float32 a = in[i].real;
+      float32 b = in[i].imag;
+      out[i].real = coshf(a) * cosf(b);
+      out[i].imag = sinhf(a) * sinf(b);
+    }
+  }else if(CMPX128){
+    complex128 *in  = (complex128*)tx->buf;
+    complex128 *out = (complex128*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float64 a = in[i].real;
+      float64 b = in[i].imag;
+      out[i].real = cosh(a) * cos(b);
+      out[i].imag = sinh(a) * sin(b);
     }
   }
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
@@ -4939,10 +5279,6 @@ static PyObject *tanh_(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
     return NULL;
   }
-  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    PyErr_SetString(PyExc_NotImplementedError, "tanh_() not implemented for complex64 and complex128 yet");
-    return NULL;
-  }
   dtype_t out_dtype;
   switch(tx->dtype){
     case INT8: case UINT8:
@@ -4952,6 +5288,8 @@ static PyObject *tanh_(PyObject *self, PyObject *args){
     case FP16: out_dtype = FP32; break;
     case FP32: out_dtype = FP32; break;
     case FP64: out_dtype = FP64; break;
+    case CMPX64: out_dtype = CMPX64; break;
+    case CMPX128: out_dtype = CMPX128; break;
     default: PyErr_SetString(PyExc_TypeError, "tanh_() unsupported dtype"); return NULL;
   }
   tensor_t *tz = tensor_empty_like(tx, out_dtype);
@@ -4965,20 +5303,22 @@ static PyObject *tanh_(PyObject *self, PyObject *args){
     for(size_t i = 0; i < N; i++){
       float32 v;
       switch(tx->dtype){
-        case INT8: v = (float)((int8*)tx->buf)[i]; break;
-        case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
-        case INT16: v = (float)((int16*)tx->buf)[i]; break;
-        case UINT16: v = (float)((uint16*)tx->buf)[i]; break;
-        case INT32: v = (float)((int32*)tx->buf)[i]; break;
-        case UINT32: v = (float)((uint32*)tx->buf)[i]; break;
+        case INT8: v = (float32)((int8*)tx->buf)[i]; break;
+        case UINT8: v = (float32)((uint8*)tx->buf)[i]; break;
+        case INT16: v = (float32)((int16*)tx->buf)[i]; break;
+        case UINT16: v = (float32)((uint16*)tx->buf)[i]; break;
+        case INT32: v = (float32)((int32*)tx->buf)[i]; break;
+        case UINT32: v = (float32)((uint32*)tx->buf)[i]; break;
         case FP16: v = fp16_to_float(((float16 *)tx->buf)[i]); break;
         case FP32: v = ((float32*)tx->buf)[i]; break;
-        default: v = 0.0f; break;
+        default:
+          PyErr_SetString(PyExc_TypeError, "tanh_(): internal unsupported dtype");
+          destroy(tz);
+          return NULL;
       }
       out[i] = tanhf(v);
     }
-  }
-  else{
+  }else if(out_dtype == FP64){
     float64 *out = (float64*)tz->buf;
     for(size_t i = 0; i < N; i++){
       float64 v;
@@ -4986,9 +5326,32 @@ static PyObject *tanh_(PyObject *self, PyObject *args){
         case INT64: v = (float64)((int64*)tx->buf)[i]; break;
         case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
         case FP64: v = ((float64*)tx->buf)[i]; break;
-        default: v = 0.0; break;
+        default:
+          PyErr_SetString(PyExc_TypeError, "tanh_(): internal unsupported dtype");
+          destroy(tz);
+          return NULL;
       }
       out[i] = tanh(v);
+    }
+  }else if(out_dtype == CMPX64){
+    complex64 *in  = (complex64*)tx->buf;
+    complex64 *out = (complex64*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float32 a = in[i].real;
+      float32 b = in[i].imag;
+      float32 denom = coshf(2.0f*a) + cosf(2.0f*b);
+      out[i].real = sinhf(2.0f*a) / denom;
+      out[i].imag = sinf(2.0f*b)  / denom;
+    }
+  }else if(out_dtype == CMPX128){
+    complex128 *in  = (complex128*)tx->buf;
+    complex128 *out = (complex128*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float64 a = in[i].real;
+      float64 b = in[i].imag;
+      float64 denom = cosh(2.0*a) + cos(2.0*b);
+      out[i].real = sinh(2.0*a) / denom;
+      out[i].imag = sin(2.0*b)  / denom;
     }
   }
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
@@ -5006,10 +5369,6 @@ static PyObject *asinh_(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
     return NULL;
   }
-  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    PyErr_SetString(PyExc_NotImplementedError, "asinh_() not implemented for complex64 and complex128 yet");
-    return NULL;
-  }
   dtype_t out_dtype;
   switch(tx->dtype){
     case INT8: case UINT8:
@@ -5019,6 +5378,8 @@ static PyObject *asinh_(PyObject *self, PyObject *args){
     case FP16: out_dtype = FP32; break;
     case FP32: out_dtype = FP32; break;
     case FP64: out_dtype = FP64; break;
+    case CMPX64: out_dtype = CMPX64; break;
+    case CMPX128: out_dtype = CMPX128; break;
     default: PyErr_SetString(PyExc_TypeError, "asinh_() unsupported dtype"); return NULL;
   }
   tensor_t *tz = tensor_empty_like(tx, out_dtype);
@@ -5032,20 +5393,22 @@ static PyObject *asinh_(PyObject *self, PyObject *args){
     for(size_t i = 0; i < N; i++){
       float32 v;
       switch(tx->dtype){
-        case INT8: v = (float)((int8*)tx->buf)[i]; break;
-        case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
-        case INT16: v = (float)((int16*)tx->buf)[i]; break;
-        case UINT16: v = (float)((uint16*)tx->buf)[i]; break;
-        case INT32: v = (float)((int32*)tx->buf)[i]; break;
-        case UINT32: v = (float)((uint32*)tx->buf)[i]; break;
+        case INT8: v = (float32)((int8*)tx->buf)[i]; break;
+        case UINT8: v = (float32)((uint8*)tx->buf)[i]; break;
+        case INT16: v = (float32)((int16*)tx->buf)[i]; break;
+        case UINT16: v = (float32)((uint16*)tx->buf)[i]; break;
+        case INT32: v = (float32)((int32*)tx->buf)[i]; break;
+        case UINT32: v = (float32)((uint32*)tx->buf)[i]; break;
         case FP16: v = fp16_to_float(((float16 *)tx->buf)[i]); break;
         case FP32: v = ((float32*)tx->buf)[i]; break;
-        default: v = 0.0f; break;
+        default:
+          PyErr_SetString(PyExc_TypeError, "asinh_(): internal unsupported dtype");
+          destroy(tz);
+          return NULL;
       }
       out[i] = asinf(v);
     }
-  }
-  else{
+  }else if(out_dtype == FP64){
     float64 *out = (float64*)tz->buf;
     for(size_t i = 0; i < N; i++){
       float64 v;
@@ -5053,9 +5416,52 @@ static PyObject *asinh_(PyObject *self, PyObject *args){
         case INT64: v = (float64)((int64*)tx->buf)[i]; break;
         case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
         case FP64: v = ((float64*)tx->buf)[i]; break;
-        default: v = 0.0; break;
+        default:
+          PyErr_SetString(PyExc_TypeError, "asinh_(): internal unsupported dtype");
+          destroy(tz);
+          return NULL;
       }
       out[i] = asinh(v);
+    }
+  }else if(out_dtype == CMPX64){
+    complex64 *in  = (complex64*)tx->buf;
+    complex64 *out = (complex64*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float32 a = in[i].real;
+      float32 b = in[i].imag;
+      float32 z2_r = a*a - b*b;
+      float32 z2_i = 2.0f*a*b;
+      float32 w_r = z2_r + 1.0f;
+      float32 w_i = z2_i;
+      float32 r = sqrtf(w_r*w_r + w_i*w_i);
+      float32 s_r = sqrtf((r + w_r) * 0.5f);
+      float32 s_i = (w_i >= 0 ? 1.0f : -1.0f) * sqrtf((r - w_r) * 0.5f);
+      float32 t_r = a + s_r;
+      float32 t_i = b + s_i;
+      float32 mod = sqrtf(t_r*t_r + t_i*t_i);
+      float32 ang = atan2f(t_i, t_r);
+      out[i].real = logf(mod);
+      out[i].imag = ang;
+    }
+  }else if(out_dtype == CMPX128){
+    complex128 *in  = (complex128*)tx->buf;
+    complex128 *out = (complex128*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float64 a = in[i].real;
+      float64 b = in[i].imag;
+      float64 z2_r = a*a - b*b;
+      float64 z2_i = 2.0*a*b;
+      float64 w_r = z2_r + 1.0;
+      float64 w_i = z2_i;
+      float64 r = sqrt(w_r*w_r + w_i*w_i);
+      float64 s_r = sqrt((r + w_r) * 0.5);
+      float64 s_i = (w_i >= 0 ? 1.0 : -1.0) * sqrt((r - w_r) * 0.5);
+      float64 t_r = a + s_r;
+      float64 t_i = b + s_i;
+      float64 mod = sqrt(t_r*t_r + t_i*t_i);
+      float64 ang = atan2(t_i, t_r);
+      out[i].real = log(mod);
+      out[i].imag = ang;
     }
   }
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
@@ -5073,10 +5479,6 @@ static PyObject *acosh_(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
     return NULL;
   }
-  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    PyErr_SetString(PyExc_NotImplementedError, "acosh_() not implemented for complex64 and complex128 yet");
-    return NULL;
-  }
   dtype_t out_dtype;
   switch(tx->dtype){
     case INT8: case UINT8:
@@ -5086,6 +5488,8 @@ static PyObject *acosh_(PyObject *self, PyObject *args){
     case FP16: out_dtype = FP32; break;
     case FP32: out_dtype = FP32; break;
     case FP64: out_dtype = FP64; break;
+    case CMPX64: out_dtype = CMPX64; break;
+    case CMPX128: out_dtype = CMPX128; break;
     default: PyErr_SetString(PyExc_TypeError, "acosh_() unsupported dtype"); return NULL;
   }
   tensor_t *tz = tensor_empty_like(tx, out_dtype);
@@ -5099,20 +5503,22 @@ static PyObject *acosh_(PyObject *self, PyObject *args){
     for(size_t i = 0; i < N; i++){
       float32 v;
       switch(tx->dtype){
-        case INT8: v = (float)((int8*)tx->buf)[i]; break;
-        case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
-        case INT16: v = (float)((int16*)tx->buf)[i]; break;
-        case UINT16: v = (float)((uint16*)tx->buf)[i]; break;
-        case INT32: v = (float)((int32*)tx->buf)[i]; break;
-        case UINT32: v = (float)((uint32*)tx->buf)[i]; break;
+        case INT8: v = (float32)((int8*)tx->buf)[i]; break;
+        case UINT8: v = (float32)((uint8*)tx->buf)[i]; break;
+        case INT16: v = (float32)((int16*)tx->buf)[i]; break;
+        case UINT16: v = (float32)((uint16*)tx->buf)[i]; break;
+        case INT32: v = (float32)((int32*)tx->buf)[i]; break;
+        case UINT32: v = (float32)((uint32*)tx->buf)[i]; break;
         case FP16: v = fp16_to_float(((float16 *)tx->buf)[i]); break;
         case FP32: v = ((float32*)tx->buf)[i]; break;
-        default: v = 0.0f; break;
+        default:
+          PyErr_SetString(PyExc_TypeError, "acosh_(): internal unsupported dtype");
+          destroy(tz);
+          return NULL;
       }
       out[i] = acoshf(v);
     }
-  }
-  else{
+  }else if(out_dtype == FP64){
     float64 *out = (float64*)tz->buf;
     for(size_t i = 0; i < N; i++){
       float64 v;
@@ -5120,9 +5526,62 @@ static PyObject *acosh_(PyObject *self, PyObject *args){
         case INT64: v = (float64)((int64*)tx->buf)[i]; break;
         case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
         case FP64: v = ((float64*)tx->buf)[i]; break;
-        default: v = 0.0; break;
+        default:
+          PyErr_SetString(PyExc_TypeError, "acosh_(): internal unsupported dtype");
+          destroy(tz);
+          return NULL;
       }
       out[i] = acosh(v);
+    }
+  }else if(out_dtype == CMPX64){
+    complex64 *in  = (complex64*)tx->buf;
+    complex64 *out = (complex64*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float32 a = in[i].real;
+      float32 b = in[i].imag;
+      float32 zm1_r = a - 1.0f;
+      float32 zm1_i = b;
+      float32 zp1_r = a + 1.0f;
+      float32 zp1_i = b;
+      float32 r1 = sqrtf(zm1_r*zm1_r + zm1_i*zm1_i);
+      float32 s1_r = sqrtf((r1 + zm1_r) * 0.5f);
+      float32 s1_i = (zm1_i >= 0 ? 1.0f : -1.0f) * sqrtf((r1 - zm1_r) * 0.5f);
+      float32 r2 = sqrtf(zp1_r*zp1_r + zp1_i*zp1_i);
+      float32 s2_r = sqrtf((r2 + zp1_r) * 0.5f);
+      float32 s2_i = (zp1_i >= 0 ? 1.0f : -1.0f) * sqrtf((r2 - zp1_r) * 0.5f);
+      float32 prod_r = s1_r*s2_r - s1_i*s2_i;
+      float32 prod_i = s1_r*s2_i + s1_i*s2_r;
+      float32 t_r = a + prod_r;
+      float32 t_i = b + prod_i;
+      float32 mod = sqrtf(t_r*t_r + t_i*t_i);
+      float32 ang = atan2f(t_i, t_r);
+      out[i].real = logf(mod);
+      out[i].imag = ang;
+    }
+  }else if(out_dtype == CMPX128){
+    complex128 *in  = (complex128*)tx->buf;
+    complex128 *out = (complex128*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float64 a = in[i].real;
+      float64 b = in[i].imag;
+      float64 zm1_r = a - 1.0;
+      float64 zm1_i = b;
+      float64 zp1_r = a + 1.0;
+      float64 zp1_i = b;
+      float64 r1 = sqrt(zm1_r*zm1_r + zm1_i*zm1_i);
+      float64 s1_r = sqrt((r1 + zm1_r) * 0.5);
+      float64 s1_i = (zm1_i >= 0 ? 1.0 : -1.0) * sqrt((r1 - zm1_r) * 0.5);
+      float64 r2 = sqrt(zp1_r*zp1_r + zp1_i*zp1_i);
+      float64 s2_r = sqrt((r2 + zp1_r) * 0.5);
+      float64 s2_i = (zp1_i >= 0 ? 1.0 : -1.0) * sqrt((r2 - zp1_r) * 0.5);
+      float64 prod_r = s1_r*s2_r - s1_i*s2_i;
+      float64 prod_i = s1_r*s2_i + s1_i*s2_r;
+      float64 t_r = a + prod_r;
+      float64 t_i = b + prod_i;
+      float64 mod = sqrt(t_r*t_r + t_i*t_i);
+      float64 ang = atan2(t_i, t_r);
+      out[i].real = log(mod);
+      out[i].imag = ang;
     }
   }
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
@@ -5140,10 +5599,6 @@ static PyObject *atanh_(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t capsule pointer");
     return NULL;
   }
-  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    PyErr_SetString(PyExc_NotImplementedError, "atanh_() not implemented for complex64 and complex128 yet");
-    return NULL;
-  }
   dtype_t out_dtype;
   switch(tx->dtype){
     case INT8: case UINT8:
@@ -5153,15 +5608,13 @@ static PyObject *atanh_(PyObject *self, PyObject *args){
     case FP16: out_dtype = FP32; break;
     case FP32: out_dtype = FP32; break;
     case FP64: out_dtype = FP64; break;
+    case CMPX64: out_dtype = CMPX64; break;
+    case CMPX128: out_dtype = CMPX128; break;
     default: PyErr_SetString(PyExc_TypeError, "atanh_() unsupported dtype"); return NULL;
   }
   tensor_t *tz = tensor_empty_like(tx, out_dtype);
   if(!tz){
     PyErr_SetString(PyExc_RuntimeError, "Failed to allocate output tensor");
-    return NULL;
-  }
-  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    PyErr_SetString(PyExc_NotImplementedError, "atanh_() not implemented for complex64 and complex128 yet");
     return NULL;
   }
   size_t N = tx->size;
@@ -5170,20 +5623,22 @@ static PyObject *atanh_(PyObject *self, PyObject *args){
     for(size_t i = 0; i < N; i++){
       float32 v;
       switch(tx->dtype){
-        case INT8: v = (float)((int8*)tx->buf)[i]; break;
-        case UINT8: v = (float)((uint8*)tx->buf)[i]; break;
-        case INT16: v = (float)((int16*)tx->buf)[i]; break;
-        case UINT16: v = (float)((uint16*)tx->buf)[i]; break;
-        case INT32: v = (float)((int32*)tx->buf)[i]; break;
-        case UINT32: v = (float)((uint32*)tx->buf)[i]; break;
+        case INT8: v = (float32)((int8*)tx->buf)[i]; break;
+        case UINT8: v = (float32)((uint8*)tx->buf)[i]; break;
+        case INT16: v = (float32)((int16*)tx->buf)[i]; break;
+        case UINT16: v = (float32)((uint16*)tx->buf)[i]; break;
+        case INT32: v = (float32)((int32*)tx->buf)[i]; break;
+        case UINT32: v = (float32)((uint32*)tx->buf)[i]; break;
         case FP16: v = fp16_to_float(((float16 *)tx->buf)[i]); break;
         case FP32: v = ((float32*)tx->buf)[i]; break;
-        default: v = 0.0f; break;
+        default:
+          PyErr_SetString(PyExc_TypeError, "atanh_(): internal unsupported dtype");
+          destroy(tz);
+          return NULL;
       }
       out[i] = atanhf(v);
     }
-  }
-  else{
+  }else if(out_dtype == FP64){
     float64 *out = (float64*)tz->buf;
     for(size_t i = 0; i < N; i++){
       float64 v;
@@ -5191,9 +5646,48 @@ static PyObject *atanh_(PyObject *self, PyObject *args){
         case INT64: v = (float64)((int64*)tx->buf)[i]; break;
         case UINT64: v = (float64)((uint64*)tx->buf)[i]; break;
         case FP64: v = ((float64*)tx->buf)[i]; break;
-        default: v = 0.0; break;
+        default:
+          PyErr_SetString(PyExc_TypeError, "atanh_(): internal unsupported dtype");
+          destroy(tz);
+          return NULL;
       }
       out[i] = atanh(v);
+    }
+  }else if(out_dtype == CMPX64){
+    complex64 *in  = (complex64*)tx->buf;
+    complex64 *out = (complex64*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float32 a = in[i].real;
+      float32 b = in[i].imag;
+      float32 n_r = 1.0f + a;
+      float32 n_i = b;
+      float32 d_r = 1.0f - a;
+      float32 d_i = -b;
+      float32 denom = d_r*d_r + d_i*d_i;
+      float32 r_r = (n_r*d_r + n_i*d_i) / denom;
+      float32 r_i = (n_i*d_r - n_r*d_i) / denom;
+      float32 mod = sqrtf(r_r*r_r + r_i*r_i);
+      float32 ang = atan2f(r_i, r_r);
+      out[i].real = 0.5f * logf(mod);
+      out[i].imag = 0.5f * ang;
+    }
+  }else if(out_dtype == CMPX128){
+    complex128 *in  = (complex128*)tx->buf;
+    complex128 *out = (complex128*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float64 a = in[i].real;
+      float64 b = in[i].imag;
+      float64 n_r = 1.0 + a;
+      float64 n_i = b;
+      float64 d_r = 1.0 - a;
+      float64 d_i = -b;
+      float64 denom = d_r*d_r + d_i*d_i;
+      float64 r_r = (n_r*d_r + n_i*d_i) / denom;
+      float64 r_i = (n_i*d_r - n_r*d_i) / denom;
+      float64 mod = sqrt(r_r*r_r + r_i*r_i);
+      float64 ang = atan2(r_i, r_r);
+      out[i].real = 0.5 * log(mod);
+      out[i].imag = 0.5 * ang;
     }
   }
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
