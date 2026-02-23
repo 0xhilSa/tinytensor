@@ -31,7 +31,7 @@ It provides basic tensor structures, memory handling, and essential operations w
 ```bash
 git clone https://github.com/0xhilSa/tinytensor
 cd tinytensor
-bash compile.sh -run
+bash build.sh
 ```
 
 ## Testing
