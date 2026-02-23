@@ -856,6 +856,7 @@ static PyMethodDef methods[] = {
   {"device", device, METH_VARARGS, "returns tensor_t device"},
   {"dtype", dtype, METH_VARARGS, "returns tensor_t dtype"},
   {"getitem", getitem, METH_VARARGS, "get item from tensor_t on CUDA"},
+  {"empty", empty, METH_VARARGS, "get empty CUDA tensor"},
   {NULL, NULL, 0, NULL}
 };
 
