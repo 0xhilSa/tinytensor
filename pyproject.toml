@@ -1,17 +1,27 @@
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "tinytensor"
 version = "0.3.0"
-description="A lightweight tensor computation library"
-requires-python = ">=3.8"
+description = "A lightweight tensor computation library"
+readme = "README.md"
+requires-python = ">=3.9"
+
 authors = [
-  { name="Sahil Rajwar" }
+  { name = "Sahil Rajwar" }
 ]
-license = {file = "MIT"}
-dependencies = []
+
+license = "MIT"
+
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: C",
+  "Operating System :: POSIX :: Linux",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence"
+]
 
 [project.urls]
-Homepage = "https://github.com/Sahil-Rajwar-2004/tinytensor"
+Homepage = "https://github.com/0xhilSa/tinytensor"
+Source = "https://github.com/0xhilSa/tinytensor"
