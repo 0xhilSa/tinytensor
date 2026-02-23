@@ -6,12 +6,14 @@ from tinytensor.engine import cpu, cuda
 from tinytensor.engine.constants import pi, e, euler_gamma, inf, nan
 from tinytensor.helpers import reshape
 from tinytensor.device import Device
+from tinytensor import version
 from tinytensor.dtypes import (bool, int8, uint8, int16, uint16,
                                int32, uint32, int64, uint64,
                                float16, float32, float64,
                                complex64, complex128)
 
-__version__ = "0.3.0"
+
+__version__ = version.__version__
 
 def cuda_available(): return hasattr(cuda, "device_count") and cuda.device_count() > 0
 
