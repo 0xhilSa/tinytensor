@@ -94,6 +94,8 @@ run_with_spinner nvcc -gencode arch=compute_86,code=sm_86 -O3 -Xcompiler -fPIC -
   "$TEN_SRC/tensor.c" \
   -o "$C_OUT_DIR/functional_cpu.so"
 
+
+# versions
 VERSION="0.3.0"
 GIT_HASH=$(git rev-parse HEAD 2>/dev/null || echo "unknow")
 CUDA_VERSION=$(nvcc --version | grep release | sed 's/.*release //' | sed 's/,.*//')
