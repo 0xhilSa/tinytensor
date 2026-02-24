@@ -4357,24 +4357,67 @@ static tensor_t *tensor_empty_like_realimag(tensor_t *tx, dtype_t out_dtype){
   return tz;
 }
 
-__global__ void real_cmpx64_kernel(const complex64 *x, float32 *out, size_t N){
+template<typename CMPX>
+__global__ void conj_cmpx_kernel(const CMPX *x,  CMPX *out, size_t N){
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if(i < N){
+    out[i].real = x[i].real;
+    out[i].imag = -x[i].imag;
+  }
+}
+
+template<typename CMPX, typename FP>
+__global__ void real_cmpx_kernel(const CMPX *x, FP *out, size_t N){
   size_t i = blockIdx.x * blockDim.x + threadIdx.x;
   if(i < N) out[i] = x[i].real;
 }
 
-__global__ void real_cmpx128_kernel(const complex128 *x, float64 *out, size_t N){
+template<typename CMPX, typename FP>
+__global__ void imag_cmpx_kernel(const CMPX *x, FP *out, size_t N){
   size_t i = blockIdx.x * blockDim.x + threadIdx.x;
   if(i < N) out[i] = x[i].real;
 }
 
-__global__ void imag_cmpx64_kernel(const complex64 *x, float32 *out, size_t N){
-  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-  if(i < N) out[i] = x[i].imag;
-}
-
-__global__ void imag_cmpx128_kernel(const complex128 *x, float64 *out, size_t N){
-  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-  if(i < N) out[i] = x[i].imag;
+static PyObject *conj_(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "invalid tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = (tensor_t *)PyCapsule_GetPointer(x, "tensor_t on CUDA");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "invalid tensor capsule");
+    return NULL;
+  }
+  if(tx->dtype != CMPX64 && tx->dtype != CMPX128){
+    PyErr_SetString(PyExc_TypeError, "conj only for complex tensors");
+    return NULL;
+  }
+  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  tz->dtype = tx->dtype;
+  tz->element_size = tx->element_size;
+  tz->device = tx->device;
+  tz->ndim = tx->ndim;
+  tz->size = tx->size;
+  tz->shape  = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+  tz->stride = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+  for(size_t i = 0; i < tz->ndim; i++){
+    tz->shape[i]  = tx->shape[i];
+    tz->stride[i] = tx->stride[i];
+  }
+  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  tz->storage->device = tz->device;
+  tz->storage->refcount = 1;
+  tz->storage->bytes = tz->size * tz->element_size;
+  cudaMalloc(&tz->storage->ptr, tz->storage->bytes);
+  tz->buf = tz->storage->ptr;
+  size_t threads = 256;
+  size_t blocks  = (tz->size + threads - 1) / threads;
+  if(tx->dtype == CMPX64){ conj_cmpx_kernel<complex64><<<blocks, threads>>>((complex64*)tx->buf, (complex64*)tz->buf, tz->size); }
+  else{ conj_cmpx_kernel<complex128><<<blocks, threads>>>((complex128*)tx->buf, (complex128*)tz->buf, tz->size); }
+  cudaDeviceSynchronize();
+  return PyCapsule_New(tz, "tensor_t on CUDA", capsule_destroyer);
 }
 
 static PyObject *real(PyObject *self, PyObject *args){
@@ -4417,8 +4460,8 @@ static PyObject *real(PyObject *self, PyObject *args){
   size_t N = tx->size;
   int threads = 256;
   int blocks = (N + threads - 1) / threads;
-  if(tx->dtype == CMPX64){ real_cmpx64_kernel<<<blocks, threads>>>((complex64*)tx->buf, (float32*)tz->buf, N); }
-  else{ real_cmpx128_kernel<<<blocks, threads>>>((complex128*)tx->buf, (float64*)tz->buf, N); }
+  if(tx->dtype == CMPX64){ real_cmpx_kernel<complex64, float32><<<blocks, threads>>>((complex64*)tx->buf, (float32*)tz->buf, N); }
+  else{ real_cmpx_kernel<complex128, float64><<<blocks, threads>>>((complex128*)tx->buf, (float64*)tz->buf, N); }
   CUDA_CHECK(cudaDeviceSynchronize());
   return PyCapsule_New(tz, "tensor_t on CUDA", capsule_destroyer);
 }
@@ -4463,8 +4506,8 @@ static PyObject *imag(PyObject *self, PyObject *args){
   size_t N = tx->size;
   int threads = 256;
   int blocks = (N + threads - 1) / threads;
-  if(tx->dtype == CMPX64){ imag_cmpx64_kernel<<<blocks, threads>>>((complex64*)tx->buf, (float32*)tz->buf, N); }
-  else{ imag_cmpx128_kernel<<<blocks, threads>>>((complex128*)tx->buf, (float64*)tz->buf, N); }
+  if(tx->dtype == CMPX64){ imag_cmpx_kernel<complex64, float32><<<blocks, threads>>>((complex64*)tx->buf, (float32*)tz->buf, N); }
+  else{ imag_cmpx_kernel<complex128, float64><<<blocks, threads>>>((complex128*)tx->buf, (float64*)tz->buf, N); }
   CUDA_CHECK(cudaDeviceSynchronize());
   return PyCapsule_New(tz, "tensor_t on CUDA", capsule_destroyer);
 }
@@ -6344,8 +6387,9 @@ static PyMethodDef methods[] = {
   {"logical_xnor", logical_xnor, METH_VARARGS, "element-wise logical 'xnor' operation on CUDA tensor"},
   {"sum", (PyCFunction)sum, METH_VARARGS | METH_KEYWORDS, "returns the sum of CUDA tensor"},
   {"bmm", bmm, METH_VARARGS, "compute batch matrix multiplication on CUDA tensor"},
-  {"real", real, METH_VARARGS, "get real values from complex tensor on CUDA"},
-  {"imag", imag, METH_VARARGS, "get imag values from complex tensor on CUDA"},
+  {"conj", conj_, METH_VARARGS, "conjugate of of complex tensor on CUDA"},
+  {"real", real, METH_VARARGS, "real values from complex tensor on CUDA"},
+  {"imag", imag, METH_VARARGS, "imag values from complex tensor on CUDA"},
   {"exp", exp_, METH_VARARGS, "computes exponential of tensor on CUDA"},
   {"log", log_, METH_VARARGS, "computes log of tensor to the base `e` on CUDA"},
   {"log2", log2_, METH_VARARGS, "computes log of tensor to the base `2` on CUDA"},
