@@ -56,50 +56,50 @@ def linspace(
   return Tensor(data, dtype=dtype, device=device, requires_grad=requires_grad, const=const)
 
 def ones(
-  shape:Tuple[int,...],
-  *,
+  *shape,
   dtype:Union[dtypes.DType,dtypes.ConstType]=dtypes.float32,
   device:Union[str,Device]="cpu",
   requires_grad:bool=False, # type: ignore
   const:bool=False # type: ignore
 ) -> Tensor:
+  if len(shape) == 1 and isinstance(shape, (list, tuple)): shape = shape[0]
   length = 1
   for x in shape: length *= x
   return Tensor(reshape([1 for _ in range(length)], shape), dtype=dtype, device=device, requires_grad=requires_grad, const=const)
 
 def zeros(
-  shape:Tuple[int,...],
-  *,
+  *shape,
   dtype:Union[dtypes.DType,dtypes.ConstType]=dtypes.float32,
   device:Union[str,Device]="cpu",
   requires_grad:bool=False, # type: ignore
   const:bool=False # type: ignore
 ) -> Tensor:
+  if len(shape) == 1 and isinstance(shape, (list, tuple)): shape = shape[0]
   length = 1
   for x in shape: length *= x
   return Tensor(reshape([0 for _ in range(length)], shape), dtype=dtype, device=device, requires_grad=requires_grad, const=const)
 
 def fill(
   value,
-  shape:Tuple[int,...],
-  *,
+  *shape,
   dtype:Union[dtypes.DType,dtypes.ConstType]=dtypes.float32,
   device:Union[str,Device]="cpu",
   requires_grad:bool=False, # type: ignore
   const:bool=False # type: ignore
 ) -> Tensor:
+  if len(shape) == 1 and isinstance(shape, (list, tuple)): shape = shape[0]
   length = 1
   for x in shape: length *= x
   return Tensor(reshape([value for _ in range(length)], shape), dtype=dtype, device=device, requires_grad=requires_grad, const=const)
 
 def empty(
-  shape:Tuple[int,...],
+  *shape,
   dtype:dtypes.DType=dtypes.float32,
   device:Union[str,Device]="cpu",
-  *,
   requires_grad:bool=False, # type: ignore
   const:bool=False # type: ignore
 ) -> Tensor:
+  if len(shape) == 1 and isinstance(shape, (list, tuple)): shape = shape[0]
   if not isinstance(shape, tuple): raise TypeError("shape must be a tuple")
   if len(shape) == 0: raise ValueError("shape cannot be empty")
   for dim in shape:
