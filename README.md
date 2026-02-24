@@ -11,6 +11,7 @@ It provides basic tensor structures, memory handling, and essential operations w
 ## DType supported
 | DType      |      Description      | CPU | CUDA |
 |------------|-----------------------|-----|------|
+|`bool`      | bool dtype            | ✅  |  ✅  |
 |`int8`      | 8bit signed integer   | ✅  |  ✅  |
 |`uint8`     | 8bit unsigned integer | ✅  |  ✅  |
 |`int16`     | 16bit signed integer  | ✅  |  ✅  |
