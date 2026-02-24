@@ -171,8 +171,58 @@ class Tensor:
     if all(isinstance(i, int) for i in index): return self._scalar_get(index)
     return self._slice_get(index)
 
-  def __setitem__(self, index):
-    pass
+  def _prepare_value_for_write(self, value, expected_shape=None):
+    if not isinstance(value, Tensor): value = Tensor(value, device=self.device)
+    if value.device != self.device: value = value.to(self.device)
+    if expected_shape is not None:
+      if value.shape != expected_shape: raise ValueError(f"Shape mismatch: expected {expected_shape}, got {value.shape}")
+    if value.dtype == self.dtype: return value
+    if not dtypes.DType.can_cast(value.dtype, self.dtype):
+      raise TypeError(f"Cannot assign {value.dtype} to tensor of dtype {self.dtype}")
+    return value.astype(self.dtype)
+
+  def _scalar_set(self, index_tuple, value):
+    offset = self.__offset
+    for i, stride, size in zip(index_tuple, self.__stride, self.__shape.shape):
+      if i < 0: i += size
+      if i >= size or i < 0: raise IndexError("index out of range")
+      offset += i * stride
+    if self.device.type == "CPU": cpu.setitem(self.__buf, offset, value.__buf)
+    else: cuda.setitem(self.__buf, offset, value.__buf)
+
+  def __copy(self, other):
+    if not isinstance(other, Tensor): raise TypeError("copy_ expects Tensor")
+    if self.shape != other.shape: raise ValueError("shape mismatch in copy_")
+    if self.device != other.device: raise RuntimeError("device mismatch")
+    total = 1
+    for s in self.shape: total *= s
+    index = [0] * self.ndim
+    for _ in range(total):
+      dst_offset = self.__offset
+      src_offset = other.__offset
+      for i, stride in enumerate(self.__stride): dst_offset += index[i] * stride
+      for i, stride in enumerate(other.__stride): src_offset += index[i] * stride
+      if self.device.type == "CPU": cpu.copy_scalar(self.__buf, dst_offset, other.__buf, src_offset)
+      else: cuda.copy_scalar(self.__buf, dst_offset, other.__buf, src_offset)
+      for dim in reversed(range(self.ndim)):
+        index[dim] += 1
+        if index[dim] < self.shape[dim]: break # type: ignore
+        index[dim] = 0
+
+  def _slice_set(self, index, value):
+    view = self._slice_get(index)
+    if not isinstance(value, Tensor): value = Tensor(value, dtype=self.dtype, device=self.device)
+    if view.shape != value.shape: raise ValueError("shape mismatch in assignment")
+    view.__copy(value)
+
+  def __setitem__(self, index, value):
+    index = self._normalize_index(index)
+    if all(isinstance(i, int) for i in index):
+      value = self._prepare_value_for_write(value)
+      return self._scalar_set(index, value)
+    view = self._slice_get(index)
+    value = self._prepare_value_for_write(value, expected_shape=view.shape)
+    return view.__copy(value)
 
   def __len__(self) -> int:
     if self.ndim == 0: raise ValueError("len() of a 0-d tensor")
@@ -232,6 +282,12 @@ class Tensor:
   def astype(self, dtype:Union[dtypes.DType,dtypes.ConstType]) -> Tensor:
     x = reshape(cuda.topyobj(self.__buf), self.shape.shape) if self.__device.type == "CUDA" else reshape(cpu.topyobj(self.__buf), self.shape.shape) # type: ignore
     return Tensor(x, dtype=dtype, device=f"{self.__device.type}:{self.__device.index}")
+
+  def to(self, device:Union[str,Device]) -> Tensor:
+    if not isinstance(device, Device): device = Device(device)
+    if device == self.device: return self
+    if device == "CUDA": return Tensor(reshape(cpu.topyobj(self.buf), self.shape.shape), dtype=self.dtype, device=device, requires_grad=False, const=False) # type: ignore
+    return Tensor(reshape(cuda.topyobj(self.buf), self.shape.shape), dtype=self.dtype, device=device, requires_grad=False, const=False) # type: ignore
 
   @staticmethod
   def _pad_shape(shape:Tuple[int,...], ndim:int) -> Tuple[int,...]: return (1,) * (ndim - len(shape)) + shape
