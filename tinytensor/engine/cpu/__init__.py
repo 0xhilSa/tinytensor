@@ -1,5 +1,5 @@
 from tinytensor.engine.cpu.cpu import tocpu, topyobj, ndim, shape, stride, device, dtype, getitem, empty
-from tinytensor.engine.cpu.cpu_ops import (add, sub, mul, tdiv, fdiv, pow, mod, real, imag,
+from tinytensor.engine.cpu.cpu_ops import (add, sub, mul, tdiv, fdiv, pow, mod, conj, real, imag,
                                            eq, ne, gt, ge, lt, le, neg, pos, abs,
                                            lshift, rshift,
                                            bitwise_and, bitwise_or, bitwise_xor, bitwise_nand, bitwise_nor, bitwise_xnor, bitwise_not,
@@ -25,6 +25,7 @@ __all__ = [
   "fdiv",
   "pow",
   "mod",
+  "conj",
   "real",
   "imag",
   "eq",

@@ -3949,6 +3949,73 @@ static PyObject *bmm(PyObject *self, PyObject *args){
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
 }
 
+static PyObject *conj_(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "invalid tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  if(tx->dtype != CMPX64 && tx->dtype != CMPX128){
+    PyErr_SetString(PyExc_TypeError, "real() implemented only for complex dtype tensor(s)");
+    return NULL;
+  }
+  tensor_t *tz = malloc(sizeof(tensor_t));
+  tz->dtype = (tx->dtype == CMPX64) ? CMPX64 : CMPX128;
+  tz->element_size = getsize(tz->dtype);
+  tz->device = (device_t){CPU, 0};
+  tz->size = 1;
+  tz->storage = malloc(sizeof(storage_t));
+  tz->storage->device = tz->device;
+  tz->storage->refcount = 1;
+  tz->storage->bytes = tz->element_size;
+  tz->storage->ptr = malloc(tz->storage->bytes);
+  tz->buf = tz->storage->ptr;
+  if(tx->ndim == 0){
+    tz->ndim = 0;
+    tz->shape = NULL;
+    tz->stride = NULL;
+    if(tx->dtype == CMPX64){
+      ((float*)tz->buf)[0] = ((complex64*)tx->buf)[0].real;
+    }else{
+      ((float64*)tz->buf)[0] = ((complex128*)tx->buf)[0].real;
+    }
+    return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+  }
+  tz->ndim = tx->ndim;
+  tz->shape = malloc(sizeof(size_t) * tz->ndim);
+  tz->stride = malloc(sizeof(size_t) * tz->ndim);
+  for(size_t i = 0; i < tz->ndim; i++){
+    tz->shape[i] = tx->shape[i];
+    tz->stride[i] = tx->stride[i];
+  }
+  tz->size = tx->size;
+  tz->storage->bytes = tz->size * tz->element_size;
+  tz->storage->ptr = malloc(tz->storage->bytes);
+  tz->buf = tz->storage->ptr;
+  if(tx->dtype == CMPX64){
+    complex64 *in = (complex64 *)tx->buf;
+    complex64 *out = (complex64 *)tz->buf;
+    for(size_t i = 0; i < tz->size; i++){
+      out[i].real = in[i].real;
+      out[i].imag = -in[i].imag;
+    }
+  }else if(tx->dtype == CMPX128){
+    complex128 *in = (complex128 *)tx->buf;
+    complex128 *out = (complex128 *)tz->buf;
+    for(size_t i = 0; i < tz->size; i++){
+      out[i].real = in[i].real;
+      out[i].imag = -in[i].imag;
+    }
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
 static PyObject *real(PyObject *self, PyObject *args){
   PyObject *x;
   if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
@@ -5867,8 +5934,9 @@ static PyMethodDef methods[] = {
   {"logical_xnor", logical_xnor, METH_VARARGS, "element-wise logical 'xnor' operation on tensor"},
   {"sum", (PyCFunction)sum, METH_VARARGS | METH_KEYWORDS, "returns the sum of the tensor"},
   {"bmm", bmm, METH_VARARGS, "compute batch matrix multiplication on tensor"},
-  {"real", real, METH_VARARGS, "get real values from complex tensor"},
-  {"imag", imag, METH_VARARGS, "get imag values from complex tensor"},
+  {"conj", conj_, METH_VARARGS, "conjugate of of complex tensor"},
+  {"real", real, METH_VARARGS, "real values from complex tensor"},
+  {"imag", imag, METH_VARARGS, "imag values from complex tensor"},
   {"exp", exp_, METH_VARARGS, "computes exponential of tensor"},
   {"log", log_, METH_VARARGS, "computes log of tensor to the base `e`"},
   {"log2", log2_, METH_VARARGS, "computes log of tensor to the base `2`"},
