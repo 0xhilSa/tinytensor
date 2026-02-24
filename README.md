@@ -27,6 +27,7 @@ It provides basic tensor structures, memory handling, and essential operations w
 |`complex64` | 64bit complex dtype   | ✅  |  ✅  |
 |`complex128`| 128bit complex dtype  | ✅  |  ✅  |
 |`complex256`| 256bit complex dtype  | ❌  |  ❌  |
+
 ❓ = maybe?
 
 ## Install from the source
