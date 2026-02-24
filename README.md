@@ -23,9 +23,11 @@ It provides basic tensor structures, memory handling, and essential operations w
 |`float32`   | 32bit floating point  | ✅  |  ✅  |
 |`float64`   | 64bit floating point  | ✅  |  ✅  |
 |`float128`  | 128bit floating point | ❌  |  ❌  |
+|`complex32` | 64bit complex dtype   | ❓  |  ❓  |
 |`complex64` | 64bit complex dtype   | ✅  |  ✅  |
 |`complex128`| 128bit complex dtype  | ✅  |  ✅  |
 |`complex256`| 256bit complex dtype  | ❌  |  ❌  |
+❓ = maybe?
 
 ## Install from the source
 ```bash
