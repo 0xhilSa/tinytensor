@@ -101,6 +101,12 @@ class Tensor:
       acc *= size
     return tuple(expected) == self.__stride
 
+  def conj(self) -> Tensor:
+    if self.dtype == dtypes.complex64 or self.dtype == dtypes.complex128:
+      out = cpu.conj(self.buf) if self.device.type == "CPU" else cuda.conj(self.buf)
+      return Tensor._from_backend(buf=out, dtype=self.dtype, device=self.device)
+    return self
+
   @property
   def real(self) -> Tensor:
     if self.dtype == dtypes.complex64 or self.dtype == dtypes.complex128:
@@ -165,7 +171,8 @@ class Tensor:
     if all(isinstance(i, int) for i in index): return self._scalar_get(index)
     return self._slice_get(index)
 
-  def __setitem__(self, index:Union[int, slice]): pass
+  def __setitem__(self, index):
+    pass
 
   def __len__(self) -> int:
     if self.ndim == 0: raise ValueError("len() of a 0-d tensor")
@@ -190,7 +197,8 @@ class Tensor:
     return Tensor(bool((self != 0).sum().item() == self.size), dtype=dtypes.bool)
 
   @staticmethod
-  def empty(shape:Tuple[int,...], dtype:dtypes.DType=dtypes.float32, device:Union[str,Device]="cpu", requires_grad:bool=False, const:bool=False) -> Tensor:
+  def empty(*shape, dtype:dtypes.DType=dtypes.float32, device:Union[str,Device]="cpu", requires_grad:bool=False, const:bool=False) -> Tensor:
+    if len(shape) == 1 and isinstance(shape, (list, tuple)): shape = shape[0]
     if not isinstance(shape, tuple): raise TypeError("shape must be a tuple")
     if len(shape) == 0: raise ValueError("shape cannot be empty")
     for dim in shape:
@@ -201,19 +209,22 @@ class Tensor:
     return Tensor._from_backend(caps, dtype=dtype, device=device, requires_grad=requires_grad, const=const)
 
   @staticmethod
-  def ones(shape:Tuple[int,...], dtype:Union[dtypes.DType,dtypes.ConstType]=dtypes.int64, device:Union[str,Device]="cpu") -> Tensor:
+  def ones(*shape, dtype:Union[dtypes.DType,dtypes.ConstType]=dtypes.int64, device:Union[str,Device]="cpu") -> Tensor:
+    if len(shape) == 1 and isinstance(shape, (list, tuple)): shape = shape[0]
     length = 1
     for x in shape: length *= x
     return Tensor(reshape([1 for _ in range(length)], shape), dtype=dtype, device=device)
 
   @staticmethod
-  def zeros(shape:Tuple[int,...], dtype:Union[dtypes.DType,dtypes.ConstType]=dtypes.int64, device:Union[str,Device]="cpu") -> Tensor:
+  def zeros(*shape, dtype:Union[dtypes.DType,dtypes.ConstType]=dtypes.int64, device:Union[str,Device]="cpu") -> Tensor:
+    if len(shape) == 1 and isinstance(shape, (list, tuple)): shape = shape[0]
     length = 1
     for x in shape: length *= x
     return Tensor(reshape([0 for _ in range(length)], shape), dtype=dtype, device=device)
 
   @staticmethod
-  def fill(value, shape:Tuple[int,...], dtype:Union[dtypes.DType,dtypes.ConstType]=dtypes.int64, device:Union[str,Device]="cpu") -> Tensor:
+  def fill(value, *shape, dtype:Union[dtypes.DType,dtypes.ConstType]=dtypes.int64, device:Union[str,Device]="cpu") -> Tensor:
+    if len(shape) == 1 and isinstance(shape, (list, tuple)): shape = shape[0]
     length = 1
     for x in shape: length *= x
     return Tensor(reshape([value for _ in range(length)], shape), dtype=dtype, device=device)
@@ -223,7 +234,7 @@ class Tensor:
     return Tensor(x, dtype=dtype, device=f"{self.__device.type}:{self.__device.index}")
 
   @staticmethod
-  def _pad_shape(shape: Tuple[int, ...], ndim: int) -> Tuple[int, ...]: return (1,) * (ndim - len(shape)) + shape
+  def _pad_shape(shape:Tuple[int,...], ndim:int) -> Tuple[int,...]: return (1,) * (ndim - len(shape)) + shape
 
   @staticmethod
   def _pad_data(x, ndim: int):
@@ -539,11 +550,42 @@ class Tensor:
   def __lshift__(self, other:Union[dtypes.ConstType,Tensor,List]) -> Tensor: return self.binop(other, "lshift")
   def __rlshift__(self, other:Union[dtypes.ConstType,Tensor,List]) -> Tensor: return self.binop(other, "lshift", reverse=True)
 
-  def reshape(self, shape:Tuple[int,...]):
-    out = cpu.topyobj(self.buf) if self.__device.type == "CPU" else cuda.topyobj(self.buf)
-    return Tensor(reshape(out, shape), dtype=self.__dtype, device=f"{self.__device.type}:{self.__device.index}") # type: ignore
+  def reshape(self, *shape):
+    if len(shape) == 1 and isinstance(shape[0], (tuple, list)): shape = shape[0]
+    numel = 1
+    for d in self.__shape: numel *= d
+    new_shape = list(shape)
+    unknown_index = -1
+    known_product = 1
+    for i, dim in enumerate(new_shape):
+      if dim == -1:
+        if unknown_index != -1: raise ValueError("Only one -1 allowed in reshape")
+        unknown_index = i
+      else: known_product *= dim
+    if unknown_index != -1:
+      if numel % known_product != 0: raise ValueError("Shape is not compatible with tensor size")
+      new_shape[unknown_index] = numel // known_product
+    final_product = 1
+    for d in new_shape: final_product *= d
+    if final_product != numel: raise ValueError("Shape does not match tensor size")
+    new_stride = []
+    running = 1
+    for dim in reversed(new_shape):
+      new_stride.insert(0, running)
+      running *= dim
+    return Tensor._from_view(
+      buf=self.__buf,
+      dtype=self.__dtype,
+      shape=tuple(new_shape),
+      stride=tuple(new_stride),
+      offset=self.__offset,
+      device=self.__device,
+      requires_grad=self.__requires_grad,
+      const=self.__const,
+    )
 
-  def permute(self, axes:Tuple[int,...]):
+  def permute(self, *axes):
+    if len(axes) == 1 and isinstance(axes[0], (tuple, list)): axes = axes[0]
     new_shape = tuple(self.__shape.shape[i] for i in axes)
     new_stride = tuple(self.__stride[i] for i in axes)
     return Tensor._from_view(
@@ -588,7 +630,8 @@ class Tensor:
   def numpy(self):
     try:
       import numpy as np
-      return np.array(self.data())
+      if self.device.type == "CPU": return np.array(reshape(cpu.topyobj(self.buf), self.shape.shape)) # type: ignore
+      return np.array(reshape(cuda.topyobj(self.buf), self.shape.shape)) # type: ignore
     except ImportError:
       import warnings
       warnings.warn("NumPy is required for Tensor.numpy(). Install it with: pip install numpy", RuntimeWarning)
