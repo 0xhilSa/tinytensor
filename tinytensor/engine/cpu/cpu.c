@@ -1,6 +1,4 @@
 #include <python3.10/Python.h>
-#include <python3.10/longobject.h>
-#include <python3.10/pyerrors.h>
 #include "../tensor.h"
 
 void capsule_destroyer(PyObject *capsule){
@@ -478,6 +476,56 @@ static PyObject *getitem(PyObject *self, PyObject *args){
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
 }
 
+static PyObject *copy_scalar(PyObject *self, PyObject *args){
+  PyObject *dst_capsule;
+  unsigned long long dst_index;
+  PyObject *src_capsule;
+  unsigned long long src_index;
+  if(!PyArg_ParseTuple(args, "OKOK", &dst_capsule, &dst_index, &src_capsule, &src_index)) return NULL;
+  tensor_t *dst = PyCapsule_GetPointer(dst_capsule, "tensor_t on CPU");
+  tensor_t *src = PyCapsule_GetPointer(src_capsule, "tensor_t on CPU");
+  if(!dst || !src){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor pointer");
+    return NULL;
+  }
+  if(dst_index >= dst->size || src_index >= src->size){
+    PyErr_SetString(PyExc_IndexError, "Index out of range");
+    return NULL;
+  }
+  char *dst_ptr = (char*)dst->buf + dst_index * dst->element_size;
+  char *src_ptr = (char*)src->buf + src_index * src->element_size;
+  memcpy(dst_ptr, src_ptr, dst->element_size);
+  Py_RETURN_NONE;
+}
+
+static PyObject *setitem(PyObject *self, PyObject *args){
+  PyObject *dst_capsule;
+  unsigned long long index;
+  PyObject *src_capsule;
+  if(!PyArg_ParseTuple(args, "OKO", &dst_capsule, &index, &src_capsule)) return NULL;
+  if(!PyCapsule_CheckExact(dst_capsule) || !PyCapsule_CheckExact(src_capsule)){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid capsule pointer");
+    return NULL;
+  }
+  tensor_t *dst = PyCapsule_GetPointer(dst_capsule, "tensor_t on CPU");
+  tensor_t *src = PyCapsule_GetPointer(src_capsule, "tensor_t on CPU");
+  if(!dst || !src){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor pointer");
+    return NULL;
+  }
+  if(index >= dst->size){
+    PyErr_SetString(PyExc_IndexError, "Index out of range");
+    return NULL;
+  }
+  if(src->size != 1){
+    PyErr_SetString(PyExc_RuntimeError, "Assigned value must be scalar");
+    return NULL;
+  }
+  char *dst_ptr = (char*)dst->buf + index * dst->element_size;
+  memcpy(dst_ptr, src->buf, dst->element_size);
+  Py_RETURN_NONE;
+}
+
 static PyObject *empty(PyObject *self, PyObject *args){
   PyObject *shape_obj;
   const char *fmt;
@@ -563,6 +611,8 @@ static PyMethodDef methods[] = {
   {"device", device, METH_VARARGS, "returns tensor_t device"},
   {"dtype", dtype, METH_VARARGS, "returns tensor_t dtype"},
   {"getitem", getitem, METH_VARARGS, "get item from tensor_t"},
+  {"copy_scalar", copy_scalar, METH_VARARGS, "copy scalar value"},
+  {"setitem", setitem, METH_VARARGS, "setitem on tensor_t"},
   {"empty", empty, METH_VARARGS, "returns empty tensor_t"},
   {NULL, NULL, 0, NULL}
 };
