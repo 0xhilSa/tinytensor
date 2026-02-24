@@ -746,6 +746,79 @@ static PyObject *getitem(PyObject *self, PyObject *args){
   return PyCapsule_New(tz, "tensor_t on CUDA", capsule_destroyer);
 }
 
+__global__ void copy_scalar_kernel(
+  char* dst,
+  unsigned long long dst_index,
+  char* src,
+  unsigned long long src_index,
+  size_t element_size)
+{
+  if(threadIdx.x == 0 && blockIdx.x == 0){
+    char* d = dst + dst_index * element_size;
+    char* s = src + src_index * element_size;
+    for(size_t i = 0; i < element_size; i++){ d[i] = s[i]; }
+  }
+}
+
+static PyObject *copy_scalar(PyObject *self, PyObject *args){
+  PyObject *dst_capsule;
+  unsigned long long dst_index;
+  PyObject *src_capsule;
+  unsigned long long src_index;
+  if(!PyArg_ParseTuple(args, "OKOK", &dst_capsule, &dst_index, &src_capsule, &src_index)) return NULL;
+  tensor_t *dst = (tensor_t *)PyCapsule_GetPointer(dst_capsule, "tensor_t on CUDA");
+  tensor_t *src = (tensor_t *)PyCapsule_GetPointer(src_capsule, "tensor_t on CUDA");
+  if(!dst || !src){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor pointer");
+    return NULL;
+  }
+  if(dst_index >= dst->size || src_index >= src->size){
+    PyErr_SetString(PyExc_IndexError, "Index out of range");
+    return NULL;
+  }
+  copy_scalar_kernel<<<1,1>>>((char*)dst->buf, dst_index, (char*)src->buf, src_index, dst->element_size);
+
+  cudaError_t err = cudaDeviceSynchronize();
+  if(err != cudaSuccess){
+    PyErr_SetString(PyExc_RuntimeError, cudaGetErrorString(err));
+    return NULL;
+  }
+  Py_RETURN_NONE;
+}
+
+static PyObject *setitem(PyObject *self, PyObject *args){
+  PyObject *dst_capsule;
+  unsigned long long index;
+  PyObject *src_capsule;
+  if(!PyArg_ParseTuple(args, "OKO", &dst_capsule, &index, &src_capsule)) return NULL;
+  if(!PyCapsule_CheckExact(dst_capsule) || !PyCapsule_CheckExact(src_capsule)){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid capsule pointer");
+    return NULL;
+  }
+  tensor_t *dst = (tensor_t *)PyCapsule_GetPointer(dst_capsule, "tensor_t on CUDA");
+  tensor_t *src = (tensor_t *)PyCapsule_GetPointer(src_capsule, "tensor_t on CUDA");
+  if(!dst || !src){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor pointer");
+    return NULL;
+  }
+  if(index >= dst->size){
+    PyErr_SetString(PyExc_IndexError, "Index out of range");
+    return NULL;
+  }
+  if(src->size != 1){
+    PyErr_SetString(PyExc_RuntimeError, "Assigned value must be scalar");
+    return NULL;
+  }
+  char* dst_ptr = (char*)dst->buf + index * dst->element_size;
+  char* src_ptr = (char*)src->buf;
+  cudaError_t err = cudaMemcpy(dst_ptr, src_ptr, dst->element_size, cudaMemcpyDeviceToDevice);
+  if(err != cudaSuccess){
+    PyErr_SetString(PyExc_RuntimeError, cudaGetErrorString(err));
+    return NULL;
+  }
+  Py_RETURN_NONE;
+}
+
 static PyObject *empty(PyObject *self, PyObject *args){
   PyObject *shape_obj;
   const char *fmt;
@@ -856,7 +929,9 @@ static PyMethodDef methods[] = {
   {"device", device, METH_VARARGS, "returns tensor_t device"},
   {"dtype", dtype, METH_VARARGS, "returns tensor_t dtype"},
   {"getitem", getitem, METH_VARARGS, "get item from tensor_t on CUDA"},
-  {"empty", empty, METH_VARARGS, "get empty CUDA tensor"},
+  {"copy_scalar", copy_scalar, METH_VARARGS, "copy scalar value"},
+  {"setitem", setitem, METH_VARARGS, "setitem on CUDA tensor_t"},
+  {"empty", empty, METH_VARARGS, "get empty CUDA tensor_t"},
   {NULL, NULL, 0, NULL}
 };
 
