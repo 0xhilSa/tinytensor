@@ -4637,8 +4637,7 @@ static PyObject *cos_(PyObject *self, PyObject *args){
       }
       out[i] = cosf(v);
     }
-  }
-  else{
+  }else if(out_dtype == FP64){
     float64 *out = (float64*)tz->buf;
     for(size_t i = 0; i < N; i++){
       float64 v;
@@ -4652,6 +4651,24 @@ static PyObject *cos_(PyObject *self, PyObject *args){
           return NULL;
       }
       out[i] = cos(v);
+    }
+  }else if(out_dtype == CMPX64){
+    complex64 *in  = (complex64*)tx->buf;
+    complex64 *out = (complex64*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float32 a = in[i].real;
+      float32 b = in[i].imag;
+      out[i].real = cosf(a) * coshf(b);
+      out[i].imag = -sinf(a) * sinhf(b);
+    }
+  }else if(out_dtype == CMPX128){
+    complex128 *in  = (complex128*)tx->buf;
+    complex128 *out = (complex128*)tz->buf;
+    for(size_t i = 0; i < N; i++){
+      float64 a = in[i].real;
+      float64 b = in[i].imag;
+      out[i].real = cos(a) * cosh(b);
+      out[i].imag = -sin(a) * sinh(b);
     }
   }
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
