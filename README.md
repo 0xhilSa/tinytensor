@@ -28,9 +28,7 @@ It provides basic tensor structures, memory handling, and essential operations w
 |`complex128`| 128bit complex dtype  | ✅  |  ✅  |
 |`complex256`| 256bit complex dtype  | ❌  |  ❌  |
 
-❓ = not-supported (in future maybe)  
-❌ = not-supported (no hope in future)  
-✅ = supported
+❓ = not-supported (in future maybe)
 
 ## Install from the source
 ```bash
