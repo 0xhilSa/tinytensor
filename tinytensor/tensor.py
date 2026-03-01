@@ -296,7 +296,7 @@ class Tensor:
   def eye(m:int, n:int|None=None, dtype:dtypes.DType=dtypes.float32, device:Union[str,Device]="cpu", requires_grad:bool=False, const:bool=False): # type: ignore
     if n is None: n = m
     if not isinstance(device, Device): device = Device(device)
-    buf = cpu.eye(m, n, dtype.fmt) if device.type == "CPU" else NotImplemented
+    buf = cpu.eye(m, n, dtype.fmt) if device.type == "CPU" else cuda.eye(m, n, dtype.fmt)
     return Tensor._from_backend(buf, dtype=dtype, device=device, requires_grad=requires_grad, const=const)
 
   def astype(self, dtype:Union[dtypes.DType,dtypes.ConstType]) -> Tensor:
