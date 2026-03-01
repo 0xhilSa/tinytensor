@@ -1,5 +1,6 @@
 #include <python3.10/Python.h>
 #include <cuda_runtime.h>
+#include "../tt_memory.h"
 #include "../tensor.h"
 
 #define CUDA_CHECK(call) \
@@ -12,7 +13,7 @@
   } while(0)
 
 tensor_t *tensor_empty_like(tensor_t *tx, dtype_t dtype){
-  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  tensor_t *tz = (tensor_t *)tt_malloc(sizeof(tensor_t));
   if(!tz){
     PyErr_SetString(PyExc_MemoryError, "tensor_t allocation failed");
     return NULL;
@@ -22,13 +23,13 @@ tensor_t *tensor_empty_like(tensor_t *tx, dtype_t dtype){
   tz->device = {CUDA,tx->device.index};
   tz->ndim = tx->ndim;
   tz->size = tx->size;
-  tz->shape = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+  tz->shape = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
   if(!tz->shape){
     PyErr_SetString(PyExc_MemoryError, "shape allocation failed");
     free(tz);
     return NULL;
   }
-  tz->stride = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+  tz->stride = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
   if(!tz->stride){
     PyErr_SetString(PyExc_MemoryError, "stride allocation failed");
     free(tz->shape);
@@ -39,7 +40,7 @@ tensor_t *tensor_empty_like(tensor_t *tx, dtype_t dtype){
     tz->shape[i]  = tx->shape[i];
     tz->stride[i] = tx->stride[i];
   }
-  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  tz->storage = (storage_t *)tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     PyErr_SetString(PyExc_MemoryError, "storage allocation failed");
     free(tz->stride);
@@ -893,7 +894,7 @@ __global__ void logical_xnor_cmpx128_tensor_kernel(const complex128 *x, const co
 }
 
 static tensor_t *alloc_result_tensor(const tensor_t *t){
-  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  tensor_t *tz = (tensor_t *)tt_malloc(sizeof(tensor_t));
   if(!tz){
     PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
     return NULL;
@@ -905,7 +906,7 @@ static tensor_t *alloc_result_tensor(const tensor_t *t){
   tz->device = t->device;
   tz->stride = NULL;
   if(t->ndim > 0 && t->shape){
-    tz->shape = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+    tz->shape = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
     if(!tz->shape){
       free(tz);
       PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape allocation failed!");
@@ -917,7 +918,7 @@ static tensor_t *alloc_result_tensor(const tensor_t *t){
   }else{
     tz->shape = NULL;
   }
-  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  tz->storage = (storage_t *)tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     if(tz->shape) free(tz->shape);
     free(tz);
@@ -2136,7 +2137,7 @@ static PyObject *tdiv(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CUDA)");
     return NULL;
   }
-  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  tensor_t *tz = (tensor_t *)tt_malloc(sizeof(tensor_t));
   if(!tz){
     PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
     return NULL;
@@ -2158,7 +2159,7 @@ static PyObject *tdiv(PyObject *self, PyObject *args){
       return NULL;
   }
   if(tx->ndim > 0 && tx->shape){
-    tz->shape = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+    tz->shape = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
     if(!tz->shape){
       free(tz);
       PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape allocation failed!");
@@ -2169,7 +2170,7 @@ static PyObject *tdiv(PyObject *self, PyObject *args){
   }else{
     tz->shape = NULL;
   }
-  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  tz->storage = (storage_t *)tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     if(tz->shape) free(tz->shape);
     free(tz);
@@ -2311,7 +2312,7 @@ static PyObject *eq(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CUDA)");
     return NULL;
   }
-  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  tensor_t *tz = (tensor_t *)tt_malloc(sizeof(tensor_t));
   if(!tz){
     PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
     return NULL;
@@ -2323,7 +2324,7 @@ static PyObject *eq(PyObject *self, PyObject *args){
   tz->device = tx->device;
   tz->stride = NULL;
   if(tx->ndim > 0 && tx->shape){
-    tz->shape = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+    tz->shape = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
     if(!tz->shape){
       free(tz);
       PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape allocation failed!");
@@ -2335,7 +2336,7 @@ static PyObject *eq(PyObject *self, PyObject *args){
   }else{
     tz->shape = NULL;
   }
-  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  tz->storage = (storage_t *)tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     if(tz->shape) free(tz->shape);
     free(tz);
@@ -2378,7 +2379,7 @@ static PyObject *ne(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CUDA)");
     return NULL;
   }
-  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  tensor_t *tz = (tensor_t *)tt_malloc(sizeof(tensor_t));
   if(!tz){
     PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
     return NULL;
@@ -2390,7 +2391,7 @@ static PyObject *ne(PyObject *self, PyObject *args){
   tz->device = tx->device;
   tz->stride = NULL;
   if(tx->ndim > 0 && tx->shape){
-    tz->shape = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+    tz->shape = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
     if(!tz->shape){
       free(tz);
       PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape allocation failed!");
@@ -2402,7 +2403,7 @@ static PyObject *ne(PyObject *self, PyObject *args){
   }else{
     tz->shape = NULL;
   }
-  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  tz->storage = (storage_t *)tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     if(tz->shape) free(tz->shape);
     free(tz);
@@ -2449,7 +2450,7 @@ static PyObject *gt(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CUDA)");
     return NULL;
   }
-  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  tensor_t *tz = (tensor_t *)tt_malloc(sizeof(tensor_t));
   if(!tz){
     PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
     return NULL;
@@ -2461,7 +2462,7 @@ static PyObject *gt(PyObject *self, PyObject *args){
   tz->device = tx->device;
   tz->stride = NULL;
   if(tx->ndim > 0 && tx->shape){
-    tz->shape = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+    tz->shape = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
     if(!tz->shape){
       free(tz);
       PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape allocation failed!");
@@ -2473,7 +2474,7 @@ static PyObject *gt(PyObject *self, PyObject *args){
   }else{
     tz->shape = NULL;
   }
-  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  tz->storage = (storage_t *)tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     if(tz->shape) free(tz->shape);
     free(tz);
@@ -2520,7 +2521,7 @@ static PyObject *ge(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CUDA)");
     return NULL;
   }
-  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  tensor_t *tz = (tensor_t *)tt_malloc(sizeof(tensor_t));
   if(!tz){
     PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
     return NULL;
@@ -2532,7 +2533,7 @@ static PyObject *ge(PyObject *self, PyObject *args){
   tz->device = tx->device;
   tz->stride = NULL;
   if(tx->ndim > 0 && tx->shape){
-    tz->shape = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+    tz->shape = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
     if(!tz->shape){
       free(tz);
       PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape allocation failed!");
@@ -2544,7 +2545,7 @@ static PyObject *ge(PyObject *self, PyObject *args){
   }else{
     tz->shape = NULL;
   }
-  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  tz->storage = (storage_t *)tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     if(tz->shape) free(tz->shape);
     free(tz);
@@ -2591,7 +2592,7 @@ static PyObject *lt(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CUDA)");
     return NULL;
   }
-  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  tensor_t *tz = (tensor_t *)tt_malloc(sizeof(tensor_t));
   if(!tz){
     PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
     return NULL;
@@ -2603,7 +2604,7 @@ static PyObject *lt(PyObject *self, PyObject *args){
   tz->device = tx->device;
   tz->stride = NULL;
   if(tx->ndim > 0 && tx->shape){
-    tz->shape = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+    tz->shape = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
     if(!tz->shape){
       free(tz);
       PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape allocation failed!");
@@ -2615,7 +2616,7 @@ static PyObject *lt(PyObject *self, PyObject *args){
   }else{
     tz->shape = NULL;
   }
-  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  tz->storage = (storage_t *)tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     if(tz->shape) free(tz->shape);
     free(tz);
@@ -2662,7 +2663,7 @@ static PyObject *le(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CUDA)");
     return NULL;
   }
-  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  tensor_t *tz = (tensor_t *)tt_malloc(sizeof(tensor_t));
   if(!tz){
     PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
     return NULL;
@@ -2674,7 +2675,7 @@ static PyObject *le(PyObject *self, PyObject *args){
   tz->device = tx->device;
   tz->stride = NULL;
   if(tx->ndim > 0 && tx->shape){
-    tz->shape = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+    tz->shape = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
     if(!tz->shape){
       free(tz);
       PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape allocation failed!");
@@ -2686,7 +2687,7 @@ static PyObject *le(PyObject *self, PyObject *args){
   }else{
     tz->shape = NULL;
   }
-  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  tz->storage = (storage_t *)tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     if(tz->shape) free(tz->shape);
     free(tz);
@@ -2909,7 +2910,7 @@ static PyObject *logical_and(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CUDA)");
     return NULL;
   }
-  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  tensor_t *tz = (tensor_t *)tt_malloc(sizeof(tensor_t));
   if(!tz){
     PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
     return NULL;
@@ -2920,8 +2921,8 @@ static PyObject *logical_and(PyObject *self, PyObject *args){
   tz->ndim = tx->ndim;
   tz->device = (device_t){CUDA, tx->device.index};
   if(tx->ndim > 0 && tx->shape){
-    tz->shape = (size_t *)malloc(sizeof(size_t) * tz->ndim);
-    tz->stride = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+    tz->shape = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
+    tz->stride = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
     if(!tz->shape || !tz->stride){
       free(tz);
       PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape or tensor_t.stride allocation failed!");
@@ -2935,7 +2936,7 @@ static PyObject *logical_and(PyObject *self, PyObject *args){
     tz->shape = NULL;
     tz->stride = NULL;
   }
-  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  tz->storage = (storage_t *)tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     if(tz->shape) free(tz->shape);
     free(tz);
@@ -3012,7 +3013,7 @@ static PyObject *logical_nand(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CUDA)");
     return NULL;
   }
-  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  tensor_t *tz = (tensor_t *)tt_malloc(sizeof(tensor_t));
   if(!tz){
     PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
     return NULL;
@@ -3023,8 +3024,8 @@ static PyObject *logical_nand(PyObject *self, PyObject *args){
   tz->ndim = tx->ndim;
   tz->device = (device_t){CUDA, tx->device.index};
   if(tx->ndim > 0 && tx->shape){
-    tz->shape = (size_t *)malloc(sizeof(size_t) * tz->ndim);
-    tz->stride = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+    tz->shape = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
+    tz->stride = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
     if(!tz->shape || !tz->stride){
       free(tz);
       PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape or tensor_t.stride allocation failed!");
@@ -3038,7 +3039,7 @@ static PyObject *logical_nand(PyObject *self, PyObject *args){
     tz->shape = NULL;
     tz->stride = NULL;
   }
-  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  tz->storage = (storage_t *)tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     if(tz->shape) free(tz->shape);
     free(tz);
@@ -3115,7 +3116,7 @@ static PyObject *logical_or(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CUDA)");
     return NULL;
   }
-  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  tensor_t *tz = (tensor_t *)tt_malloc(sizeof(tensor_t));
   if(!tz){
     PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
     return NULL;
@@ -3126,8 +3127,8 @@ static PyObject *logical_or(PyObject *self, PyObject *args){
   tz->ndim = tx->ndim;
   tz->device = (device_t){CUDA, tx->device.index};
   if(tx->ndim > 0 && tx->shape){
-    tz->shape = (size_t *)malloc(sizeof(size_t) * tz->ndim);
-    tz->stride = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+    tz->shape = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
+    tz->stride = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
     if(!tz->shape || !tz->stride){
       free(tz);
       PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape or tensor_t.stride allocation failed!");
@@ -3141,7 +3142,7 @@ static PyObject *logical_or(PyObject *self, PyObject *args){
     tz->shape = NULL;
     tz->stride = NULL;
   }
-  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  tz->storage = (storage_t *)tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     if(tz->shape) free(tz->shape);
     free(tz);
@@ -3218,7 +3219,7 @@ static PyObject *logical_nor(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CUDA)");
     return NULL;
   }
-  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  tensor_t *tz = (tensor_t *)tt_malloc(sizeof(tensor_t));
   if(!tz){
     PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
     return NULL;
@@ -3229,8 +3230,8 @@ static PyObject *logical_nor(PyObject *self, PyObject *args){
   tz->ndim = tx->ndim;
   tz->device = (device_t){CUDA, tx->device.index};
   if(tx->ndim > 0 && tx->shape){
-    tz->shape = (size_t *)malloc(sizeof(size_t) * tz->ndim);
-    tz->stride = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+    tz->shape = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
+    tz->stride = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
     if(!tz->shape || !tz->stride){
       free(tz);
       PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape or tensor_t.stride allocation failed!");
@@ -3244,7 +3245,7 @@ static PyObject *logical_nor(PyObject *self, PyObject *args){
     tz->shape = NULL;
     tz->stride = NULL;
   }
-  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  tz->storage = (storage_t *)tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     if(tz->shape) free(tz->shape);
     free(tz);
@@ -3307,7 +3308,7 @@ static PyObject *logical_not(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CUDA)");
     return NULL;
   }
-  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  tensor_t *tz = (tensor_t *)tt_malloc(sizeof(tensor_t));
   if(!tz){
     PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
     return NULL;
@@ -3318,8 +3319,8 @@ static PyObject *logical_not(PyObject *self, PyObject *args){
   tz->ndim = tx->ndim;
   tz->device = (device_t){CUDA, tx->device.index};
   if(tx->ndim > 0 && tx->shape){
-    tz->shape = (size_t *)malloc(sizeof(size_t) * tz->ndim);
-    tz->stride = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+    tz->shape = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
+    tz->stride = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
     if(!tz->shape || !tz->stride){
       free(tz);
       PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape or tensor_t.stride allocation failed!");
@@ -3333,7 +3334,7 @@ static PyObject *logical_not(PyObject *self, PyObject *args){
     tz->shape = NULL;
     tz->stride = NULL;
   }
-  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  tz->storage = (storage_t *)tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     if(tz->shape) free(tz->shape);
     free(tz);
@@ -3410,7 +3411,7 @@ static PyObject *logical_xor(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CUDA)");
     return NULL;
   }
-  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  tensor_t *tz = (tensor_t *)tt_malloc(sizeof(tensor_t));
   if(!tz){
     PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
     return NULL;
@@ -3421,8 +3422,8 @@ static PyObject *logical_xor(PyObject *self, PyObject *args){
   tz->ndim = tx->ndim;
   tz->device = (device_t){CUDA, tx->device.index};
   if(tx->ndim > 0 && tx->shape){
-    tz->shape = (size_t *)malloc(sizeof(size_t) * tz->ndim);
-    tz->stride = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+    tz->shape = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
+    tz->stride = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
     if(!tz->shape || !tz->stride){
       free(tz);
       PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape or tensor_t.stride allocation failed!");
@@ -3436,7 +3437,7 @@ static PyObject *logical_xor(PyObject *self, PyObject *args){
     tz->shape = NULL;
     tz->stride = NULL;
   }
-  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  tz->storage = (storage_t *)tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     if(tz->shape) free(tz->shape);
     free(tz);
@@ -3513,7 +3514,7 @@ static PyObject *logical_xnor(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CUDA)");
     return NULL;
   }
-  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  tensor_t *tz = (tensor_t *)tt_malloc(sizeof(tensor_t));
   if(!tz){
     PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
     return NULL;
@@ -3524,8 +3525,8 @@ static PyObject *logical_xnor(PyObject *self, PyObject *args){
   tz->ndim = tx->ndim;
   tz->device = (device_t){CUDA, tx->device.index};
   if(tx->ndim > 0 && tx->shape){
-    tz->shape = (size_t *)malloc(sizeof(size_t) * tz->ndim);
-    tz->stride = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+    tz->shape = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
+    tz->stride = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
     if(!tz->shape || !tz->stride){
       free(tz);
       PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape or tensor_t.stride allocation failed!");
@@ -3539,7 +3540,7 @@ static PyObject *logical_xnor(PyObject *self, PyObject *args){
     tz->shape = NULL;
     tz->stride = NULL;
   }
-  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  tz->storage = (storage_t *)tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     if(tz->shape) free(tz->shape);
     free(tz);
@@ -3562,19 +3563,19 @@ static PyObject *logical_xnor(PyObject *self, PyObject *args){
 }
 
 tensor_t *tensor_empty_like_bmm(tensor_t *tx, size_t m, size_t n){
-  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  tensor_t *tz = (tensor_t *)tt_malloc(sizeof(tensor_t));
   if(!tz) return NULL;
   tz->dtype = tx->dtype;
   tz->device = tx->device;
   tz->ndim = tx->ndim;
   tz->element_size = tx->element_size;
-  tz->shape = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+  tz->shape = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
   if(!tz->shape){ free(tz); return NULL; }
   for(size_t i = 0; i < tz->ndim - 2; i++)
     tz->shape[i] = tx->shape[i];
   tz->shape[tz->ndim - 2] = m;
   tz->shape[tz->ndim - 1] = n;
-  tz->stride = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+  tz->stride = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
   if(!tz->stride){ free(tz->shape); free(tz); return NULL; }
   tz->stride[tz->ndim - 1] = 1;
   for(int i = tz->ndim - 2; i >= 0; i--)
@@ -3582,7 +3583,7 @@ tensor_t *tensor_empty_like_bmm(tensor_t *tx, size_t m, size_t n){
   tz->size = 1;
   for(size_t i = 0; i < tz->ndim; i++)
     tz->size *= tz->shape[i];
-  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  tz->storage = (storage_t *)tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     free(tz->stride);
     free(tz->shape);
@@ -3830,14 +3831,14 @@ static PyObject *bmm(PyObject *self, PyObject *args){
 }
 
 tensor_t *tensor_empty_axis_sum(tensor_t *tx, int axis){
-  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  tensor_t *tz = (tensor_t *)tt_malloc(sizeof(tensor_t));
   if(!tz) return NULL;
   tz->dtype = tx->dtype;
   tz->device = tx->device;
   tz->element_size = tx->element_size;
   tz->ndim = tx->ndim - 1;
-  tz->shape = (size_t *)malloc(sizeof(size_t) * tz->ndim);
-  tz->stride = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+  tz->shape = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
+  tz->stride = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
   if(!tz->shape || !tz->stride){
     free(tz->shape);
     free(tz->stride);
@@ -3857,7 +3858,7 @@ tensor_t *tensor_empty_axis_sum(tensor_t *tx, int axis){
   for(int i = 0; i < tz->ndim; i++){
     tz->size *= tz->shape[i];
   }
-  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  tz->storage = (storage_t *)tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     free(tz->shape);
     free(tz->stride);
@@ -3874,7 +3875,7 @@ tensor_t *tensor_empty_axis_sum(tensor_t *tx, int axis){
 }
 
 tensor_t *tensor_empty_scalar_like(tensor_t *tx){
-  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  tensor_t *tz = (tensor_t *)tt_malloc(sizeof(tensor_t));
   if(!tz) return NULL;
   tz->dtype = tx->dtype;
   tz->device = tx->device;
@@ -3883,7 +3884,7 @@ tensor_t *tensor_empty_scalar_like(tensor_t *tx){
   tz->shape = NULL;
   tz->stride = NULL;
   tz->size = 1;
-  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  tz->storage = (storage_t *)tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     free(tz);
     return NULL;
@@ -4323,14 +4324,14 @@ static PyObject *sum(PyObject *self, PyObject *args, PyObject *kwargs){
 }
 
 static tensor_t *tensor_empty_like_realimag(tensor_t *tx, dtype_t out_dtype){
-  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  tensor_t *tz = (tensor_t *)tt_malloc(sizeof(tensor_t));
   if(!tz) return NULL;
   tz->dtype = out_dtype;
   tz->element_size = getsize(out_dtype);
   tz->device = tx->device;
   tz->ndim = tx->ndim;
-  tz->shape = (size_t *)malloc(sizeof(size_t) * tz->ndim);
-  tz->stride = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+  tz->shape = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
+  tz->stride = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
   if(!tz->shape || !tz->stride){
     free(tz->shape);
     free(tz->stride);
@@ -4342,7 +4343,7 @@ static tensor_t *tensor_empty_like_realimag(tensor_t *tx, dtype_t out_dtype){
     tz->stride[i] = tx->stride[i];
   }
   tz->size = tx->size;
-  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  tz->storage = (storage_t *)tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     free(tz->shape);
     free(tz->stride);
@@ -4394,19 +4395,19 @@ static PyObject *conj_(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_TypeError, "conj only for complex tensors");
     return NULL;
   }
-  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  tensor_t *tz = (tensor_t *)tt_malloc(sizeof(tensor_t));
   tz->dtype = tx->dtype;
   tz->element_size = tx->element_size;
   tz->device = tx->device;
   tz->ndim = tx->ndim;
   tz->size = tx->size;
-  tz->shape  = (size_t *)malloc(sizeof(size_t) * tz->ndim);
-  tz->stride = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+  tz->shape  = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
+  tz->stride = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
   for(size_t i = 0; i < tz->ndim; i++){
     tz->shape[i]  = tx->shape[i];
     tz->stride[i] = tx->stride[i];
   }
-  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  tz->storage = (storage_t *)tt_malloc(sizeof(storage_t));
   tz->storage->device = tz->device;
   tz->storage->refcount = 1;
   tz->storage->bytes = tz->size * tz->element_size;
@@ -6352,6 +6353,456 @@ static PyObject *sgn_(PyObject *self, PyObject *args){
   return PyCapsule_New(tz, "tensor_t on CUDA", capsule_destroyer);
 }
 
+__global__ void sqrt_fp32_tensor_kernel(const void *x, float32 *out, size_t N, dtype_t dtype){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx >= N) return;
+  float32 v;
+  switch(dtype){
+    case INT8: v = (float32)((int8*)x)[idx]; break;
+    case UINT8: v = (float32)((uint8*)x)[idx]; break;
+    case INT16: v = (float32)((int16*)x)[idx]; break;
+    case UINT16: v = (float32)((uint16*)x)[idx]; break;
+    case INT32: v = (float32)((int32*)x)[idx]; break;
+    case UINT32: v = (float32)((uint32*)x)[idx]; break;
+    case FP32:  v = ((float32*)x)[idx]; break;
+    default: v = 0.0f;
+  }
+  out[idx] = sqrtf(v);
+}
+
+__global__ void sqrt_fp64_tensor_kernel(const void *x, float64 *out, size_t N, dtype_t dtype){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx >= N) return;
+  float32 v;
+  switch(dtype){
+    case INT8: v = (float64)((int8*)x)[idx]; break;
+    case UINT8: v = (float64)((uint8*)x)[idx]; break;
+    case INT16: v = (float64)((int16*)x)[idx]; break;
+    case UINT16: v = (float64)((uint16*)x)[idx]; break;
+    case INT32: v = (float64)((int32*)x)[idx]; break;
+    case UINT32: v = (float64)((uint32*)x)[idx]; break;
+    case FP32:  v = ((float64*)x)[idx]; break;
+    default: v = 0.0f;
+  }
+  out[idx] = sqrt(v);
+}
+
+__global__ void sqrt_fp16_tensor_kernel(const float16 *x, float16 *z, size_t N){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx < N){ z[idx] = float_to_fp16(sqrtf(fp16_to_float(x[idx]))); }
+}
+
+__global__ void sqrt_cmpx64_tensor_kernel(const complex64 *x, complex64 *z, size_t N){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx >= N) return;
+  float32 a = x[idx].real;
+  float32 b = x[idx].imag;
+  float32 r = sqrtf(a*a + b*b);
+  float32 real_part = sqrtf(0.5f * (r + a));
+  float32 imag_part = sqrtf(0.5f * (r - a));
+  if(b < 0.0f){ imag_part = -imag_part; }
+  z[idx].real = real_part;
+  z[idx].imag = imag_part;
+}
+
+__global__ void sqrt_cmpx128_tensor_kernel(const complex128 *x, complex128 *z, size_t N){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx >= N) return;
+  float64 a = x[idx].real;
+  float64 b = x[idx].imag;
+  float64 r = sqrt(a*a + b*b);
+  float64 real_part = sqrt(0.5 * (r + a));
+  float64 imag_part = sqrt(0.5 * (r - a));
+  if(b < 0.0){ imag_part = -imag_part; }
+  z[idx].real = real_part;
+  z[idx].imag = imag_part;
+}
+
+__global__ void cbrt_fp32_tensor_kernel(const void *x, float32 *out, size_t N, dtype_t dtype){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx >= N) return;
+  float32 v;
+  switch(dtype){
+    case INT8: v = (float32)((int8*)x)[idx]; break;
+    case UINT8: v = (float32)((uint8*)x)[idx]; break;
+    case INT16: v = (float32)((int16*)x)[idx]; break;
+    case UINT16: v = (float32)((uint16*)x)[idx]; break;
+    case INT32: v = (float32)((int32*)x)[idx]; break;
+    case UINT32: v = (float32)((uint32*)x)[idx]; break;
+    case FP32:  v = ((float32*)x)[idx]; break;
+    default: v = 0.0f;
+  }
+  out[idx] = cbrtf(v);
+}
+
+__global__ void cbrt_fp64_tensor_kernel(const void *x, float64 *out, size_t N, dtype_t dtype){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx >= N) return;
+  float32 v;
+  switch(dtype){
+    case INT8: v = (float64)((int8*)x)[idx]; break;
+    case UINT8: v = (float64)((uint8*)x)[idx]; break;
+    case INT16: v = (float64)((int16*)x)[idx]; break;
+    case UINT16: v = (float64)((uint16*)x)[idx]; break;
+    case INT32: v = (float64)((int32*)x)[idx]; break;
+    case UINT32: v = (float64)((uint32*)x)[idx]; break;
+    case FP32:  v = ((float64*)x)[idx]; break;
+    default: v = 0.0f;
+  }
+  out[idx] = cbrt(v);
+}
+
+__global__ void cbrt_fp16_tensor_kernel(const float16 *x, float16 *z, size_t N){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx < N){ z[idx] = float_to_fp16(cbrtf(fp16_to_float(x[idx]))); }
+}
+
+__global__ void cbrt_cmpx64_tensor_kernel(const complex64 *x, complex64 *z, size_t N){
+   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx >= N) return;
+  float32 a = x[idx].real;
+  float32 b = x[idx].imag;
+  float32 r = sqrtf(a*a + b*b);
+  float32 theta = atan2f(b, a);
+  float32 root_r = cbrtf(r);
+  float32 angle = theta / 3.0f;
+  z[idx].real = root_r * cosf(angle);
+  z[idx].imag = root_r * sinf(angle);
+}
+
+__global__ void cbrt_cmpx128_tensor_kernel(const complex128 *x, complex128 *z, size_t N){
+size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx >= N) return;
+  float64 a = x[idx].real;
+  float64 b = x[idx].imag;
+  float64 r = sqrt(a*a + b*b);
+  float64 theta = atan2(b, a);
+  float64 root_r = cbrt(r);
+  float64 angle = theta / 3.0;
+  z[idx].real = root_r * cos(angle);
+  z[idx].imag = root_r * sin(angle);
+}
+
+static PyObject *sqrt_(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = (tensor_t *)PyCapsule_GetPointer(x, "tensor_t on CUDA");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t CUDA capsule pointer");
+    return NULL;
+  }
+  dtype_t out_dtype;
+  switch(tx->dtype){
+    case INT8: case UINT8:
+    case INT16: case UINT16:
+    case INT32: case UINT32: out_dtype = FP32; break;
+    case INT64: case UINT64: out_dtype = FP64; break;
+    case FP16: out_dtype = FP16; break;
+    case FP32: out_dtype = FP32; break;
+    case FP64: out_dtype = FP64; break;
+    case CMPX64: out_dtype = CMPX64; break;
+    case CMPX128: out_dtype = CMPX128; break;
+    default:
+      PyErr_SetString(PyExc_TypeError, "unsupported dtype");
+      return NULL;
+  }
+  tensor_t *tz = tensor_empty_like(tx, out_dtype);
+  if(!tz){
+    PyErr_SetString(PyExc_RuntimeError, "Failed to allocate CUDA output tensor");
+    return NULL;
+  }
+  size_t N = tx->size;
+  int threads = 256;
+  int blocks = (N + threads - 1) / threads;
+  if(out_dtype == FP16){ sqrt_fp16_tensor_kernel<<<blocks, threads>>>((float16*)tx->buf, (float16*)tz->buf, N); }
+  else if(out_dtype == FP32){ sqrt_fp32_tensor_kernel<<<blocks, threads>>>(tx->buf, (float32*)tz->buf, N, tx->dtype); }
+  else if(out_dtype == FP64){ sqrt_fp64_tensor_kernel<<<blocks, threads>>>((float64 *)tx->buf, (float64*)tz->buf, N, tx->dtype); }
+  else if(out_dtype == CMPX64){ sqrt_cmpx64_tensor_kernel<<<blocks, threads>>>((complex64 *)tx->buf, (complex64 *)tz->buf, N); }
+  else if(out_dtype == CMPX128){ sqrt_cmpx128_tensor_kernel<<<blocks, threads>>>((complex128 *)tx->buf, (complex128 *)tz->buf, N); }
+  cudaDeviceSynchronize();
+  cudaError_t err = cudaGetLastError();
+  if(err != cudaSuccess){
+    PyErr_SetString(PyExc_RuntimeError, cudaGetErrorString(err));
+    return NULL;
+  }
+  return PyCapsule_New(tz, "tensor_t on CUDA", capsule_destroyer);
+}
+
+static PyObject *cbrt_(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = (tensor_t *)PyCapsule_GetPointer(x, "tensor_t on CUDA");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t CUDA capsule pointer");
+    return NULL;
+  }
+  dtype_t out_dtype;
+  switch(tx->dtype){
+    case INT8: case UINT8:
+    case INT16: case UINT16:
+    case INT32: case UINT32: out_dtype = FP32; break;
+    case INT64: case UINT64: out_dtype = FP64; break;
+    case FP16: out_dtype = FP16; break;
+    case FP32: out_dtype = FP32; break;
+    case FP64: out_dtype = FP64; break;
+    case CMPX64: out_dtype = CMPX64; break;
+    case CMPX128: out_dtype = CMPX128; break;
+    default:
+      PyErr_SetString(PyExc_TypeError, "unsupported dtype");
+      return NULL;
+  }
+  tensor_t *tz = tensor_empty_like(tx, out_dtype);
+  if(!tz){
+    PyErr_SetString(PyExc_RuntimeError, "Failed to allocate CUDA output tensor");
+    return NULL;
+  }
+  size_t N = tx->size;
+  int threads = 256;
+  int blocks = (N + threads - 1) / threads;
+  if(out_dtype == FP16){ cbrt_fp16_tensor_kernel<<<blocks, threads>>>((float16*)tx->buf, (float16*)tz->buf, N); }
+  else if(out_dtype == FP32){ cbrt_fp32_tensor_kernel<<<blocks, threads>>>(tx->buf, (float32*)tz->buf, N, tx->dtype); }
+  else if(out_dtype == FP64){cbrt_fp64_tensor_kernel<<<blocks, threads>>>((float64 *)tx->buf, (float64*)tz->buf, N, tx->dtype); }
+  else if(out_dtype == CMPX64){ cbrt_cmpx64_tensor_kernel<<<blocks, threads>>>((complex64 *)tx->buf, (complex64 *)tz->buf, N); }
+  else if(out_dtype == CMPX128){ cbrt_cmpx128_tensor_kernel<<<blocks, threads>>>((complex128 *)tx->buf, (complex128 *)tz->buf, N); }
+  cudaDeviceSynchronize();
+  cudaError_t err = cudaGetLastError();
+  if(err != cudaSuccess){
+    PyErr_SetString(PyExc_RuntimeError, cudaGetErrorString(err));
+    return NULL;
+  }
+  return PyCapsule_New(tz, "tensor_t on CUDA", capsule_destroyer);
+}
+
+template<typename T>
+__global__ void floor_tensor_kernel(const T *x, T *z, size_t N){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx < N){ z[idx] = x[idx]; }
+}
+
+__global__ void floor_fp16_tensor_kernel(const float16 *x, float16 *z, size_t N){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx < N){ z[idx] = float_to_fp16(floor(fp16_to_float(x[idx]))); }
+}
+__global__ void floor_fp32_tensor_kernel(const float32 *x, float32 *z, size_t N){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx < N){ z[idx] = floorf(x[idx]); }
+}
+
+__global__ void floor_fp64_tensor_kernel(const float64 *x, float64 *z, size_t N){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx < N){ z[idx] = floor(x[idx]); }
+}
+
+static PyObject *floor_(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = (tensor_t *)PyCapsule_GetPointer(x, "tensor_t on CUDA");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t CUDA capsule pointer");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_RuntimeError, "floor_() op is not supported for complex dtype tensor");
+    return NULL;
+  }
+  tensor_t *tz = alloc_result_tensor(tx);
+  size_t N = tx->size;
+  int threads = 256;
+  int blocks = (N + threads - 1) / threads;
+  if(tz->dtype == INT8) { floor_tensor_kernel<int8><<<blocks, threads>>>((int8 *)tx->buf, (int8 *)tz->buf, N); }
+  else if(tz->dtype == UINT8){ floor_tensor_kernel<uint8><<<blocks, threads>>>((uint8 *)tx->buf, (uint8 *)tz->buf, N); }
+  else if(tz->dtype == INT16){ floor_tensor_kernel<int16><<<blocks, threads>>>((int16 *)tx->buf, (int16 *)tz->buf, N); }
+  else if(tz->dtype == UINT16){ floor_tensor_kernel<uint16><<<blocks, threads>>>((uint16 *)tx->buf, (uint16 *)tz->buf, N); }
+  else if(tz->dtype == INT32){ floor_tensor_kernel<int32><<<blocks, threads>>>((int32 *)tx->buf, (int32 *)tz->buf, N); }
+  else if(tz->dtype == UINT32){ floor_tensor_kernel<uint32><<<blocks, threads>>>((uint32 *)tx->buf, (uint32 *)tz->buf, N); }
+  else if(tz->dtype == INT64){ floor_tensor_kernel<int64><<<blocks, threads>>>((int64 *)tx->buf, (int64 *)tz->buf, N); }
+  else if(tz->dtype == UINT64){ floor_tensor_kernel<uint64><<<blocks, threads>>>((uint64 *)tx->buf, (uint64 *)tz->buf, N); }
+  else if(tz->dtype == FP16){ floor_fp16_tensor_kernel<<<blocks, threads>>>((float16 *)tx->buf, (float16 *)tz->buf, N); }
+  else if(tz->dtype == FP32){ floor_fp32_tensor_kernel<<<blocks, threads>>>((float32 *)tx->buf, (float32 *)tz->buf, N); }
+  else if(tz->dtype == FP64){ floor_fp64_tensor_kernel<<<blocks, threads>>>((float64 *)tx->buf, (float64 *)tz->buf, N); }
+  cudaError_t err = cudaGetLastError();
+  if(err != cudaSuccess){
+    destroy(tz);
+    PyErr_Format(PyExc_RuntimeError, "%s", cudaGetErrorString(err));
+    return NULL;
+  }
+  err = cudaDeviceSynchronize();
+  if(err != cudaSuccess){
+    destroy(tz);
+    PyErr_Format(PyExc_RuntimeError, "%s", cudaGetErrorString(err));
+    return NULL;
+  }
+  return PyCapsule_New(tz, "tensor_t on CUDA", capsule_destroyer);
+}
+
+template<typename T>
+__global__ void ceil_tensor_kernel(const T *x, T *z, size_t N){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx < N){ z[idx] = x[idx]; }
+}
+
+__global__ void ceil_fp16_tensor_kernel(const float16 *x, float16 *z, size_t N){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx < N){ z[idx] = float_to_fp16(floor(fp16_to_float(x[idx]))); }
+}
+__global__ void ceil_fp32_tensor_kernel(const float32 *x, float32 *z, size_t N){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx < N){ z[idx] = ceilf(x[idx]); }
+}
+
+__global__ void ceil_fp64_tensor_kernel(const float64 *x, float64 *z, size_t N){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(idx < N){ z[idx] = ceil(x[idx]); }
+}
+
+static PyObject *ceil_(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = (tensor_t *)PyCapsule_GetPointer(x, "tensor_t on CUDA");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t CUDA capsule pointer");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_RuntimeError, "ceil_() op is not supported for complex dtype tensor");
+    return NULL;
+  }
+  tensor_t *tz = alloc_result_tensor(tx);
+  size_t N = tx->size;
+  int threads = 256;
+  int blocks = (N + threads - 1) / threads;
+  if(tz->dtype == INT8) { ceil_tensor_kernel<int8><<<blocks, threads>>>((int8 *)tx->buf, (int8 *)tz->buf, N); }
+  else if(tz->dtype == UINT8){ ceil_tensor_kernel<uint8><<<blocks, threads>>>((uint8 *)tx->buf, (uint8 *)tz->buf, N); }
+  else if(tz->dtype == INT16){ ceil_tensor_kernel<int16><<<blocks, threads>>>((int16 *)tx->buf, (int16 *)tz->buf, N); }
+  else if(tz->dtype == UINT16){ ceil_tensor_kernel<uint16><<<blocks, threads>>>((uint16 *)tx->buf, (uint16 *)tz->buf, N); }
+  else if(tz->dtype == INT32){ ceil_tensor_kernel<int32><<<blocks, threads>>>((int32 *)tx->buf, (int32 *)tz->buf, N); }
+  else if(tz->dtype == UINT32){ ceil_tensor_kernel<uint32><<<blocks, threads>>>((uint32 *)tx->buf, (uint32 *)tz->buf, N); }
+  else if(tz->dtype == INT64){ ceil_tensor_kernel<int64><<<blocks, threads>>>((int64 *)tx->buf, (int64 *)tz->buf, N); }
+  else if(tz->dtype == UINT64){ ceil_tensor_kernel<uint64><<<blocks, threads>>>((uint64 *)tx->buf, (uint64 *)tz->buf, N); }
+  else if(tz->dtype == FP16){ ceil_fp16_tensor_kernel<<<blocks, threads>>>((float16 *)tx->buf, (float16 *)tz->buf, N); }
+  else if(tz->dtype == FP32){ ceil_fp32_tensor_kernel<<<blocks, threads>>>((float32 *)tx->buf, (float32 *)tz->buf, N); }
+  else if(tz->dtype == FP64){ ceil_fp64_tensor_kernel<<<blocks, threads>>>((float64 *)tx->buf, (float64 *)tz->buf, N); }
+  cudaError_t err = cudaGetLastError();
+  if(err != cudaSuccess){
+    destroy(tz);
+    PyErr_Format(PyExc_RuntimeError, "%s", cudaGetErrorString(err));
+    return NULL;
+  }
+  err = cudaDeviceSynchronize();
+  if(err != cudaSuccess){
+    destroy(tz);
+    PyErr_Format(PyExc_RuntimeError, "%s", cudaGetErrorString(err));
+    return NULL;
+  }
+  return PyCapsule_New(tz, "tensor_t on CUDA", capsule_destroyer);
+}
+
+template<typename T>
+__global__ void eye_kernel(T* buf, size_t m, size_t n, size_t stride0, size_t stride1, size_t diag) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i >= diag) return;
+  size_t idx = i * stride0 + i * stride1;
+  buf[idx] = (T)1;
+}
+
+__global__ void eye_kernel_fp16(float16* buf, size_t m, size_t n, size_t stride0, size_t stride1, size_t diag) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i >= diag) return;
+  size_t idx = i * stride0 + i * stride1;
+  buf[idx] = float_to_fp16(1.0f);
+}
+
+static PyObject *eye_(PyObject *self, PyObject *args){
+  size_t m, n;
+  const char *fmt;
+  if(!PyArg_ParseTuple(args, "nns", &m, &n, &fmt)) return NULL;
+  dtype_t dtype = getdtype(*fmt);
+  if(dtype == ERROR){
+    PyErr_Format(PyExc_ValueError, "Invalid fmt string %c", *fmt);
+    return NULL;
+  }
+  if(dtype == CMPX64 || dtype == CMPX128){
+    PyErr_SetString(PyExc_RuntimeError, "eye_() is not supported for complex dtype");
+    return NULL;
+  }
+  tensor_t *t = (tensor_t*)tt_malloc(sizeof(tensor_t));
+  if(!t) return PyErr_NoMemory();
+  t->dtype = dtype;
+  t->element_size = getsize(dtype);
+  t->device = (device_t){CUDA, 0};
+  t->ndim = 2;
+  t->size = m * n;
+  t->shape = (size_t*)tt_malloc(2 * sizeof(size_t));
+  if(!t->shape){ free(t); return PyErr_NoMemory(); }
+  t->shape[0] = m;
+  t->shape[1] = n;
+  t->stride = (size_t*)tt_malloc(2 * sizeof(size_t));
+  if(!t->stride){
+    free(t->shape);
+    free(t);
+    return PyErr_NoMemory();
+  }
+  t->stride[1] = 1;
+  t->stride[0] = n;
+  storage_t *storage = (storage_t*)tt_malloc(sizeof(storage_t));
+  if(!storage){
+    destroy(t);
+    return PyErr_NoMemory();
+  }
+  storage->bytes = t->size * t->element_size;
+  storage->device = t->device;
+  storage->refcount = 1;
+  cudaError_t err = cudaMalloc(&storage->ptr, storage->bytes);
+  if(err != cudaSuccess){
+    free(storage);
+    destroy(t);
+    PyErr_SetString(PyExc_RuntimeError, "cudaMalloc failed");
+    return NULL;
+  }
+  cudaMemset(storage->ptr, 0, storage->bytes);
+  t->storage = storage;
+  t->buf = storage->ptr;
+  size_t diag = (m < n) ? m : n;
+  int threads = 256;
+  int blocks = (diag + threads - 1) / threads;
+  switch(dtype){
+    case BOOL: eye_kernel<<<blocks, threads>>>((bool*)t->buf, m, n, t->stride[0], t->stride[1], diag); break;
+    case INT8: eye_kernel<<<blocks, threads>>>((int8*)t->buf, m, n, t->stride[0], t->stride[1], diag); break;
+    case UINT8: eye_kernel<<<blocks, threads>>>((uint8*)t->buf, m, n, t->stride[0], t->stride[1], diag); break;
+    case INT16: eye_kernel<<<blocks, threads>>>((int16*)t->buf, m, n, t->stride[0], t->stride[1], diag); break;
+    case UINT16: eye_kernel<<<blocks, threads>>>((uint16*)t->buf, m, n, t->stride[0], t->stride[1], diag); break;
+    case INT32: eye_kernel<<<blocks, threads>>>((int32*)t->buf, m, n, t->stride[0], t->stride[1], diag); break;
+    case UINT32: eye_kernel<<<blocks, threads>>>((uint32*)t->buf, m, n, t->stride[0], t->stride[1], diag); break;
+    case INT64: eye_kernel<<<blocks, threads>>>((int64*)t->buf, m, n, t->stride[0], t->stride[1], diag); break;
+    case UINT64: eye_kernel<<<blocks, threads>>>((uint64*)t->buf, m, n, t->stride[0], t->stride[1], diag); break;
+    case FP16: eye_kernel_fp16<<<blocks, threads>>>((float16*)t->buf, m, n, t->stride[0], t->stride[1], diag); break;
+    case FP32: eye_kernel<<<blocks, threads>>>((float*)t->buf, m, n, t->stride[0], t->stride[1], diag); break;
+    case FP64: eye_kernel<<<blocks, threads>>>((double*)t->buf, m, n, t->stride[0], t->stride[1], diag); break;
+    default:
+      destroy(t);
+      PyErr_SetString(PyExc_TypeError, "Unsupported dtype for eye");
+      return NULL;
+  }
+  cudaDeviceSynchronize();
+  return PyCapsule_New(t, "tensor_t on CUDA", capsule_destroyer);
+}
+
 static PyMethodDef methods[] = {
   {"add", add, METH_VARARGS, "element-wise 'add' operation on CUDA tensor"},
   {"sub", sub, METH_VARARGS, "element-wise 'sub' operation on CUDA tensor"},
@@ -6360,6 +6811,10 @@ static PyMethodDef methods[] = {
   {"fdiv", fdiv, METH_VARARGS, "element-wise 'fdiv' operation on CUDA tensor"},
   {"pow", pow_, METH_VARARGS, "element-wise 'pow' operation on CUDA tensor"},
   {"mod", mod_, METH_VARARGS, "element-wise 'mod' operation on CUDA tensor"},
+  {"sqrt", sqrt_, METH_VARARGS, "element-wise 'sqrt' operation on CUDA tensor"},
+  {"cbrt", cbrt_, METH_VARARGS, "element-wise 'cbrt' operation on CUDA tensor"},
+  {"floor", floor_, METH_VARARGS, "element-wise 'floor' operation on CUDA tensor"},
+  {"ceil", ceil_, METH_VARARGS, "element-wise 'ceil' operation on CUDA tensor"},
   {"eq", eq, METH_VARARGS, "element-wise 'eq' operation on CUDA tensor"},
   {"ne", ne, METH_VARARGS, "element-wise 'ne' operation on CUDA tensor"},
   {"gt", gt, METH_VARARGS, "element-wise 'gt' operation on CUDA tensor"},
@@ -6407,6 +6862,7 @@ static PyMethodDef methods[] = {
   {"acosh", acosh_, METH_VARARGS, "computes arc hyperbolic cosine of tensor on CUDA"},
   {"atanh", atanh_, METH_VARARGS, "computes are hyperbolic tangent of tensor on CUDA"},
   {"sgn", sgn_, METH_VARARGS, "computes signum of a tensor on CUDA"},
+  {"eye", eye_, METH_VARARGS, "returns identity of a tensor on CUDA"},
   {NULL, NULL, 0, NULL}
 };
 

@@ -1,14 +1,14 @@
 from tinytensor.engine.cuda.cuda import (device_count, get_device_prop, device_name, is_available, get_device,
                                          topyobj, tocuda, runtime_version, driver_version, driver_package,
                                          shape, ndim, stride, device, dtype, getitem, copy_scalar, setitem, empty)
-from tinytensor.engine.cuda.cuda_ops import (add, sub, mul, tdiv, fdiv, pow, mod, conj, real, imag,
+from tinytensor.engine.cuda.cuda_ops import (add, sub, mul, tdiv, fdiv, pow, mod, sqrt, cbrt, floor, ceil, conj, real, imag,
                                              eq, ne, gt, ge, lt, le, neg, pos, abs,
                                              lshift, rshift,
                                              bitwise_and, bitwise_or, bitwise_xor, bitwise_nand, bitwise_nor, bitwise_xnor, bitwise_not,
                                              logical_and, logical_or, logical_xor, logical_nand, logical_nor, logical_xnor, logical_not,
                                              sum, bmm, exp, log, log2, log10,
                                              sin, cos, tan, asin, acos, atan,
-                                             sinh, cosh, tanh, asinh, acosh, atanh, sgn)
+                                             sinh, cosh, tanh, asinh, acosh, atanh, sgn, eye)
 
 __all__ = [
   "shape",
@@ -37,6 +37,10 @@ __all__ = [
   "fdiv",
   "pow",
   "mod",
+  "sqrt",
+  "cbrt",
+  "floor",
+  "ceil",
   "conj",
   "real",
   "imag",
@@ -84,4 +88,5 @@ __all__ = [
   "acosh",
   "atanh",
   "sgn",
+  "eye",
 ]

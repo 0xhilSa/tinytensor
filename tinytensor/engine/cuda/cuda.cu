@@ -1,6 +1,7 @@
 #include <cuda_runtime.h>
 #include <python3.10/Python.h>
 #include <nvml.h>
+#include "../tt_memory.h"
 #include "../tensor.h"
 
 #define CUDA_CHECK(call) \
@@ -64,7 +65,7 @@ static PyObject *__list__(PyObject *list, PyObject *shape, const char *fmt, int 
     return NULL;
   }
   CUDA_CHECK(cudaSetDevice(device_idx));
-  tensor_t *t = (tensor_t *)malloc(sizeof(tensor_t));
+  tensor_t *t = (tensor_t *)tt_malloc(sizeof(tensor_t));
   if(!t){
     PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
     return NULL;
@@ -72,7 +73,7 @@ static PyObject *__list__(PyObject *list, PyObject *shape, const char *fmt, int 
   t->dtype = dtype;
   t->size = length;
   t->ndim = PyTuple_Size(shape);
-  t->shape = (size_t *)malloc(sizeof(size_t) * t->ndim);
+  t->shape = (size_t *)tt_malloc(sizeof(size_t) * t->ndim);
   if(!t->shape){
     free(t);
     PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape allocation failed!");
@@ -96,7 +97,7 @@ static PyObject *__list__(PyObject *list, PyObject *shape, const char *fmt, int 
     free(t);
     return NULL;
   }
-  t->stride = (size_t *)malloc(sizeof(size_t) * t->ndim);
+  t->stride = (size_t *)tt_malloc(sizeof(size_t) * t->ndim);
   if(!t->stride){
     destroy(t);
     PyErr_SetString(PyExc_RuntimeError, "tensor_t.stride allocation failed!");
@@ -106,7 +107,7 @@ static PyObject *__list__(PyObject *list, PyObject *shape, const char *fmt, int 
   for(int i = (int)t->ndim - 2; i >= 0; i--){ t->stride[i] = t->shape[i + 1] * t->stride[i+1]; }
   t->element_size = getsize(dtype);
   t->device = (device_t){CUDA, (unsigned short)device_idx};
-  t->storage = (storage_t *)malloc(sizeof(storage_t));
+  t->storage = (storage_t *)tt_malloc(sizeof(storage_t));
   if(!t->storage){
     free(t->shape);
     free(t);
@@ -125,7 +126,7 @@ static PyObject *__list__(PyObject *list, PyObject *shape, const char *fmt, int 
     return NULL;
   }
   t->buf = t->storage->ptr;
-  void *host_buffer = malloc(t->storage->bytes);
+  void *host_buffer = tt_malloc(t->storage->bytes);
   if(!host_buffer){
     cudaFree(t->storage->ptr);
     free(t->storage);
@@ -218,7 +219,7 @@ static PyObject *__scalar__(PyObject *scalar, const char *fmt, int device_idx){
     return NULL;
   }
   CUDA_CHECK(cudaSetDevice(device_idx));
-  tensor_t *t = (tensor_t *)malloc(sizeof(tensor_t));
+  tensor_t *t = (tensor_t *)tt_malloc(sizeof(tensor_t));
   if(!t){
     PyErr_NoMemory();
     return NULL;
@@ -230,7 +231,7 @@ static PyObject *__scalar__(PyObject *scalar, const char *fmt, int device_idx){
   t->stride = NULL;
   t->element_size = getsize(dtype);
   t->device = (device_t){ CUDA, (unsigned short)device_idx };
-  t->storage = (storage_t *)malloc(sizeof(storage_t));
+  t->storage = (storage_t *)tt_malloc(sizeof(storage_t));
   if(!t->storage){
     free(t);
     PyErr_NoMemory();
@@ -247,7 +248,7 @@ static PyObject *__scalar__(PyObject *scalar, const char *fmt, int device_idx){
     return NULL;
   }
   t->buf = t->storage->ptr;
-  void *host_buffer = malloc(t->element_size);
+  void *host_buffer = tt_malloc(t->element_size);
   if(!host_buffer){
     cudaFree(t->storage->ptr);
     free(t->storage);
@@ -358,7 +359,7 @@ static PyObject *topyobj(PyObject *self, PyObject *args){
     PyErr_Format(PyExc_RuntimeError, "Failed to set CUDA device: %s", cudaGetErrorString(err));
     return NULL;
   }
-  void *host_buffer = malloc(t->storage->bytes);
+  void *host_buffer = tt_malloc(t->storage->bytes);
   if(!host_buffer){
     PyErr_NoMemory();
     return NULL;
@@ -713,7 +714,7 @@ static PyObject *getitem(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_IndexError, "Index out of range");
     return NULL;
   }
-  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  tensor_t *tz = (tensor_t *)tt_malloc(sizeof(tensor_t));
   if(!tz){
     PyErr_SetString(PyExc_RuntimeError, "tensor allocation failed");
     return NULL;
@@ -725,7 +726,7 @@ static PyObject *getitem(PyObject *self, PyObject *args){
   tz->shape = NULL;
   tz->stride = NULL;
   tz->element_size = tx->element_size;
-  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  tz->storage = (storage_t *)tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     free(tz);
     PyErr_SetString(PyExc_RuntimeError, "storage allocation failed");
@@ -844,7 +845,7 @@ static PyObject *empty(PyObject *self, PyObject *args){
     return NULL;
   }
   CUDA_CHECK(cudaSetDevice(device_idx));
-  tensor_t *t = (tensor_t *)malloc(sizeof(tensor_t));
+  tensor_t *t = (tensor_t *)tt_malloc(sizeof(tensor_t));
   if(!t){
     PyErr_NoMemory();
     return NULL;
@@ -856,7 +857,7 @@ static PyObject *empty(PyObject *self, PyObject *args){
     free(t);
     return NULL;
   }
-  t->shape = (size_t *)malloc(sizeof(size_t) * t->ndim);
+  t->shape = (size_t *)tt_malloc(sizeof(size_t) * t->ndim);
   if(!t->shape){
     free(t);
     PyErr_NoMemory();
@@ -875,7 +876,7 @@ static PyObject *empty(PyObject *self, PyObject *args){
     total *= t->shape[i];
   }
   t->size = total;
-  t->stride = (size_t *)malloc(sizeof(size_t) * t->ndim);
+  t->stride = (size_t *)tt_malloc(sizeof(size_t) * t->ndim);
   if(!t->stride){
     free(t->shape);
     free(t);
@@ -888,7 +889,7 @@ static PyObject *empty(PyObject *self, PyObject *args){
   }
   t->element_size = getsize(dtype);
   t->device = (device_t){CUDA, (unsigned short)device_idx};
-  t->storage = (storage_t *)malloc(sizeof(storage_t));
+  t->storage = (storage_t *)tt_malloc(sizeof(storage_t));
   if(!t->storage){
     free(t->stride);
     free(t->shape);
