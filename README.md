@@ -42,16 +42,17 @@ bash build.sh
 ```python3
 import tinytensor as tt
 
-x = tt.Tensor([[1,2,3,4],[5,6,7,8]], dtype=tt.dtypes.int8, device="cpu", const=True)
-y = tt.Tensor([[1,2,3,4],[5,6,7,8]], dtype=tt.dtypes.int8, device="cuda", const=True)
-print("=====on CPU=====")
-print(x)
-print(x.buf)
-print(x.device)
-print("=====on CUDA=====")
-print(y)
-print(y.buf)
-print(y.device)
+with tt.Device("cuda"):
+  x = tt.tensor([3.14, 2.71, 3.91, -8.01, 4.63], dtype=tt.float32, requires_grad=True)
+  y = tt.tensor([4.41, 1.71, -7.12, 0.81, 6.21], dtype=tt.float32, requires_grad=True)
+  z = tt.tensor(2.2, dtype=tt.float32, requires_grad=True)
+  a = x * y + z
+  a.backward()
+  print(a)
+  print(a.numpy())
+  print(x.grad.numpy())
+  print(y.grad.numpy())
+  print(z.grad.numpy())
 ```
 or simply run `pytest -v`
 
