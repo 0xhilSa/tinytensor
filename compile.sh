@@ -24,7 +24,7 @@ PYTHON_VERSION=3.10
 PY_INC=$(python${PYTHON_VERSION} -c "import sysconfig; print(sysconfig.get_paths()['include'])")
 PY_LIB=$(python${PYTHON_VERSION} -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))")
 
-TEN_SRC=./tinytensor/engine
+ENGINE_SRC=./tinytensor/engine
 C_SRC_DIR=./tinytensor/engine/cpu
 C_OUT_DIR=$C_SRC_DIR
 CU_SRC_DIR=./tinytensor/engine/cuda
@@ -36,16 +36,17 @@ run_with_spinner nvcc -gencode arch=compute_86,code=sm_86 -O3 -Xcompiler -fPIC -
   -I"$PY_INC" \
   -I"$C_SRC_DIR" \
   "$C_SRC_DIR/cpu.c" \
-  "$TEN_SRC/tensor.c" \
+  "$ENGINE_SRC/tensor.c" \
+  "$ENGINE_SRC/tt_memory.c" \
   -lcudart \
   -o "$C_OUT_DIR/cpu.so"
 
 # compile ./tinytensor/engine/constants.c
-echo "compiling $TEN_SRC/constants.c -> $TEN_SRC/constants.so"
+echo "compiling $ENGINE_SRC/constants.c -> $ENGINE_SRC/constants.so"
 run_with_spinner nvcc -gencode arch=compute_86,code=sm_86 -O3 -Xcompiler -fPIC -shared \
   -I"$PY_INC" \
-  "$TEN_SRC/constants.c" \
-  -o "$TEN_SRC/constants.so"
+  "$ENGINE_SRC/constants.c" \
+  -o "$ENGINE_SRC/constants.so"
 
 # compile ./tinytensor/engine/cpu/cpu_ops.c
 echo "compiling $C_SRC_DIR/cpu_ops.c -> $C_SRC_DIR/cpu_ops.so"
@@ -53,7 +54,8 @@ run_with_spinner nvcc -gencode arch=compute_86,code=sm_86 -O3 -Xcompiler -fPIC -
   -I"$PY_INC" \
   -I"$C_SRC_DIR" \
   "$C_SRC_DIR/cpu_ops.c" \
-  "$TEN_SRC/tensor.c" \
+  "$ENGINE_SRC/tensor.c" \
+  "$ENGINE_SRC/tt_memory.c" \
   -lcudart \
   -o "$C_OUT_DIR/cpu_ops.so"
 
@@ -63,7 +65,8 @@ run_with_spinner nvcc -gencode arch=compute_86,code=sm_86 -O3 -Xcompiler -fPIC -
   -I"$PY_INC" \
   -I"$CU_SRC_DIR" \
   "$CU_SRC_DIR/cuda.cu" \
-  "$TEN_SRC/tensor.c" \
+  "$ENGINE_SRC/tensor.c" \
+  "$ENGINE_SRC/tt_memory.c" \
   -lnvidia-ml \
   -o "$CU_OUT_DIR/cuda.so"
 
@@ -73,7 +76,8 @@ run_with_spinner nvcc -gencode arch=compute_86,code=sm_86 -O3 -Xcompiler -fPIC -
   -I"$PY_INC" \
   -I"$CU_SRC_DIR" \
   "$CU_SRC_DIR/cuda_ops.cu" \
-  "$TEN_SRC/tensor.c" \
+  "$ENGINE_SRC/tensor.c" \
+  "$ENGINE_SRC/tt_memory.c" \
   -o "$CU_OUT_DIR/cuda_ops.so"
 
 # compile ./tinytensor/engine/cuda/functional_cuda.cu
@@ -82,7 +86,8 @@ run_with_spinner nvcc -gencode arch=compute_86,code=sm_86 -O3 -Xcompiler -fPIC -
   -I"$PY_INC" \
   -I"$CU_SRC_DIR" \
   "$CU_SRC_DIR/functional_cuda.cu" \
-  "$TEN_SRC/tensor.c" \
+  "$ENGINE_SRC/tensor.c" \
+  "$ENGINE_SRC/tt_memory.c" \
   -o "$CU_OUT_DIR/functional_cuda.so"
 
 # compile ./tinytensor/engine/cpu/functional_cpu.c
@@ -91,7 +96,8 @@ run_with_spinner nvcc -gencode arch=compute_86,code=sm_86 -O3 -Xcompiler -fPIC -
   -I"$PY_INC" \
   -I"$C_SRC_DIR" \
   "$C_SRC_DIR/functional_cpu.c" \
-  "$TEN_SRC/tensor.c" \
+  "$ENGINE_SRC/tensor.c" \
+  "$ENGINE_SRC/tt_memory.c" \
   -o "$C_OUT_DIR/functional_cpu.so"
 
 
