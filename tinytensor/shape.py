@@ -12,7 +12,7 @@ class Shape:
     stride = [1] * self.ndim
     for i in range(self.ndim - 2, -1, -1): stride[i] = self.shape[i + 1] * stride[i + 1]
     return tuple(stride)
-  def __repr__(self):
+  def __repr__(self) -> str:
     return (
       f"Shape(shape={self.shape}, ndim={self.ndim}, "
       f"size={self.size}, stride={self.stride})"
