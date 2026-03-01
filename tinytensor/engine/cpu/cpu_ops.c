@@ -1,4 +1,5 @@
 #include <python3.10/Python.h>
+#include "../tt_memory.h"
 #include "../tensor.h"
 
 void capsule_destroyer(PyObject *capsule){
@@ -9,7 +10,7 @@ void capsule_destroyer(PyObject *capsule){
 }
 
 tensor_t *tensor_empty_scalar_like(tensor_t *tx){
-  tensor_t *tz = malloc(sizeof(tensor_t));
+  tensor_t *tz = tt_malloc(sizeof(tensor_t));
   if(!tz) return NULL;
   tz->dtype = tx->dtype;
   tz->device = tx->device;
@@ -18,7 +19,7 @@ tensor_t *tensor_empty_scalar_like(tensor_t *tx){
   tz->size = 1;
   tz->shape = NULL;
   tz->stride = NULL;
-  tz->storage = malloc(sizeof(storage_t));
+  tz->storage = tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     free(tz);
     return NULL;
@@ -37,7 +38,7 @@ tensor_t *tensor_empty_scalar_like(tensor_t *tx){
 }
 
 static tensor_t *alloc_result_tensor(const tensor_t *t){
-  tensor_t *tz = malloc(sizeof(tensor_t));
+  tensor_t *tz = tt_malloc(sizeof(tensor_t));
   if(!tz){
     PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
     return NULL;
@@ -49,7 +50,7 @@ static tensor_t *alloc_result_tensor(const tensor_t *t){
   tz->device = t->device;
   tz->stride = NULL;
   if(t->ndim > 0 && t->shape){
-    tz->shape = malloc(sizeof(size_t) * tz->ndim);
+    tz->shape = tt_malloc(sizeof(size_t) * tz->ndim);
     if(!tz->shape){
       free(tz);
       PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape allocation failed!");
@@ -61,7 +62,7 @@ static tensor_t *alloc_result_tensor(const tensor_t *t){
   } else {
     tz->shape = NULL;
   }
-  tz->storage = malloc(sizeof(storage_t));
+  tz->storage = tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     if(tz->shape) free(tz->shape);
     free(tz);
@@ -71,7 +72,7 @@ static tensor_t *alloc_result_tensor(const tensor_t *t){
   tz->storage->bytes = tz->size * tz->element_size;
   tz->storage->device = tz->device;
   tz->storage->refcount = 1;
-  tz->storage->ptr = malloc(tz->storage->bytes);
+  tz->storage->ptr = tt_malloc(tz->storage->bytes);
   if(!tz->storage->ptr){
     if(tz->shape) free(tz->shape);
     free(tz->storage);
@@ -1941,7 +1942,7 @@ static PyObject *tdiv(PyObject *self, PyObject *args){
     return NULL;
   }
   if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    tensor_t *tz = malloc(sizeof(tensor_t));
+    tensor_t *tz = tt_malloc(sizeof(tensor_t));
     if(!tz){
       PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
       return NULL;
@@ -1951,31 +1952,32 @@ static PyObject *tdiv(PyObject *self, PyObject *args){
     tz->ndim = tx->ndim;
     tz->element_size = getsize(tz->dtype);
     tz->device = (device_t){CPU, 0};
-    tz->stride = NULL;
     if(tx->ndim > 0 && tx->shape){
-      tz->shape = malloc(sizeof(size_t) * tz->ndim);
-      if(!tz->shape){
-        free(tz);
-        PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape allocation failed!");
+      tz->shape = tt_malloc(sizeof(size_t) * tz->ndim);
+      tz->stride = tt_malloc(sizeof(size_t) * tz->ndim);
+      if(!tz->shape || !tz->stride){
+        destroy(tz);
+        PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape or tensor_t.stride allocation failed!");
         return NULL;
       }
       for(size_t i = 0; i < tz->ndim; i++){
         tz->shape[i] = tx->shape[i];
+        tz->stride[i] = tx->stride[i];
       }
-    } else {
+    }else{
       tz->shape = NULL;
+      tz->stride = NULL;
     }
-    tz->storage = malloc(sizeof(storage_t));
+    tz->storage = tt_malloc(sizeof(storage_t));
     if(!tz->storage){
-      if(tz->shape) free(tz->shape);
-      free(tz);
+      destroy(tz);
       PyErr_SetString(PyExc_RuntimeError, "tensor_t.storage allocation failed!");
       return NULL;
     }
     tz->storage->bytes = tz->size * tz->element_size;
     tz->storage->device = tz->device;
     tz->storage->refcount = 1;
-    tz->storage->ptr = malloc(tz->storage->bytes);
+    tz->storage->ptr = tt_malloc(tz->storage->bytes);
     if(!tz->storage->ptr){
       if(tz->shape) free(tz->shape);
       free(tz->storage);
@@ -1986,7 +1988,7 @@ static PyObject *tdiv(PyObject *self, PyObject *args){
     tz->buf = tz->storage->ptr;
     return __tdiv_cmpx_tensor__(tx, ty, tz);
   }else{
-    tensor_t *tz = malloc(sizeof(tensor_t));
+    tensor_t *tz = tt_malloc(sizeof(tensor_t));
     if(!tz){
       PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
       return NULL;
@@ -1996,21 +1998,23 @@ static PyObject *tdiv(PyObject *self, PyObject *args){
     tz->ndim = tx->ndim;
     tz->element_size = getsize(tz->dtype);
     tz->device = (device_t){CPU, 0};
-    tz->stride = NULL;
     if(tx->ndim > 0 && tx->shape){
-      tz->shape = malloc(sizeof(size_t) * tz->ndim);
-      if(!tz->shape){
+      tz->shape = tt_malloc(sizeof(size_t) * tz->ndim);
+      tz->stride = tt_malloc(sizeof(size_t) * tz->ndim);
+      if(!tz->shape || !tz->stride){
         free(tz);
-        PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape allocation failed!");
+        PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape or tensor_t.stride allocation failed!");
         return NULL;
       }
       for(size_t i = 0; i < tz->ndim; i++){
         tz->shape[i] = tx->shape[i];
+        tz->stride[i] = tx->stride[i];
       }
-    } else {
+    }else{
       tz->shape = NULL;
+      tz->stride = NULL;
     }
-    tz->storage = malloc(sizeof(storage_t));
+    tz->storage = tt_malloc(sizeof(storage_t));
     if(!tz->storage){
       if(tz->shape) free(tz->shape);
       free(tz);
@@ -2020,7 +2024,7 @@ static PyObject *tdiv(PyObject *self, PyObject *args){
     tz->storage->bytes = tz->size * tz->element_size;
     tz->storage->device = tz->device;
     tz->storage->refcount = 1;
-    tz->storage->ptr = malloc(tz->storage->bytes);
+    tz->storage->ptr = tt_malloc(tz->storage->bytes);
     if(!tz->storage->ptr){
       if(tz->shape) free(tz->shape);
       free(tz->storage);
@@ -2056,10 +2060,10 @@ static PyObject *fdiv_(PyObject *self, PyObject *args){
     return NULL;
   }
   if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    PyErr_SetString(PyExc_TypeError, "floor division is not supported on complex tensor(s)");
+    PyErr_SetString(PyExc_TypeError, "fdiv() is not supported on complex tensor(s)");
     return NULL;
   }
-  tensor_t *tz = malloc(sizeof(tensor_t));
+  tensor_t *tz = tt_malloc(sizeof(tensor_t));
   if(!tz){
     PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
     return NULL;
@@ -2069,21 +2073,23 @@ static PyObject *fdiv_(PyObject *self, PyObject *args){
   tz->ndim = tx->ndim;
   tz->element_size = sizeof(int64);
   tz->device = (device_t){CPU, 0};
-  tz->stride = NULL;
   if(tx->ndim > 0 && tx->shape){
-    tz->shape = malloc(sizeof(size_t) * tz->ndim);
-    if(!tz->shape){
-      free(tz);
-      PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape allocation failed!");
+    tz->shape = tt_malloc(sizeof(size_t) * tz->ndim);
+    tz->stride = tt_malloc(sizeof(size_t) * tz->ndim);
+    if(!tz->shape || !tz->stride){
+      destroy(tz);
+      PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape or tensor_t.stride allocation failed!");
       return NULL;
     }
     for(size_t i = 0; i < tz->ndim; i++){
       tz->shape[i] = tx->shape[i];
+      tz->stride[i] = tx->stride[i];
     }
-  } else {
+  }else{
     tz->shape = NULL;
+    tz->stride = NULL;
   }
-  tz->storage = malloc(sizeof(storage_t));
+  tz->storage = tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     if(tz->shape) free(tz->shape);
     free(tz);
@@ -2093,7 +2099,7 @@ static PyObject *fdiv_(PyObject *self, PyObject *args){
   tz->storage->bytes = tz->size * tz->element_size;
   tz->storage->device = tz->device;
   tz->storage->refcount = 1;
-  tz->storage->ptr = malloc(tz->storage->bytes);
+  tz->storage->ptr = tt_malloc(tz->storage->bytes);
   if(!tz->storage->ptr){
     if(tz->shape) free(tz->shape);
     free(tz->storage);
@@ -2132,6 +2138,415 @@ static PyObject *pow_(PyObject *self, PyObject *args){
   return __pow_tensor__(tx, ty, tz);
 }
 
+static PyObject *__sqrt_tensor__(const tensor_t *tx, tensor_t *tz){
+  size_t N = tx->size;
+  switch(tz->dtype){
+    case FP16: {
+      float16 *in = (float16 *)tx->buf;
+      float16 *out = (float16 *)tz->buf;
+      for(size_t i = 0; i < N; i++){ out[i] = float_to_fp16(sqrtf(fp16_to_float(in[i]))); }
+      break;
+    }
+    case FP32: {
+      float32 *out = (float32 *)tz->buf;
+      switch (tx->dtype){
+        case INT8: { int8 *in = (int8 *)tx->buf; for(size_t i = 0; i < N; i++){ out[i] = sqrtf((float32)in[i]); break; }}
+        case UINT8: { uint8 *in = (uint8 *)tx->buf; for(size_t i = 0; i < N; i++){ out[i] = sqrtf((float32)in[i]); break; }}
+        case INT16: { int16 *in = (int16 *)tx->buf; for(size_t i = 0; i < N; i++){ out[i] = sqrtf((float32)in[i]); break; }}
+        case UINT16: { uint16 *in = (uint16 *)tx->buf; for(size_t i = 0; i < N; i++){ out[i] = sqrtf((float32)in[i]); break; }}
+        case INT32: { int32 *in = (int32 *)tx->buf; for(size_t i = 0; i < N; i++){ out[i] = sqrtf((float32)in[i]); break; }}
+        case UINT32: { uint32 *in = (uint32 *)tx->buf; for(size_t i = 0; i < N; i++){ out[i] = sqrtf((float32)in[i]); break; }}
+        case FP32: { float32 *in = (float32 *)tx->buf; for(size_t i = 0; i < N; i++){ out[i] = sqrtf(in[i]); break; }}
+        default: PyErr_SetString(PyExc_TypeError, "cos_() unsupported dtype"); return NULL;
+      }
+      break;
+    }
+    case FP64: {
+      float64 *in  = (float64 *)tx->buf;
+      float64 *out = (float64 *)tz->buf;
+      for(size_t i = 0; i < N; i++){ out[i] = sqrt(in[i]); }
+      break;
+    }
+    case CMPX64: {
+      complex64 *in = (complex64 *)tx->buf;
+      complex64 *out = (complex64 *)tz->buf;
+      for(size_t i = 0; i < N; i++){
+        float32 a = in[i].real;
+        float32 b = in[i].imag;
+        float32 r = sqrtf(a*a+b*b);
+        float32 real_part = sqrtf((r+a) * 0.5f);
+        float32 imag_part = sqrtf((r-a) * 0.5f);
+        if(b < a){ imag_part = -imag_part; }
+        out[i].real = real_part;
+        out[i].imag = imag_part;
+      }
+      break;
+    }
+    case CMPX128: {
+      complex128 *in = (complex128 *)tx->buf;
+      complex128 *out = (complex128 *)tz->buf;
+      for(size_t i = 0; i < N; i++){
+        float64 a = in[i].real;
+        float64 b = in[i].imag;
+        float64 r = sqrt(a*a+b*b);
+        float64 real_part = sqrt((r+a) * 0.5);
+        float64 imag_part = sqrt((r-a) * 0.5);
+        if(b < a){ imag_part = -imag_part; }
+        out[i].real = real_part;
+        out[i].imag = imag_part;
+      }
+      break;
+    }
+    default:
+      PyErr_SetString(PyExc_TypeError, "Unsupported dtype in __sqrt_tensor__");
+      return NULL;
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+static PyObject *sqrt_(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "operands must be the tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  dtype_t dtype;
+  switch(tx->dtype){
+    case INT8:
+    case UINT8:
+    case INT16:
+    case UINT16:
+    case INT32:
+    case UINT32: dtype = FP32; break;
+    case FP16: dtype=FP16; break;
+    case FP32: dtype=FP32; break;
+    case FP64: dtype=FP64; break;
+    case CMPX64: dtype=CMPX64; break;
+    case CMPX128: dtype=CMPX128; break;
+    default:
+      PyErr_SetString(PyExc_TypeError, "Unsupported dtype for sqrt_()");
+      return NULL;
+  }
+  tensor_t *tz = tt_malloc(sizeof(tensor_t));
+  if(!tz){
+    PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
+    return NULL;
+  }
+  tz->dtype = dtype;
+  tz->element_size = getsize(dtype);
+  tz->device = (device_t){CPU,0};
+  tz->ndim = tx->ndim;
+  tz->size = tx->size;
+  if(tx->ndim > 0 && tx->shape){
+    tz->shape = tt_malloc(sizeof(size_t) * tz->ndim);
+    tz->stride = tt_malloc(sizeof(size_t) * tz->ndim);
+    if(!tz->shape || !tz->stride){
+      destroy(tz);
+      PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape or tensor_t.stride allocation failed!");
+      return NULL;
+    }
+    for(size_t i = 0; i < tz->ndim; i++){
+      tz->shape[i] = tx->shape[i];
+      tz->stride[i] = tx->stride[i];
+    }
+  }else{
+    tz->shape = NULL;
+    tz->stride = NULL;
+  }
+  tz->storage = tt_malloc(sizeof(storage_t));
+  if(!tz->storage){
+    destroy(tz);
+    PyErr_SetString(PyExc_RuntimeError, "tensor_t.storage_t allocation failed!");
+    return NULL;
+  }
+  tz->storage->bytes = tz->size * tz->element_size;
+  tz->storage->device = tz->device;
+  tz->storage->refcount = 1;
+  tz->storage->ptr = tt_malloc(tz->storage->bytes);
+  if(!tz->storage->ptr){
+    destroy(tz);
+    PyErr_SetString(PyExc_RuntimeError, "tensor_t.storage_t.ptr allocation failed!");
+    return NULL;
+  }
+  tz->buf = tz->storage->ptr;
+  return __sqrt_tensor__(tx, tz);
+}
+
+static PyObject *__cbrt_tensor__(const tensor_t *tx, tensor_t *tz){
+  size_t N = tx->size;
+  switch(tz->dtype){
+    case FP16: {
+      float16 *in  = (float16*)tx->buf;
+      float16 *out = (float16*)tz->buf;
+      for(size_t i = 0; i < N; i++){
+        out[i] = float_to_fp16(cbrtf(fp16_to_float(in[i])));
+      }
+      break;
+    }
+    case FP32: {
+      float32 *out = (float32*)tz->buf;
+      switch(tx->dtype){
+        case INT8: { int8 *in=(int8*)tx->buf; for(size_t i=0;i<N;i++) out[i]=cbrtf((float32)in[i]); break; }
+        case UINT8: { uint8 *in=(uint8*)tx->buf; for(size_t i=0;i<N;i++) out[i]=cbrtf((float32)in[i]); break; }
+        case INT16: { int16 *in=(int16*)tx->buf; for(size_t i=0;i<N;i++) out[i]=cbrtf((float32)in[i]); break; }
+        case UINT16: { uint16*in=(uint16*)tx->buf; for(size_t i=0;i<N;i++) out[i]=cbrtf((float32)in[i]); break; }
+        case INT32: { int32 *in=(int32*)tx->buf; for(size_t i=0;i<N;i++) out[i]=cbrtf((float32)in[i]); break; }
+        case UINT32: { uint32*in=(uint32*)tx->buf; for(size_t i=0;i<N;i++) out[i]=cbrtf((float32)in[i]); break; }
+        case FP32: { float32*in=(float32*)tx->buf;for(size_t i=0;i<N;i++) out[i]=cbrtf(in[i]); break; }
+        default:
+          PyErr_SetString(PyExc_TypeError,"Unexpected source dtype for FP32 cbrt");
+          return NULL;
+      }
+      break;
+    }
+    case FP64: {
+      float64 *in  = (float64*)tx->buf;
+      float64 *out = (float64*)tz->buf;
+      for(size_t i = 0; i < N; i++){ out[i] = cbrt(in[i]); }
+      break;
+    }
+    case CMPX64: {
+      complex64 *in  = (complex64*)tx->buf;
+      complex64 *out = (complex64*)tz->buf;
+      for(size_t i = 0; i < N; i++){
+        float32 a = in[i].real;
+        float32 b = in[i].imag;
+        float32 r = hypotf(a,b);
+        float32 theta = atan2f(b,a);
+        float32 root_r = cbrtf(r);
+        float32 angle = theta / 3.0f;
+        out[i].real = root_r * cosf(angle);
+        out[i].imag = root_r * sinf(angle);
+      }
+      break;
+    }
+    case CMPX128: {
+      complex128 *in  = (complex128*)tx->buf;
+      complex128 *out = (complex128*)tz->buf;
+      for(size_t i = 0; i < N; i++){
+        float64 a = in[i].real;
+        float64 b = in[i].imag;
+        float64 r = hypot(a,b);
+        float64 theta = atan2(b,a);
+        float64 root_r = cbrt(r);
+        float64 angle = theta / 3.0;
+        out[i].real = root_r * cos(angle);
+        out[i].imag = root_r * sin(angle);
+      }
+      break;
+    }
+    default:
+      PyErr_SetString(PyExc_TypeError,"Unsupported dtype in __cbrt_tensor__");
+      return NULL;
+  }
+  return PyCapsule_New(tz,"tensor_t on CPU",capsule_destroyer);
+}
+
+static PyObject *cbrt_(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "operands must be the tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  dtype_t dtype;
+  switch(tx->dtype){
+    case INT8:
+    case UINT8:
+    case INT16:
+    case UINT16:
+    case INT32:
+    case UINT32: dtype = FP32; break;
+    case FP16: dtype=FP16; break;
+    case FP32: dtype=FP32; break;
+    case FP64: dtype=FP64; break;
+    case CMPX64: dtype=CMPX64; break;
+    case CMPX128: dtype=CMPX128; break;
+    default: PyErr_SetString(PyExc_TypeError, "unsupported dtype for cbrt_()"); return NULL;
+  }
+  tensor_t *tz = tt_malloc(sizeof(tensor_t));
+  if(!tz){
+    PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
+    return NULL;
+  }
+  tz->dtype = dtype;
+  tz->element_size = getsize(dtype);
+  tz->device = (device_t){CPU,0};
+  tz->ndim = tx->ndim;
+  tz->size = tx->size;
+  if(tx->ndim > 0 && tx->shape){
+    tz->shape = tt_malloc(sizeof(size_t) * tz->ndim);
+    tz->stride = tt_malloc(sizeof(size_t) * tz->ndim);
+    if(!tz->shape || !tz->stride){
+      destroy(tz);
+      PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape or tensor_t.stride allocation failed!");
+      return NULL;
+    }
+    for(size_t i = 0; i < tz->ndim; i++){
+      tz->shape[i] = tx->shape[i];
+      tz->stride[i] = tx->stride[i];
+    }
+  }else{
+    tz->shape = NULL;
+    tz->stride = NULL;
+  }
+  tz->storage = tt_malloc(sizeof(storage_t));
+  if(!tz->storage){
+    destroy(tz);
+    PyErr_SetString(PyExc_RuntimeError, "tensor_t.storage_t allocation failed!");
+    return NULL;
+  }
+  tz->storage->bytes = tz->size * tz->element_size;
+  tz->storage->device = tz->device;
+  tz->storage->refcount = 1;
+  tz->storage->ptr = tt_malloc(tz->storage->bytes);
+  if(!tz->storage->ptr){
+    destroy(tz);
+    PyErr_SetString(PyExc_RuntimeError, "tensor_t.storage_t.ptr allocation failed!");
+    return NULL;
+  }
+  tz->buf = tz->storage->ptr;
+  return __cbrt_tensor__(tx, tz);
+}
+
+static PyObject *__floor_tensor__(const tensor_t *tx, tensor_t *tz){
+  size_t N = tx->size;
+  switch(tx->dtype){
+    case FP16: {
+      float16 *in = (float16 *)tx->buf;
+      float16 *out = (float16 *)tz->buf;
+      for(size_t i = 0; i < N; i++){
+        float32 tmp = fp16_to_float(in[i]);
+        out[i] = float_to_fp16(floorf(tmp));
+      }
+      break;
+    }
+    case FP32: {
+      float32 *in = (float32 *)tx->buf;
+      float32 *out = (float32 *)tz->buf;
+      for(size_t i = 0; i < N; i++){ out[i] = floorf(in[i]); }
+      break;
+    }
+    case FP64: {
+      float64 *in = (float64 *)tx->buf;
+      float64 *out = (float64 *)tz->buf;
+      for(size_t i = 0; i < N; i++){ out[i] = floor(in[i]); }
+      break;
+    }
+    case INT8:
+    case UINT8:
+    case INT16:
+    case UINT16:
+    case INT32:
+    case UINT32:
+    case INT64:
+    case UINT64: { memcpy(tz->buf, tx->buf, N * tx->element_size); break; }
+    default:
+      PyErr_SetString(PyExc_TypeError, "Unsupported dtype for floor_()");
+      return NULL;
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+static PyObject *floor_(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "operands must be the tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_RuntimeError, "floor_() is not supported on complex dtype tensor(s)");
+    return NULL;
+  }
+  tensor_t *tz = alloc_result_tensor(tx);
+  if(!tz){
+    PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed");
+    return NULL;
+  }
+  return __floor_tensor__(tx, tz);
+}
+
+
+static PyObject *__ceil_tensor__(const tensor_t *tx, tensor_t *tz){
+  size_t N = tx->size;
+  switch(tx->dtype){
+    case FP16: {
+      float16 *in = (float16 *)tx->buf;
+      float16 *out = (float16 *)tz->buf;
+      for(size_t i = 0; i < N; i++){
+        float32 tmp = fp16_to_float(in[i]);
+        out[i] = float_to_fp16(ceilf(tmp));
+      }
+      break;
+    }
+    case FP32: {
+      float32 *in = (float32 *)tx->buf;
+      float32 *out = (float32 *)tz->buf;
+      for(size_t i = 0; i < N; i++){ out[i] = ceilf(in[i]); }
+      break;
+    }
+    case FP64: {
+      float64 *in = (float64 *)tx->buf;
+      float64 *out = (float64 *)tz->buf;
+      for(size_t i = 0; i < N; i++){ out[i] = ceil(in[i]); }
+      break;
+    }
+    case INT8:
+    case UINT8:
+    case INT16:
+    case UINT16:
+    case INT32:
+    case UINT32:
+    case INT64:
+    case UINT64: { memcpy(tz->buf, tx->buf, N * tx->element_size); break; }
+    default:
+      PyErr_SetString(PyExc_TypeError, "Unsupported dtype for ceil_()");
+      return NULL;
+  }
+  return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
+}
+
+static PyObject *ceil_(PyObject *self, PyObject *args){
+  PyObject *x;
+  if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
+  if(!PyCapsule_CheckExact(x)){
+    PyErr_SetString(PyExc_RuntimeError, "operands must be the tensor capsule");
+    return NULL;
+  }
+  tensor_t *tx = PyCapsule_GetPointer(x, "tensor_t on CPU");
+  if(!tx){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor capsule");
+    return NULL;
+  }
+  if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
+    PyErr_SetString(PyExc_RuntimeError, "ceil_() is not supported on complex dtype tensor(s)");
+    return NULL;
+  }
+  tensor_t *tz = alloc_result_tensor(tx);
+  if(!tz){
+    PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed");
+    return NULL;
+  }
+  return __ceil_tensor__(tx, tz);
+}
+
 // mod
 static PyObject *mod_(PyObject *self, PyObject *args){
   PyObject *x, *y;
@@ -2151,7 +2566,8 @@ static PyObject *mod_(PyObject *self, PyObject *args){
     return NULL;
   }
   if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    PyErr_Format(PyExc_TypeError, "%% opertaion on complex tensor is not supported");
+    PyErr_Format(PyExc_TypeError, "%% opertaion is not supported on complex dtype tensor(s)");
+    return NULL;
   }
   if(tx->device.type != CPU || ty->device.type != CPU){
     PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device (CPU)");
@@ -2188,7 +2604,7 @@ static PyObject *eq(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Internal error: size mismatch after broadcasting");
     return NULL;
   }
-  tensor_t *tz = malloc(sizeof(tensor_t));
+  tensor_t *tz = tt_malloc(sizeof(tensor_t));
   if(!tz){
     PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
     return NULL;
@@ -2200,7 +2616,7 @@ static PyObject *eq(PyObject *self, PyObject *args){
   tz->device = (device_t){CPU, 0};
   tz->stride = NULL;
   if(tx->ndim > 0 && tx->shape){
-    tz->shape = malloc(sizeof(size_t) * tz->ndim);
+    tz->shape = tt_malloc(sizeof(size_t) * tz->ndim);
     if(!tz->shape){
       free(tz);
       PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape allocation failed!");
@@ -2212,7 +2628,7 @@ static PyObject *eq(PyObject *self, PyObject *args){
   } else {
     tz->shape = NULL;
   }
-  tz->storage = malloc(sizeof(storage_t));
+  tz->storage = tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     if(tz->shape) free(tz->shape);
     free(tz);
@@ -2222,7 +2638,7 @@ static PyObject *eq(PyObject *self, PyObject *args){
   tz->storage->bytes = tz->size * tz->element_size;
   tz->storage->device = tz->device;
   tz->storage->refcount = 1;
-  tz->storage->ptr = malloc(tz->storage->bytes);
+  tz->storage->ptr = tt_malloc(tz->storage->bytes);
   if(!tz->storage->ptr){
     if(tz->shape) free(tz->shape);
     free(tz->storage);
@@ -2260,7 +2676,7 @@ static PyObject *ne(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Internal error: size mismatch after broadcasting");
     return NULL;
   }
-  tensor_t *tz = malloc(sizeof(tensor_t));
+  tensor_t *tz = tt_malloc(sizeof(tensor_t));
   if(!tz){
     PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
     return NULL;
@@ -2272,7 +2688,7 @@ static PyObject *ne(PyObject *self, PyObject *args){
   tz->device = (device_t){CPU, 0};
   tz->stride = NULL;
   if(tx->ndim > 0 && tx->shape){
-    tz->shape = malloc(sizeof(size_t) * tz->ndim);
+    tz->shape = tt_malloc(sizeof(size_t) * tz->ndim);
     if(!tz->shape){
       free(tz);
       PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape allocation failed!");
@@ -2284,7 +2700,7 @@ static PyObject *ne(PyObject *self, PyObject *args){
   } else {
     tz->shape = NULL;
   }
-  tz->storage = malloc(sizeof(storage_t));
+  tz->storage = tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     if(tz->shape) free(tz->shape);
     free(tz);
@@ -2294,7 +2710,7 @@ static PyObject *ne(PyObject *self, PyObject *args){
   tz->storage->bytes = tz->size * tz->element_size;
   tz->storage->device = tz->device;
   tz->storage->refcount = 1;
-  tz->storage->ptr = malloc(tz->storage->bytes);
+  tz->storage->ptr = tt_malloc(tz->storage->bytes);
   if(!tz->storage->ptr){
     if(tz->shape) free(tz->shape);
     free(tz->storage);
@@ -2329,14 +2745,14 @@ static PyObject *gt(PyObject *self, PyObject *args){
     return NULL;
   }
   if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    PyErr_SetString(PyExc_RuntimeError, "> operation on complex tensor is not supported");
+    PyErr_SetString(PyExc_RuntimeError, "> operation is not supported on complex dtype tensor(s)");
     return NULL;
   }
   if(tx->size != ty->size){
     PyErr_SetString(PyExc_RuntimeError, "Internal error: size mismatch after broadcasting");
     return NULL;
   }
-  tensor_t *tz = malloc(sizeof(tensor_t));
+  tensor_t *tz = tt_malloc(sizeof(tensor_t));
   if(!tz){
     PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
     return NULL;
@@ -2348,7 +2764,7 @@ static PyObject *gt(PyObject *self, PyObject *args){
   tz->device = (device_t){CPU, 0};
   tz->stride = NULL;
   if(tx->ndim > 0 && tx->shape){
-    tz->shape = malloc(sizeof(size_t) * tz->ndim);
+    tz->shape = tt_malloc(sizeof(size_t) * tz->ndim);
     if(!tz->shape){
       free(tz);
       PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape allocation failed!");
@@ -2360,7 +2776,7 @@ static PyObject *gt(PyObject *self, PyObject *args){
   } else {
     tz->shape = NULL;
   }
-  tz->storage = malloc(sizeof(storage_t));
+  tz->storage = tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     if(tz->shape) free(tz->shape);
     free(tz);
@@ -2370,7 +2786,7 @@ static PyObject *gt(PyObject *self, PyObject *args){
   tz->storage->bytes = tz->size * tz->element_size;
   tz->storage->device = tz->device;
   tz->storage->refcount = 1;
-  tz->storage->ptr = malloc(tz->storage->bytes);
+  tz->storage->ptr = tt_malloc(tz->storage->bytes);
   if(!tz->storage->ptr){
     if(tz->shape) free(tz->shape);
     free(tz->storage);
@@ -2405,14 +2821,14 @@ static PyObject *ge(PyObject *self, PyObject *args){
     return NULL;
   }
   if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    PyErr_SetString(PyExc_RuntimeError, ">= operation on complex tensor is not supported");
+    PyErr_SetString(PyExc_RuntimeError, ">= operation is not supported on complex dtype tensor(s)");
     return NULL;
   }
   if(tx->size != ty->size){
     PyErr_SetString(PyExc_RuntimeError, "Internal error: size mismatch after broadcasting");
     return NULL;
   }
-  tensor_t *tz = malloc(sizeof(tensor_t));
+  tensor_t *tz = tt_malloc(sizeof(tensor_t));
   if(!tz){
     PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
     return NULL;
@@ -2424,7 +2840,7 @@ static PyObject *ge(PyObject *self, PyObject *args){
   tz->device = (device_t){CPU, 0};
   tz->stride = NULL;
   if(tx->ndim > 0 && tx->shape){
-    tz->shape = malloc(sizeof(size_t) * tz->ndim);
+    tz->shape = tt_malloc(sizeof(size_t) * tz->ndim);
     if(!tz->shape){
       free(tz);
       PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape allocation failed!");
@@ -2436,7 +2852,7 @@ static PyObject *ge(PyObject *self, PyObject *args){
   } else {
     tz->shape = NULL;
   }
-  tz->storage = malloc(sizeof(storage_t));
+  tz->storage = tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     if(tz->shape) free(tz->shape);
     free(tz);
@@ -2446,7 +2862,7 @@ static PyObject *ge(PyObject *self, PyObject *args){
   tz->storage->bytes = tz->size * tz->element_size;
   tz->storage->device = tz->device;
   tz->storage->refcount = 1;
-  tz->storage->ptr = malloc(tz->storage->bytes);
+  tz->storage->ptr = tt_malloc(tz->storage->bytes);
   if(!tz->storage->ptr){
     if(tz->shape) free(tz->shape);
     free(tz->storage);
@@ -2481,14 +2897,14 @@ static PyObject *lt(PyObject *self, PyObject *args){
     return NULL;
   }
   if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    PyErr_SetString(PyExc_RuntimeError, "< operation on complex tensor is not supported");
+    PyErr_SetString(PyExc_RuntimeError, "< operation is not supported on complex dtype tensor(s)");
     return NULL;
   }
   if(tx->size != ty->size){
     PyErr_SetString(PyExc_RuntimeError, "Internal error: size mismatch after broadcasting");
     return NULL;
   }
-  tensor_t *tz = malloc(sizeof(tensor_t));
+  tensor_t *tz = tt_malloc(sizeof(tensor_t));
   if(!tz){
     PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
     return NULL;
@@ -2500,7 +2916,7 @@ static PyObject *lt(PyObject *self, PyObject *args){
   tz->device = (device_t){CPU, 0};
   tz->stride = NULL;
   if(tx->ndim > 0 && tx->shape){
-    tz->shape = malloc(sizeof(size_t) * tz->ndim);
+    tz->shape = tt_malloc(sizeof(size_t) * tz->ndim);
     if(!tz->shape){
       free(tz);
       PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape allocation failed!");
@@ -2512,7 +2928,7 @@ static PyObject *lt(PyObject *self, PyObject *args){
   } else {
     tz->shape = NULL;
   }
-  tz->storage = malloc(sizeof(storage_t));
+  tz->storage = tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     if(tz->shape) free(tz->shape);
     free(tz);
@@ -2522,7 +2938,7 @@ static PyObject *lt(PyObject *self, PyObject *args){
   tz->storage->bytes = tz->size * tz->element_size;
   tz->storage->device = tz->device;
   tz->storage->refcount = 1;
-  tz->storage->ptr = malloc(tz->storage->bytes);
+  tz->storage->ptr = tt_malloc(tz->storage->bytes);
   if(!tz->storage->ptr){
     if(tz->shape) free(tz->shape);
     free(tz->storage);
@@ -2557,14 +2973,14 @@ static PyObject *le(PyObject *self, PyObject *args){
     return NULL;
   }
   if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    PyErr_SetString(PyExc_RuntimeError, "<= operation on complex tensor is not supported");
+    PyErr_SetString(PyExc_RuntimeError, "<= operation is not supported on complex dtype tensor(s)");
     return NULL;
   }
   if(tx->size != ty->size){
     PyErr_SetString(PyExc_RuntimeError, "Internal error: size mismatch after broadcasting");
     return NULL;
   }
-  tensor_t *tz = malloc(sizeof(tensor_t));
+  tensor_t *tz = tt_malloc(sizeof(tensor_t));
   if(!tz){
     PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
     return NULL;
@@ -2576,7 +2992,7 @@ static PyObject *le(PyObject *self, PyObject *args){
   tz->device = (device_t){CPU, 0};
   tz->stride = NULL;
   if(tx->ndim > 0 && tx->shape){
-    tz->shape = malloc(sizeof(size_t) * tz->ndim);
+    tz->shape = tt_malloc(sizeof(size_t) * tz->ndim);
     if(!tz->shape){
       free(tz);
       PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape allocation failed!");
@@ -2588,7 +3004,7 @@ static PyObject *le(PyObject *self, PyObject *args){
   } else {
     tz->shape = NULL;
   }
-  tz->storage = malloc(sizeof(storage_t));
+  tz->storage = tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     if(tz->shape) free(tz->shape);
     free(tz);
@@ -2598,7 +3014,7 @@ static PyObject *le(PyObject *self, PyObject *args){
   tz->storage->bytes = tz->size * tz->element_size;
   tz->storage->device = tz->device;
   tz->storage->refcount = 1;
-  tz->storage->ptr = malloc(tz->storage->bytes);
+  tz->storage->ptr = tt_malloc(tz->storage->bytes);
   if(!tz->storage->ptr){
     if(tz->shape) free(tz->shape);
     free(tz->storage);
@@ -2624,7 +3040,7 @@ static PyObject *neg(PyObject *self, PyObject *args){
     return NULL;
   }
   if(tx->dtype == BOOL){
-    PyErr_SetString(PyExc_RuntimeError, "Negation operartion on bool tensor is not supported");
+    PyErr_SetString(PyExc_RuntimeError, "Negation operation on bool tensor is not supported");
     return NULL;
   }
   if(tx->device.type != CPU){
@@ -2650,7 +3066,7 @@ static PyObject *pos(PyObject *self, PyObject *args){
     return NULL;
   }
   if(tx->dtype == BOOL){
-    PyErr_SetString(PyExc_RuntimeError, "Negation operartion on bool tensor is not supported");
+    PyErr_SetString(PyExc_RuntimeError, "Negation operation on bool tensor is not supported");
     return NULL;
   }
   if(tx->device.type != CPU){
@@ -2684,7 +3100,7 @@ static PyObject *abs_(PyObject *self, PyObject *args){
     return NULL;
   }
   if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    tensor_t *tz = malloc(sizeof(tensor_t));
+    tensor_t *tz = tt_malloc(sizeof(tensor_t));
     if(!tz){
       PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
       return NULL;
@@ -2696,7 +3112,7 @@ static PyObject *abs_(PyObject *self, PyObject *args){
     tz->device = tx->device;
     tz->stride = NULL;
     if(tx->ndim > 0 && tx->shape){
-      tz->shape = malloc(sizeof(size_t) * tz->ndim);
+      tz->shape = tt_malloc(sizeof(size_t) * tz->ndim);
       if(!tz->shape){
         free(tz);
         PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape allocation failed!");
@@ -2708,7 +3124,7 @@ static PyObject *abs_(PyObject *self, PyObject *args){
     } else {
       tz->shape = NULL;
     }
-    tz->storage = malloc(sizeof(storage_t));
+    tz->storage = tt_malloc(sizeof(storage_t));
     if(!tz->storage){
       if(tz->shape) free(tz->shape);
       free(tz);
@@ -2718,7 +3134,7 @@ static PyObject *abs_(PyObject *self, PyObject *args){
     tz->storage->bytes = tz->size * tz->element_size;
     tz->storage->device = tz->device;
     tz->storage->refcount = 1;
-    tz->storage->ptr = malloc(tz->storage->bytes);
+    tz->storage->ptr = tt_malloc(tz->storage->bytes);
     if(!tz->storage->ptr){
       if(tz->shape) free(tz->shape);
       free(tz->storage);
@@ -2758,11 +3174,11 @@ static PyObject *rshift(PyObject *self, PyObject *args){
     return NULL;
   }
   if(tx->dtype == FP32 || tx->dtype == FP64){
-    PyErr_SetString(PyExc_RuntimeError, "'<<' operation on floating points tensor is not supported");
+    PyErr_SetString(PyExc_RuntimeError, "'>>' operation is not supported for floating points dtype tensor(s)");
     return NULL;
   }
   if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    PyErr_SetString(PyExc_RuntimeError, "'<<' operation on complex tensor is not supported");
+    PyErr_SetString(PyExc_RuntimeError, "'>>' operation is not supported on complex dtype tensor(s)");
     return NULL;
   }
   if(tx->size != ty->size){
@@ -2797,11 +3213,11 @@ static PyObject *lshift(PyObject *self, PyObject *args){
     return NULL;
   }
   if(tx->dtype == FP32 || tx->dtype == FP64){
-    PyErr_SetString(PyExc_RuntimeError, "'<<' operation on floating points tensor is not supported");
+    PyErr_SetString(PyExc_RuntimeError, "'<<' operation is not supported for floating points dtype tensor(s)");
     return NULL;
   }
   if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    PyErr_SetString(PyExc_RuntimeError, "'<<' operation on complex tensor is not supported");
+    PyErr_SetString(PyExc_RuntimeError, "'<<' operation is not supported on complex dtype tensor(s)");
     return NULL;
   }
   if(tx->size != ty->size){
@@ -2836,11 +3252,11 @@ static PyObject *bitwise_and(PyObject *self, PyObject *args){
     return NULL;
   }
   if(tx->dtype == FP32 || tx->dtype == FP64){
-    PyErr_SetString(PyExc_RuntimeError, "'and' operation on floating points tensor is not supported");
+    PyErr_SetString(PyExc_RuntimeError, "bitwise_and() operation is not supported on floating points dtype tensor(s)");
     return NULL;
   }
   if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    PyErr_SetString(PyExc_RuntimeError, "'and' operation on complex tensor is not supported");
+    PyErr_SetString(PyExc_RuntimeError, "bitwise_and() operation is not supported on complex dtype tensor(s)");
     return NULL;
   }
   if(tx->size != ty->size){
@@ -2874,7 +3290,7 @@ static PyObject *logical_and(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_RuntimeError, "Both tensor_t(s) must be on same device");
     return NULL;
   }
-  tensor_t *tz = (tensor_t *)malloc(sizeof(tensor_t));
+  tensor_t *tz = (tensor_t *)tt_malloc(sizeof(tensor_t));
   if(!tz){
     PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
     return NULL;
@@ -2885,8 +3301,8 @@ static PyObject *logical_and(PyObject *self, PyObject *args){
   tz->ndim = tx->ndim;
   tz->device = (device_t){CPU, 0};
   if(tx->ndim > 0 && tx->shape){
-    tz->shape = (size_t *)malloc(sizeof(size_t) * tz->ndim);
-    tz->stride = (size_t *)malloc(sizeof(size_t) * tz->ndim);
+    tz->shape = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
+    tz->stride = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
     if(!tz->shape || !tz->stride){
       free(tz);
       PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape or tensor_t.stride allocation failed!");
@@ -2900,7 +3316,7 @@ static PyObject *logical_and(PyObject *self, PyObject *args){
     tz->shape = NULL;
     tz->stride = NULL;
   }
-  tz->storage = (storage_t *)malloc(sizeof(storage_t));
+  tz->storage = (storage_t *)tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     if(tz->shape) free(tz->shape);
     free(tz);
@@ -2910,7 +3326,7 @@ static PyObject *logical_and(PyObject *self, PyObject *args){
   tz->storage->bytes = tz->size * tz->element_size;
   tz->storage->device = tz->device;
   tz->storage->refcount = 1;
-  tz->storage->ptr = malloc(tx->storage->bytes);
+  tz->storage->ptr = tt_malloc(tx->storage->bytes);
   if(!tz->storage->ptr){
     if(tz->shape) free(tz->shape);
     free(tz->storage);
@@ -2945,11 +3361,11 @@ static PyObject *bitwise_nand(PyObject *self, PyObject *args){
     return NULL;
   }
   if(tx->dtype == FP32 || tx->dtype == FP64){
-    PyErr_SetString(PyExc_RuntimeError, "'nand' operation on floating points tensor is not supported");
+    PyErr_SetString(PyExc_RuntimeError, "bitwise_nand() operation is not supported on floating points dtype tensor(s)");
     return NULL;
   }
   if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    PyErr_SetString(PyExc_RuntimeError, "'nand' operation on complex tensor is not supported");
+    PyErr_SetString(PyExc_RuntimeError, "bitwise_nand() operation is not supported on complex dtype tensor(s)");
     return NULL;
   }
   if(tx->size != ty->size){
@@ -3011,11 +3427,11 @@ static PyObject *bitwise_or(PyObject *self, PyObject *args){
     return NULL;
   }
   if(tx->dtype == FP32 || tx->dtype == FP64){
-    PyErr_SetString(PyExc_RuntimeError, "'or' operation on floating points tensor is not supported");
+    PyErr_SetString(PyExc_RuntimeError, "bitwise_or() operation is not supported on floating points dtype tensor(s)");
     return NULL;
   }
   if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    PyErr_SetString(PyExc_RuntimeError, "'or' operation on complex tensor is not supported");
+    PyErr_SetString(PyExc_RuntimeError, "bitwise_or() operation is not supported on complex dtype tensor(s)");
     return NULL;
   }
   if(tx->size != ty->size){
@@ -3082,11 +3498,11 @@ static PyObject *bitwise_nor(PyObject *self, PyObject *args){
     return NULL;
   }
   if(tx->dtype == FP32 || tx->dtype == FP64){
-    PyErr_SetString(PyExc_RuntimeError, "'nor' operation on floating points tensor is not supported");
+    PyErr_SetString(PyExc_RuntimeError, "bitwise_nor() operation is not supported on floating points dtype tensor(s)");
     return NULL;
   }
   if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    PyErr_SetString(PyExc_RuntimeError, "'nor' operation on complex tensor is not supported");
+    PyErr_SetString(PyExc_RuntimeError, "bitwise_nor() operation is not supported on complex dtype tensor(s)");
     return NULL;
   }
   if(tx->size != ty->size){
@@ -3148,11 +3564,11 @@ static PyObject *bitwise_not(PyObject *self, PyObject *args){
     return NULL;
   }
   if(tx->dtype == FP32 || tx->dtype == FP64){
-    PyErr_SetString(PyExc_RuntimeError, "'not' operation on floating points tensor is not supported");
+    PyErr_SetString(PyExc_RuntimeError, "bitwise_not() operation is not supported on floating points dtype tensor(s)");
     return NULL;
   }
   if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    PyErr_SetString(PyExc_RuntimeError, "'not' operation on complex tensor is not supported");
+    PyErr_SetString(PyExc_RuntimeError, "bitwise_not() operation is not supported on complex dtype tensor(s)");
     return NULL;
   }
   tensor_t *tz = NULL;
@@ -3206,11 +3622,11 @@ static PyObject *bitwise_xor(PyObject *self, PyObject *args){
     return NULL;
   }
   if(tx->dtype == FP32 || tx->dtype == FP64){
-    PyErr_SetString(PyExc_RuntimeError, "'xor' operation on floating points tensor is not supported");
+    PyErr_SetString(PyExc_RuntimeError, "bitwise_xnor() operation is not supported on floating points dtype tensor(s)");
     return NULL;
   }
   if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    PyErr_SetString(PyExc_RuntimeError, "'xor' operation on complex tensor is not supported");
+    PyErr_SetString(PyExc_RuntimeError, "bitwise_xor() operation is not supported on complex dtype tensor");
     return NULL;
   }
   if(tx->size != ty->size){
@@ -3277,11 +3693,11 @@ static PyObject *bitwise_xnor(PyObject *self, PyObject *args){
     return NULL;
   }
   if(tx->dtype == FP32 || tx->dtype == FP64){
-    PyErr_SetString(PyExc_RuntimeError, "'xnor' operation on floating points tensor is not supported");
+    PyErr_SetString(PyExc_RuntimeError, "bitwise_xnor() operation is not supported on floating points dtype tensor(s)");
     return NULL;
   }
   if(tx->dtype == CMPX64 || tx->dtype == CMPX128){
-    PyErr_SetString(PyExc_RuntimeError, "'xnor' operation on complex tensor is not supported");
+    PyErr_SetString(PyExc_RuntimeError, "bitwise_xnor() operation is not supported on complex dtype tensor(s)");
     return NULL;
   }
   if(tx->size != ty->size){
@@ -3464,7 +3880,7 @@ static PyObject *sum(PyObject *self, PyObject *args, PyObject *kwargs){
       }
     }
   }
-  tensor_t *tz = malloc(sizeof(tensor_t));
+  tensor_t *tz = tt_malloc(sizeof(tensor_t));
   if(!tz){
     PyErr_SetString(PyExc_MemoryError, "tensor allocation failed");
     return NULL;
@@ -3473,8 +3889,8 @@ static PyObject *sum(PyObject *self, PyObject *args, PyObject *kwargs){
   tz->device = tx->device;
   tz->element_size = tx->element_size;
   tz->ndim = out_ndim;
-  tz->shape = malloc(sizeof(size_t) * out_ndim);
-  tz->stride = malloc(sizeof(size_t) * out_ndim);
+  tz->shape = tt_malloc(sizeof(size_t) * out_ndim);
+  tz->stride = tt_malloc(sizeof(size_t) * out_ndim);
   if(!tz->shape || !tz->stride){
     PyErr_SetString(PyExc_MemoryError, "shape/stride allocation failed");
     return NULL;
@@ -3492,7 +3908,7 @@ static PyObject *sum(PyObject *self, PyObject *args, PyObject *kwargs){
   for(int i = 0; i < out_ndim; i++){
     tz->size *= tz->shape[i];
   }
-  tz->storage = malloc(sizeof(storage_t));
+  tz->storage = tt_malloc(sizeof(storage_t));
   tz->storage->bytes = tz->size * tz->element_size;
   tz->storage->device = tz->device;
   tz->storage->refcount = 1;
@@ -3571,7 +3987,7 @@ static PyObject *bmm(PyObject *self, PyObject *args){
       return NULL;
     }
   }
-  tensor_t *tz = malloc(sizeof(tensor_t));
+  tensor_t *tz = tt_malloc(sizeof(tensor_t));
   if(!tz){
     PyErr_SetString(PyExc_MemoryError, "tensor allocation failed");
     return NULL;
@@ -3580,7 +3996,7 @@ static PyObject *bmm(PyObject *self, PyObject *args){
   tz->device = tx->device;
   tz->element_size = tx->element_size;
   tz->ndim = tx->ndim;
-  tz->shape = malloc(sizeof(size_t) * tz->ndim);
+  tz->shape = tt_malloc(sizeof(size_t) * tz->ndim);
   if(!tz->shape){
     free(tz);
     PyErr_SetString(PyExc_MemoryError, "shape allocation failed");
@@ -3591,7 +4007,7 @@ static PyObject *bmm(PyObject *self, PyObject *args){
   }
   tz->shape[tz->ndim - 2] = m;
   tz->shape[tz->ndim - 1] = n;
-  tz->stride = malloc(sizeof(size_t) * tz->ndim);
+  tz->stride = tt_malloc(sizeof(size_t) * tz->ndim);
   if(!tz->stride){
     free(tz->shape);
     free(tz);
@@ -3606,7 +4022,7 @@ static PyObject *bmm(PyObject *self, PyObject *args){
   for(size_t i = 0; i < tz->ndim; i++){
     tz->size *= tz->shape[i];
   }
-  tz->storage = malloc(sizeof(storage_t));
+  tz->storage = tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     free(tz->stride);
     free(tz->shape);
@@ -3965,16 +4381,16 @@ static PyObject *conj_(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_TypeError, "real() implemented only for complex dtype tensor(s)");
     return NULL;
   }
-  tensor_t *tz = malloc(sizeof(tensor_t));
+  tensor_t *tz = tt_malloc(sizeof(tensor_t));
   tz->dtype = (tx->dtype == CMPX64) ? CMPX64 : CMPX128;
   tz->element_size = getsize(tz->dtype);
   tz->device = (device_t){CPU, 0};
   tz->size = 1;
-  tz->storage = malloc(sizeof(storage_t));
+  tz->storage = tt_malloc(sizeof(storage_t));
   tz->storage->device = tz->device;
   tz->storage->refcount = 1;
   tz->storage->bytes = tz->element_size;
-  tz->storage->ptr = malloc(tz->storage->bytes);
+  tz->storage->ptr = tt_malloc(tz->storage->bytes);
   tz->buf = tz->storage->ptr;
   if(tx->ndim == 0){
     tz->ndim = 0;
@@ -3988,15 +4404,15 @@ static PyObject *conj_(PyObject *self, PyObject *args){
     return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
   }
   tz->ndim = tx->ndim;
-  tz->shape = malloc(sizeof(size_t) * tz->ndim);
-  tz->stride = malloc(sizeof(size_t) * tz->ndim);
+  tz->shape = tt_malloc(sizeof(size_t) * tz->ndim);
+  tz->stride = tt_malloc(sizeof(size_t) * tz->ndim);
   for(size_t i = 0; i < tz->ndim; i++){
     tz->shape[i] = tx->shape[i];
     tz->stride[i] = tx->stride[i];
   }
   tz->size = tx->size;
   tz->storage->bytes = tz->size * tz->element_size;
-  tz->storage->ptr = malloc(tz->storage->bytes);
+  tz->storage->ptr = tt_malloc(tz->storage->bytes);
   tz->buf = tz->storage->ptr;
   if(tx->dtype == CMPX64){
     complex64 *in = (complex64 *)tx->buf;
@@ -4032,16 +4448,16 @@ static PyObject *real(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_TypeError, "real() implemented only for complex dtype tensor(s)");
     return NULL;
   }
-  tensor_t *tz = malloc(sizeof(tensor_t));
+  tensor_t *tz = tt_malloc(sizeof(tensor_t));
   tz->dtype = (tx->dtype == CMPX64) ? FP32 : FP64;
   tz->element_size = getsize(tz->dtype);
   tz->device = (device_t){CPU, 0};
   tz->size = 1;
-  tz->storage = malloc(sizeof(storage_t));
+  tz->storage = tt_malloc(sizeof(storage_t));
   tz->storage->device = tz->device;
   tz->storage->refcount = 1;
   tz->storage->bytes = tz->element_size;
-  tz->storage->ptr = malloc(tz->storage->bytes);
+  tz->storage->ptr = tt_malloc(tz->storage->bytes);
   tz->buf = tz->storage->ptr;
   if(tx->ndim == 0){
     tz->ndim = 0;
@@ -4055,15 +4471,15 @@ static PyObject *real(PyObject *self, PyObject *args){
     return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
   }
   tz->ndim = tx->ndim;
-  tz->shape = malloc(sizeof(size_t) * tz->ndim);
-  tz->stride = malloc(sizeof(size_t) * tz->ndim);
+  tz->shape = tt_malloc(sizeof(size_t) * tz->ndim);
+  tz->stride = tt_malloc(sizeof(size_t) * tz->ndim);
   for(size_t i = 0; i < tz->ndim; i++){
     tz->shape[i] = tx->shape[i];
     tz->stride[i] = tx->stride[i];
   }
   tz->size = tx->size;
   tz->storage->bytes = tz->size * tz->element_size;
-  tz->storage->ptr = malloc(tz->storage->bytes);
+  tz->storage->ptr = tt_malloc(tz->storage->bytes);
   tz->buf = tz->storage->ptr;
   if(tx->dtype == CMPX64){
     complex64 *src = (complex64*)tx->buf;
@@ -4093,16 +4509,16 @@ static PyObject *imag(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_TypeError, "imag() implemented only for complex dtype tensor(s)");
     return NULL;
   }
-  tensor_t *tz = malloc(sizeof(tensor_t));
+  tensor_t *tz = tt_malloc(sizeof(tensor_t));
   tz->dtype = (tx->dtype == CMPX64) ? FP32 : FP64;
   tz->element_size = getsize(tz->dtype);
   tz->device = (device_t){CPU, 0};
   tz->size = 1;
-  tz->storage = malloc(sizeof(storage_t));
+  tz->storage = tt_malloc(sizeof(storage_t));
   tz->storage->device = tz->device;
   tz->storage->refcount = 1;
   tz->storage->bytes = tz->element_size;
-  tz->storage->ptr = malloc(tz->storage->bytes);
+  tz->storage->ptr = tt_malloc(tz->storage->bytes);
   tz->buf = tz->storage->ptr;
   if(tx->ndim == 0){
     tz->ndim = 0;
@@ -4116,15 +4532,15 @@ static PyObject *imag(PyObject *self, PyObject *args){
     return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
   }
   tz->ndim = tx->ndim;
-  tz->shape = malloc(sizeof(size_t) * tz->ndim);
-  tz->stride = malloc(sizeof(size_t) * tz->ndim);
+  tz->shape = tt_malloc(sizeof(size_t) * tz->ndim);
+  tz->stride = tt_malloc(sizeof(size_t) * tz->ndim);
   for(size_t i = 0; i < tz->ndim; i++){
     tz->shape[i] = tx->shape[i];
     tz->stride[i] = tx->stride[i];
   }
   tz->size = tx->size;
   tz->storage->bytes = tz->size * tz->element_size;
-  tz->storage->ptr = malloc(tz->storage->bytes);
+  tz->storage->ptr = tt_malloc(tz->storage->bytes);
   tz->buf = tz->storage->ptr;
   if(tx->dtype == CMPX64){
     complex64 *src = (complex64*)tx->buf;
@@ -4139,7 +4555,7 @@ static PyObject *imag(PyObject *self, PyObject *args){
 }
 
 tensor_t *tensor_empty_like(tensor_t *tx, dtype_t dtype){
-  tensor_t *tz = malloc(sizeof(tensor_t));
+  tensor_t *tz = tt_malloc(sizeof(tensor_t));
   if(!tz){
     PyErr_SetString(PyExc_MemoryError, "tensor_t allocation failed");
     return NULL;
@@ -4149,13 +4565,13 @@ tensor_t *tensor_empty_like(tensor_t *tx, dtype_t dtype){
   tz->device = tx->device;
   tz->ndim = tx->ndim;
   tz->size = tx->size;
-  tz->shape = malloc(sizeof(size_t) * tz->ndim);
+  tz->shape = tt_malloc(sizeof(size_t) * tz->ndim);
   if(!tz->shape){
     PyErr_SetString(PyExc_MemoryError, "shape allocation failed");
     free(tz);
     return NULL;
   }
-  tz->stride = malloc(sizeof(size_t) * tz->ndim);
+  tz->stride = tt_malloc(sizeof(size_t) * tz->ndim);
   if(!tz->stride){
     PyErr_SetString(PyExc_MemoryError, "stride allocation failed");
     free(tz->shape);
@@ -4166,7 +4582,7 @@ tensor_t *tensor_empty_like(tensor_t *tx, dtype_t dtype){
     tz->shape[i] = tx->shape[i];
     tz->stride[i] = tx->stride[i];
   }
-  tz->storage = malloc(sizeof(storage_t));
+  tz->storage = tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     PyErr_SetString(PyExc_MemoryError, "storage allocation failed");
     free(tz->stride);
@@ -4177,7 +4593,7 @@ tensor_t *tensor_empty_like(tensor_t *tx, dtype_t dtype){
   tz->storage->device = tz->device;
   tz->storage->refcount = 1;
   tz->storage->bytes = tz->size * tz->element_size;
-  tz->storage->ptr = malloc(tz->storage->bytes);
+  tz->storage->ptr = tt_malloc(tz->storage->bytes);
   if(!tz->storage->ptr){
     PyErr_SetString(PyExc_MemoryError, "buffer allocation failed");
     free(tz->storage);
@@ -5899,6 +6315,83 @@ static PyObject *sgn_(PyObject *self, PyObject *args){
   return PyCapsule_New(tz, "tensor_t on CPU", capsule_destroyer);
 }
 
+static PyObject *eye_(PyObject *self, PyObject *args){
+  size_t m, n;
+  const char *fmt;
+  if(!PyArg_ParseTuple(args, "nns", &m, &n, &fmt)) return NULL;
+  dtype_t dtype = getdtype(*fmt);
+  if(dtype == ERROR){
+    PyErr_Format(PyExc_ValueError, "Invalid fmt string %c", *fmt);
+    return NULL;
+  }
+  if(dtype == CMPX64 || dtype == CMPX128){
+    PyErr_SetString(PyExc_RuntimeError, "eye_() is not supported for complex dtype");
+    return NULL;
+  }
+  tensor_t *t = tt_malloc(sizeof(tensor_t));
+  if(!t) return PyErr_NoMemory();
+  t->dtype = dtype;
+  t->element_size = getsize(dtype);
+  t->device = (device_t){CPU, 0};
+  t->ndim = 2;
+  t->size = m * n;
+  t->shape = tt_malloc(2 * sizeof(size_t));
+  if(!t->shape){
+    free(t);
+    return PyErr_NoMemory();
+  }
+  t->shape[0] = m;
+  t->shape[1] = n;
+  t->stride = tt_malloc(2 * sizeof(size_t));
+  if(!t->stride){
+    free(t->shape);
+    free(t);
+    return PyErr_NoMemory();
+  }
+  t->stride[1] = 1;
+  t->stride[0] = n;
+  storage_t *storage = tt_malloc(sizeof(storage_t));
+  if(!storage){
+    destroy(t);
+    return PyErr_NoMemory();
+  }
+  storage->bytes = t->size * t->element_size;
+  storage->device = t->device;
+  storage->refcount = 1;
+  storage->ptr = tt_malloc(storage->bytes);
+  if(!storage->ptr){
+    free(storage);
+    destroy(t);
+    return PyErr_NoMemory();
+  }
+  memset(storage->ptr, 0, storage->bytes);
+  t->storage = storage;
+  t->buf = storage->ptr;
+  size_t diag = (m < n) ? m : n;
+  for(size_t i = 0; i < diag; i++){
+    size_t idx = i * t->stride[0] + i * t->stride[1];
+    switch(dtype){
+      case BOOL: ((bool*)t->buf)[idx] = 1; break;
+      case INT8: ((int8*)t->buf)[idx] = 1; break;
+      case UINT8: ((uint8*)t->buf)[idx] = 1; break;
+      case INT16: ((int16*)t->buf)[idx] = 1; break;
+      case UINT16: ((uint16*)t->buf)[idx] = 1; break;
+      case INT32: ((int32*)t->buf)[idx] = 1; break;
+      case UINT32: ((uint32*)t->buf)[idx] = 1; break;
+      case INT64: ((int64*)t->buf)[idx] = 1; break;
+      case UINT64: ((uint64*)t->buf)[idx] = 1; break;
+      case FP16: ((float16*)t->buf)[idx] = float_to_fp16(1.0f); break;
+      case FP32: ((float32*)t->buf)[idx] = 1.0f; break;
+      case FP64: ((float64*)t->buf)[idx] = 1.0; break;
+      default:
+        destroy(t);
+        PyErr_SetString(PyExc_TypeError, "Unsupported dtype for eye");
+        return NULL;
+    }
+  }
+  return PyCapsule_New(t, "tensor_t on CPU", capsule_destroyer);
+}
+
 static PyMethodDef methods[] = {
   {"add", add, METH_VARARGS, "element-wise 'add' operation on tensor"},
   {"sub", sub, METH_VARARGS, "element-wise 'sub' operation tensor"},
@@ -5907,6 +6400,10 @@ static PyMethodDef methods[] = {
   {"fdiv", fdiv_, METH_VARARGS, "element-wise 'fdiv' operation on tensor"},
   {"pow", pow_, METH_VARARGS, "element-wise 'pow' operation on tensor"},
   {"mod", mod_, METH_VARARGS, "element-wise 'mod' operation on tensor"},
+  {"sqrt", sqrt_, METH_VARARGS, "element-wise 'sqrt' operation on tensor"},
+  {"cbrt", cbrt_, METH_VARARGS, "element-wise 'cbrt' operation on tensor"},
+  {"floor", floor_, METH_VARARGS, "element-wise 'floor' operation on tensor"},
+  {"ceil", ceil_, METH_VARARGS, "element-wise 'ceil' operation on tensor"},
   {"eq", eq, METH_VARARGS, "element-wise 'eq' operation on tensor"},
   {"ne", ne, METH_VARARGS, "element-wise 'neq' operation on tensor"},
   {"gt", gt, METH_VARARGS, "element-wise 'gt' operation on tensor"},
@@ -5954,6 +6451,7 @@ static PyMethodDef methods[] = {
   {"acosh", acosh_, METH_VARARGS, "computes arc hyperbolic cosine of tensor"},
   {"atanh", atanh_, METH_VARARGS, "computes are hyperbolic tangent of tensor"},
   {"sgn", sgn_, METH_VARARGS, "computes signum function on tensor"},
+  {"eye", eye_, METH_VARARGS, "returns identity tensor"},
   {NULL, NULL, 0, NULL}
 };
 

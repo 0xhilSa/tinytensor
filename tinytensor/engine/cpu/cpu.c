@@ -1,4 +1,5 @@
 #include <python3.10/Python.h>
+#include "../tt_memory.h"
 #include "../tensor.h"
 
 void capsule_destroyer(PyObject *capsule){
@@ -38,7 +39,7 @@ static PyObject *__list__(PyObject *list, PyObject *shape, Py_ssize_t length, co
     PyErr_Format(PyExc_TypeError, "Invalid dtype fmt: '%c'", fmt);
     return NULL;
   }
-  tensor_t *t = malloc(sizeof(tensor_t));
+  tensor_t *t = tt_malloc(sizeof(tensor_t));
   if(!t){
     PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
     return NULL;
@@ -46,7 +47,7 @@ static PyObject *__list__(PyObject *list, PyObject *shape, Py_ssize_t length, co
   t->dtype = dtype;
   t->size = length;
   t->ndim = PyTuple_Size(shape);
-  t->shape = malloc(sizeof(size_t) * t->ndim);
+  t->shape = tt_malloc(sizeof(size_t) * t->ndim);
   if(!t->shape){
     free(t);
     PyErr_SetString(PyExc_RuntimeError, "tensor_t.shape allocation failed!");
@@ -70,7 +71,7 @@ static PyObject *__list__(PyObject *list, PyObject *shape, Py_ssize_t length, co
     free(t);
     return NULL;
   }
-  t->stride = malloc(sizeof(size_t) * t->ndim);
+  t->stride = tt_malloc(sizeof(size_t) * t->ndim);
   if(!t->stride){
     destroy(t);
     PyErr_SetString(PyExc_RuntimeError, "tensor_t.stride allocation failed!");
@@ -80,7 +81,7 @@ static PyObject *__list__(PyObject *list, PyObject *shape, Py_ssize_t length, co
   for(int i = (int)t->ndim - 2; i >= 0; i--){ t->stride[i] = t->shape[i + 1] * t->stride[i+1]; }
   t->element_size = getsize(dtype);
   t->device = (device_t){CPU, 0};
-  t->storage = malloc(sizeof(storage_t));
+  t->storage = tt_malloc(sizeof(storage_t));
   if(!t->storage){
     free(t->shape);
     free(t);
@@ -90,7 +91,7 @@ static PyObject *__list__(PyObject *list, PyObject *shape, Py_ssize_t length, co
   t->storage->bytes = t->size * t->element_size;
   t->storage->device = t->device;
   t->storage->refcount = 1;
-  t->storage->ptr = malloc(t->storage->bytes);
+  t->storage->ptr = tt_malloc(t->storage->bytes);
   if(!t->storage->ptr){
     free(t->shape);
     free(t->storage);
@@ -156,7 +157,7 @@ static PyObject *__scalar__(PyObject *scalar, const char fmt){
     PyErr_Format(PyExc_TypeError, "Invalid dtype fmt: '%c'", fmt);
     return NULL;
   }
-  tensor_t *t = malloc(sizeof(tensor_t));
+  tensor_t *t = tt_malloc(sizeof(tensor_t));
   if(!t){
     PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed!");
     return NULL;
@@ -169,7 +170,7 @@ static PyObject *__scalar__(PyObject *scalar, const char fmt){
   t->stride = NULL; // not implemented yet
   t->element_size = getsize(dtype);
   t->device = (device_t){CPU, 0};
-  t->storage = malloc(sizeof(storage_t));
+  t->storage = tt_malloc(sizeof(storage_t));
   if(!t->storage){
     free(t->storage);
     PyErr_SetString(PyExc_RuntimeError, "tensor_t.storage allocation failed!");
@@ -178,7 +179,7 @@ static PyObject *__scalar__(PyObject *scalar, const char fmt){
   t->storage->bytes = t->element_size;
   t->storage->device = t->device;
   t->storage->refcount = 1;
-  t->storage->ptr = malloc(t->storage->bytes);
+  t->storage->ptr = tt_malloc(t->storage->bytes);
   if(!t->storage->ptr){
     free(t->storage->ptr);
     PyErr_SetString(PyExc_RuntimeError, "tensor_t.storage.ptr allocation failed!");
@@ -442,7 +443,7 @@ static PyObject *getitem(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_IndexError, "Index out of range");
     return NULL;
   }
-  tensor_t *tz = malloc(sizeof(tensor_t));
+  tensor_t *tz = tt_malloc(sizeof(tensor_t));
   if(!tz){
       PyErr_SetString(PyExc_RuntimeError, "tensor allocation failed");
       return NULL;
@@ -454,7 +455,7 @@ static PyObject *getitem(PyObject *self, PyObject *args){
   tz->shape = NULL;
   tz->stride = NULL;
   tz->element_size = tx->element_size;
-  tz->storage = malloc(sizeof(storage_t));
+  tz->storage = tt_malloc(sizeof(storage_t));
   if(!tz->storage){
     free(tz);
     PyErr_SetString(PyExc_RuntimeError, "storage allocation failed");
@@ -463,7 +464,7 @@ static PyObject *getitem(PyObject *self, PyObject *args){
   tz->storage->bytes = tz->element_size;
   tz->storage->device = tz->device;
   tz->storage->refcount++;
-  tz->storage->ptr = malloc(tz->storage->bytes);
+  tz->storage->ptr = tt_malloc(tz->storage->bytes);
   if(!tz->storage->ptr){
     free(tz->storage);
     free(tz);
@@ -534,15 +535,15 @@ static PyObject *empty(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_TypeError, "shape must be a tuple");
     return NULL;
   }
-  tensor_t *t = malloc(sizeof(tensor_t));
+  tensor_t *t = tt_malloc(sizeof(tensor_t));
   if(!t){
     PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed");
     return NULL;
   }
   size_t ndim = PyTuple_Size(shape_obj);
   t->ndim = ndim;
-  t->shape  = malloc(ndim * sizeof(size_t));
-  t->stride = malloc(ndim * sizeof(size_t));
+  t->shape  = tt_malloc(ndim * sizeof(size_t));
+  t->stride = tt_malloc(ndim * sizeof(size_t));
   if(!t->shape || !t->stride){
     free(t->shape);
     free(t->stride);
@@ -578,7 +579,7 @@ static PyObject *empty(PyObject *self, PyObject *args){
       t->stride[i] = t->stride[i + 1] * t->shape[i + 1];
     }
   }
-  t->storage = malloc(sizeof(storage_t));
+  t->storage = tt_malloc(sizeof(storage_t));
   if(!t->storage){
     free(t->shape);
     free(t->stride);
@@ -589,7 +590,7 @@ static PyObject *empty(PyObject *self, PyObject *args){
   t->storage->bytes = t->size * t->element_size;
   t->storage->device = t->device;
   t->storage->refcount = 1;
-  t->storage->ptr = malloc(t->storage->bytes);
+  t->storage->ptr = tt_malloc(t->storage->bytes);
   if(!t->storage->ptr){
     free(t->storage);
     free(t->shape);
