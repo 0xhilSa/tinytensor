@@ -6,6 +6,10 @@ from tinytensor.shape import Shape
 from tinytensor.engine import cpu, cuda
 from tinytensor.helpers import dtype_of, shape_of, flatten, reshape
 from tinytensor.device import Device
+from tinytensor.autograd import (
+  AddBackward, SubBackward, MulBackward, TDivBackward, PowBackward,
+  ExpBackward, LogBackward, Log2Backward, Log10Backward
+)
 
 
 class Tensor:
@@ -13,7 +17,7 @@ class Tensor:
     self,
     buf:Union[List,dtypes.ConstType],
     dtype:Optional[Union[dtypes.DType,dtypes.ConstType]]=None,
-    device:Union[str,Device]="cpu",
+    device:Union[str,Device,None]=None,
     requires_grad:bool=False,
     const:bool=False
   ) -> None:
@@ -23,13 +27,21 @@ class Tensor:
     self.__size = self.__shape.size
     buf = flatten(buf) if isinstance(buf, list) else buf
     buf, self.__dtype = dtype_of(buf, dtype)
-    self.__device = Device(device) if not isinstance(device, Device) else device
+    if requires_grad and self.__dtype.kind_ in ("int", "uint", "bool"): raise RuntimeError("Only Tensors of floating point and complex dtype can require gradients")
+    self.__device = Device.current() if device is None else (device if isinstance(device, Device) else Device(device))
     self.__const = const
     self.__offset = 0
     if self.__device.type == "CPU": self.__buf = cpu.tocpu(buf, self.__shape.shape, self.__dtype.fmt)
     elif self.__device.type == "CUDA": self.__buf = cuda.tocuda(buf, self.__shape.shape, self.__dtype.fmt, self.__device.index)
-    self.__requires_grad = requires_grad # TODO: yet to be implemented
-  def __repr__(self) -> str: return f"Tensor(shape={self.shape}, dtype='{self.__dtype.ctype}', device={self.__device}, requires_grad={self.__requires_grad}, const={self.__const})"
+    self._requires_grad = requires_grad
+    self._is_leaf = requires_grad
+    self._grad:Optional[Tensor] = None
+    self._grad_fxn = None
+    self._parents:Tuple[Tensor,...] = ()
+
+  def __repr__(self) -> str: return f"Tensor(shape={self.shape}, dtype='{self.__dtype.ctype}', device={self.__device}, requires_grad={self._requires_grad}, const={self.__const})"
+  @property
+  def grad(self): return self._grad
   @property
   def ndim(self) -> int: return self.__ndim
   @property
@@ -45,7 +57,7 @@ class Tensor:
   @property
   def dtype(self) -> dtypes.DType: return self.__dtype
   @property
-  def requires_grad(self) -> bool: return self.__requires_grad
+  def requires_grad(self) -> bool: return self._requires_grad
   @property
   def buf(self) -> ctypes.c_void_p: return self.__buf
   def is_const(self): return self.__const
@@ -79,6 +91,7 @@ class Tensor:
 
   def data(self):
     flat = cpu.topyobj(self.__buf) if self.__device.type == "CPU" else cuda.topyobj(self.__buf)
+    if not isinstance(flat, (list, tuple)): flat = [flat]
     if self.__ndim == 0:
       if isinstance(flat, (list, tuple)): return Tensor._format_number(flat[self.__offset])
       return Tensor._format_number(flat)
@@ -259,29 +272,36 @@ class Tensor:
     return Tensor._from_backend(caps, dtype=dtype, device=device, requires_grad=requires_grad, const=const)
 
   @staticmethod
-  def ones(*shape, dtype:Union[dtypes.DType,dtypes.ConstType]=dtypes.int64, device:Union[str,Device]="cpu") -> Tensor:
-    if len(shape) == 1 and isinstance(shape, (list, tuple)): shape = shape[0]
+  def ones(*shape, dtype:Union[dtypes.DType,dtypes.ConstType]=dtypes.float32, device:Union[str,Device,None]=None, requires_grad:bool=False, const:bool=False) -> Tensor:
+    if len(shape) == 1 and isinstance(shape[0], (list, tuple)): shape = shape[0]
     length = 1
     for x in shape: length *= x
-    return Tensor(reshape([1 for _ in range(length)], shape), dtype=dtype, device=device)
+    return Tensor(reshape([1] * length, shape), dtype=dtype, device=device, requires_grad=requires_grad, const=const) # type: ignore
 
   @staticmethod
-  def zeros(*shape, dtype:Union[dtypes.DType,dtypes.ConstType]=dtypes.int64, device:Union[str,Device]="cpu") -> Tensor:
-    if len(shape) == 1 and isinstance(shape, (list, tuple)): shape = shape[0]
+  def zeros(*shape, dtype:Union[dtypes.DType,dtypes.ConstType]=dtypes.float32, device:Union[str,Device,None]=None, requires_grad:bool=False, const:bool=False) -> Tensor:
+    if len(shape) == 1 and isinstance(shape[0], (list, tuple)): shape = shape[0]
     length = 1
     for x in shape: length *= x
-    return Tensor(reshape([0 for _ in range(length)], shape), dtype=dtype, device=device)
+    return Tensor(reshape([0] * length, shape), dtype=dtype, device=device, requires_grad=requires_grad, const=const) # type: ignore
 
   @staticmethod
-  def fill(value, *shape, dtype:Union[dtypes.DType,dtypes.ConstType]=dtypes.int64, device:Union[str,Device]="cpu") -> Tensor:
-    if len(shape) == 1 and isinstance(shape, (list, tuple)): shape = shape[0]
+  def fill(value, *shape, dtype:Union[dtypes.DType,dtypes.ConstType]=dtypes.float32, device:Union[str,Device,None]=None, requires_grad:bool=False, const:bool=False) -> Tensor:
+    if len(shape) == 1 and isinstance(shape[0], (list, tuple)): shape = shape[0]
     length = 1
     for x in shape: length *= x
-    return Tensor(reshape([value for _ in range(length)], shape), dtype=dtype, device=device)
+    return Tensor(reshape([value] * length, shape), dtype=dtype, device=device, requires_grad=requires_grad, const=const) # type: ignore
+
+  @staticmethod
+  def eye(m:int, n:int|None=None, dtype:dtypes.DType=dtypes.float32, device:Union[str,Device]="cpu", requires_grad:bool=False, const:bool=False): # type: ignore
+    if n is None: n = m
+    if not isinstance(device, Device): device = Device(device)
+    buf = cpu.eye(m, n, dtype.fmt) if device.type == "CPU" else NotImplemented
+    return Tensor._from_backend(buf, dtype=dtype, device=device, requires_grad=requires_grad, const=const)
 
   def astype(self, dtype:Union[dtypes.DType,dtypes.ConstType]) -> Tensor:
     x = reshape(cuda.topyobj(self.__buf), self.shape.shape) if self.__device.type == "CUDA" else reshape(cpu.topyobj(self.__buf), self.shape.shape) # type: ignore
-    return Tensor(x, dtype=dtype, device=f"{self.__device.type}:{self.__device.index}")
+    return Tensor(x, dtype=dtype, device=f"{self.__device.type}:{self.__device.index}") # type: ignore
 
   def to(self, device:Union[str,Device]) -> Tensor:
     if not isinstance(device, Device): device = Device(device)
@@ -319,9 +339,13 @@ class Tensor:
     obj.__offset = offset
     obj.__dtype = dtype
     obj.__device = device
-    obj.__requires_grad = requires_grad
+    obj._requires_grad = requires_grad
     obj.__const = const
     obj.__ndim = len(shape)
+    obj._grad = None
+    obj._grad_fxn = None
+    obj._parents = ()
+    obj._is_leaf = requires_grad
     return obj
 
   @classmethod
@@ -330,7 +354,7 @@ class Tensor:
     obj.__buf = buf
     obj.__dtype = dtype
     obj.__device = device
-    obj.__requires_grad = requires_grad
+    obj._requires_grad = requires_grad
     obj.__const = const
     obj.__offset = 0
     if device.type == "CPU":
@@ -343,6 +367,10 @@ class Tensor:
       obj.__shape = Shape(shp)
       obj.__stride = cuda.stride(buf)
       obj.__ndim = cuda.ndim(buf)
+    obj._grad = None
+    obj._grad_fxn = None
+    obj._parents = ()
+    obj._is_leaf = requires_grad
     return obj
 
   @staticmethod
@@ -506,7 +534,16 @@ class Tensor:
     bx = Tensor._pad_data(bx, ndim)
     A = Tensor._build_tensor(ax, shape_a, result_shape)
     B = Tensor._build_tensor(bx, shape_b, result_shape)
-    return (Tensor(A, dtype=a.dtype, device=a.device), Tensor(B, dtype=b.dtype, device=b.device),)
+    return (Tensor(A, dtype=a.dtype, device=a.device, requires_grad=a.requires_grad), Tensor(B, dtype=b.dtype, device=b.device, requires_grad=b.requires_grad),)
+
+  @staticmethod
+  def _unbroadcast(grad:Tensor, target_shape:Tuple[int, ...]) -> Tensor:
+    g = grad
+    while len(g.shape.shape) > len(target_shape): g = g.sum(axis=0)
+    for i, (gdim, tdim) in enumerate(zip(g.shape.shape, target_shape)):
+      if tdim == 1 and gdim != 1: g = g.sum(axis=i, keepdim=True)
+    if g.shape.shape != target_shape: g = g.reshape(target_shape)
+    return g
 
   def binop(self, other, op, promote:str|None="binary", reverse: bool = False, res_dtype=None):
     if not isinstance(other, Tensor): other = Tensor(other, device=f"{self.device.type}:{self.device.index}")
@@ -534,7 +571,20 @@ class Tensor:
       kernel = getattr(cuda, op)
       out = cuda.topyobj(kernel(x.buf, y.buf))
     dtype = res_dtype if res_dtype is not None else x.dtype
-    return Tensor(reshape(out, x.shape.shape), dtype=dtype, device=x.device) # type: ignore
+    requires_grad = self.requires_grad or other.requires_grad
+    out_tensor = Tensor(reshape(out, x.shape.shape), dtype=dtype, device=x.device, requires_grad=requires_grad) # type: ignore
+    requires_grad = self.requires_grad or other.requires_grad
+    if requires_grad:
+      out_tensor._is_leaf = False
+      out_tensor._parents = (self,other)
+      if op == "add": out_tensor._grad_fxn = AddBackward(self,other)
+      elif op == "sub": out_tensor._grad_fxn = SubBackward(self,other)
+      elif op == "mul": out_tensor._grad_fxn = MulBackward(self,other)
+      elif op == "tdiv": out_tensor._grad_fxn = TDivBackward(self, other)
+      elif op == "fdiv": raise RuntimeError("derivative of floor division isn't implemented")
+      elif op == "pow": out_tensor._grad_fxn = PowBackward(self,other)
+      else: out_tensor._grad_fxn = None
+    return out_tensor
 
   def uop(self, op:str, promote:bool=False, res_dtype:dtypes.DType|None=None):
     x = Tensor._promote_unary_math(self) if promote else self
@@ -545,7 +595,60 @@ class Tensor:
       kernel = getattr(cuda, op)
       out = cuda.topyobj(kernel(x.buf))
     dtype = res_dtype if res_dtype is not None else x.dtype
-    return Tensor(reshape(out, x.shape.shape), dtype=dtype, device=x.device) # type: ignore
+    requires_grad = x.requires_grad
+    out_tensor = Tensor(reshape(out, self.shape.shape), dtype=dtype, device=x.device, requires_grad=requires_grad) # type: ignore
+    if requires_grad:
+      out_tensor._is_leaf = False
+      out_tensor._parents = (self,)
+      if op == "exp": out_tensor._grad_fxn = ExpBackward(self, out_tensor)
+      elif op == "log": out_tensor._grad_fxn = LogBackward(self)
+      elif op == "log2": out_tensor._grad_fxn = Log2Backward(self)
+      elif op == "log10": out_tensor._grad_fxn = Log10Backward(self)
+      else: out_tensor._grad_fxn = None
+    return out_tensor
+
+  def detach(self):
+    out = Tensor._from_view(
+      buf=self.__buf,
+      dtype=self.__dtype,
+      shape=self.__shape.shape,
+      stride=self.__stride,
+      offset=self.__offset,
+      device=self.__device,
+      requires_grad=False,
+      const=self.__const
+    )
+    out._grad = None
+    out._grad_fxn = None
+    out._parents = ()
+    out._is_leaf = True
+    return out
+
+  def backward(self):
+    if not self._requires_grad: raise RuntimeError("does not require grad")
+    if self.ndim == 0: self._grad = Tensor(1, dtype=self.dtype, device=self.device, requires_grad=True)
+    else:
+      self._grad = Tensor.ones(
+        *self.shape.shape,
+        dtype=self.dtype,
+        device=self.device
+      )
+    topo = []
+    visited = set()
+    def build(t):
+      if id(t) not in visited:
+        visited.add(id(t))
+        for p in t._parents: build(p)
+        topo.append(t)
+    build(self)
+    for t in reversed(topo):
+      if t._grad_fxn is None or t._grad is None: continue
+      grads = t._grad_fxn.backward(t._grad)
+      for parent, grad in zip(t._parents, grads):
+        if not parent._requires_grad: continue
+        grad = Tensor._unbroadcast(grad, parent.shape.shape)
+        if parent._grad is None: parent._grad = grad
+        else: parent._grad = parent._grad + grad
 
   def __add__(self, other:Union[dtypes.ConstType,Tensor,List]) -> Tensor: return self.binop(other, "add")
   def __radd__(self, other:Union[dtypes.ConstType,Tensor,List]) -> Tensor: return self.binop(other, "add", reverse=True)
@@ -636,7 +739,7 @@ class Tensor:
       stride=tuple(new_stride),
       offset=self.__offset,
       device=self.__device,
-      requires_grad=self.__requires_grad,
+      requires_grad=self._requires_grad,
       const=self.__const,
     )
 
@@ -651,19 +754,19 @@ class Tensor:
       offset=self.__offset,
       dtype=self.__dtype,
       device=self.__device,
-      requires_grad=self.__requires_grad,
+      requires_grad=self._requires_grad,
       const=self.__const
     )
 
   def sum(self, axis:int|None=None, keepdim:bool=False):
     if axis is None:
       result_buf = cpu.sum(self.__buf, None) if self.__device.type == "CPU" else cuda.sum(self.__buf, None)
-      result = Tensor._from_backend(result_buf, self.__dtype, self.__device, self.__requires_grad, const=self.__const)
+      result = Tensor._from_backend(result_buf, self.__dtype, self.__device, self._requires_grad, const=self.__const)
       return result
     if axis < 0: axis += self.__ndim
     if axis < 0 or axis >= self.__ndim: raise ValueError(f"axis {axis} is out of range for tensor with {self.__ndim} dimensions")
     result_buf = cpu.sum(self.__buf, axis) if self.__device.type == "CPU" else cuda.sum(self.__buf, axis)
-    result = Tensor._from_backend(result_buf, self.__dtype, self.__device, self.__requires_grad, const=self.__const)
+    result = Tensor._from_backend(result_buf, self.__dtype, self.__device, self._requires_grad, const=self.__const)
     if keepdim:
       new_shape = list(self.shape.shape)
       new_shape[axis] = 1
@@ -673,6 +776,10 @@ class Tensor:
   def flatten(self):
     out = cpu.topyobj(self.buf) if self.__device.type == "CPU" else cuda.topyobj(self.buf)
     return Tensor(out, dtype=self.__dtype, device=self.__device) # type: ignore
+
+  def sqrt(self) -> Tensor: return self ** (1/2)
+  def cbrt(self) -> Tensor: return self ** (1/3)
+  def pow(self, exponent:Union[dtypes.ConstType,Tensor]): return self ** exponent
 
   def bmm(self, other:Tensor):
     if not isinstance(other, Tensor): raise ValueError(f"given value must be the Tensor object")
@@ -686,8 +793,9 @@ class Tensor:
   def numpy(self):
     try:
       import numpy as np
-      if self.device.type == "CPU": return np.array(reshape(cpu.topyobj(self.buf), self.shape.shape)) # type: ignore
-      return np.array(reshape(cuda.topyobj(self.buf), self.shape.shape)) # type: ignore
+      flat = cpu.topyobj(self.buf) if self.device.type == "CPU"  else cuda.topyobj(self.buf)
+      if not isinstance(flat, (list, tuple)): flat = [flat]
+      return np.array(reshape(flat, self.shape.shape))
     except ImportError:
       import warnings
       warnings.warn("NumPy is required for Tensor.numpy(). Install it with: pip install numpy", RuntimeWarning)
@@ -709,6 +817,8 @@ class Tensor:
   def asinh(self) -> Tensor: return self.uop("asinh", promote=True)
   def acosh(self) -> Tensor: return self.uop("acosh", promote=True)
   def atanh(self) -> Tensor: return self.uop("atanh", promote=True)
-
   def sgn(self) -> Tensor: return self.uop("sgn")
+
+  def floor(self) -> Tensor: return self.uop("floor", promote=True)
+  def ceil(self) -> Tensor: return self.uop("ceil", promote=True)
 
