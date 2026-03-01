@@ -7,14 +7,15 @@ import re
 
 DEVICES = {"CPU", "CUDA"}
 
-DeviceSpec = Union[
-    str,
-    "Device",
-    Tuple[str, int],   # ("CUDA", 0)
+DeviceLike = Union[
+  str,
+  "Device",
+  Tuple[str,int], # ("CUDA", 0)
 ]
 
 class Device:
   __slots__ = ("type", "index")
+  _device_stack = []
 
   @staticmethod
   @functools.cache
@@ -24,7 +25,7 @@ class Device:
       base, rest = spec.split(":", 1)
       spec = base + ":" + rest
     return re.sub(r":0$", "", spec)
-  def __init__(self, spec:DeviceSpec="cpu"):
+  def __init__(self, spec:DeviceLike="cpu"):
     if isinstance(spec, Device):
       self.type = spec.type
       self.index = spec.index
@@ -56,12 +57,28 @@ class Device:
     self.type = dev_type
     self.index = index
   def __repr__(self):
-      if self.type == "CUDA": return f"Device(type={self.type}, index={self.index})"
-      return f"Device(type={self.type})"
+    if self.type == "CUDA": return f"Device(type={self.type}, index={self.index})"
+    return f"Device(type={self.type})"
   def __iter__(self):return iter((self.type, self.index))
-  def eq(self, other: DeviceSpec, soft: bool = False):
-      other = Device(other)
-      return (self.type == other.type and self.index == other.index if not soft else self.type == other.type)
-  def ne(self, other:DeviceSpec, soft:bool=False): return not self.eq(other, soft=soft)
-  def __eq__(self, other: object): return self.eq(other)  # type: ignore
-  def __ne__(self, other: object): return self.ne(other)  # type: ignore
+  def eq(self, other:DeviceLike, strict:bool=False):
+    if not isinstance(other,Device): other = Device(other)
+    return (self.type == other.type and self.index == other.index if not strict else self.type == other.type)
+  def ne(self, other:DeviceLike, strict:bool=False): return not self.eq(other, strict=strict)
+  def __eq__(self, other:DeviceLike): return self.eq(other) # type: ignore
+  def __ne__(self, other:DeviceLike): return self.ne(other) # type: ignore
+  @classmethod
+  def current(cls):
+    ## NOTE ##
+    # Returns the active device from the device context stack.
+    # This represents the default allocation device for new tensors.
+    # It does NOT reflect the device of an existing tensor.
+    # Do not call this via `tensor.device.current()` -  it may give
+    # misleading results since it is unrelated to that tensor's storage device.
+    if not cls._device_stack: cls._device_stack.append(Device("cpu"))
+    return cls._device_stack[-1]
+  def __enter__(self):
+    Device._device_stack.append(self)
+    return self
+  def __exit__(self, exc_type, exc_val, exc_tb):
+    if not Device._device_stack: raise RuntimeError("Device stack overflow")
+    Device._device_stack.pop()
