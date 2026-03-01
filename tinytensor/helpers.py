@@ -62,10 +62,13 @@ def has_uniform_shape(lst):
   if len(set(lengths)) != 1: return False
   return all(has_uniform_shape(x) for x in lst)
 
-def reshape(data: List[Any], shape: Tuple[int, ...]) -> List[Any]:
+def reshape(data, shape: Tuple[int, ...]):
   if not shape: return data
   total = 1
   for d in shape: total *= d
+  if not isinstance(data, (list, tuple)):
+    if total == 1: data = [data]
+    else: raise TypeError("non-iterable data for non-scalar shape")
   if total != len(data): raise ValueError("shape does not match data length")
   def _reshape(flat, shp):
     if len(shp) == 1: return flat[:shp[0]]
@@ -76,3 +79,4 @@ def reshape(data: List[Any], shape: Tuple[int, ...]) -> List[Any]:
       for i in range(shp[0])
     ]
   return _reshape(data, shape)
+
