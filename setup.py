@@ -24,7 +24,7 @@ class BuildNVCC(build_ext):
       "-gencode arch=compute_86,code=compute_86 "
     )
 
-    TEN_SRC = "tinytensor/engine"
+    ENGINE_SRC = "tinytensor/engine"
     C_SRC_DIR = "tinytensor/engine/cpu"
     CU_SRC_DIR = "tinytensor/engine/cuda"
 
@@ -35,49 +35,49 @@ class BuildNVCC(build_ext):
       cmd = (
         f"nvcc -O3 {GENCODE} -Xcompiler -fPIC -shared "
         f"-I{py_inc} -I{C_SRC_DIR} "
-        f"{C_SRC_DIR}/cpu.c {TEN_SRC}/tensor.c "
+        f"{C_SRC_DIR}/cpu.c {ENGINE_SRC}/tensor.c {ENGINE_SRC}/tt_memory.c "
         f"-lcudart -o {output_path}"
       )
     elif ext.name.endswith("cpu_ops"):
       cmd = (
         f"nvcc -O3 {GENCODE} -Xcompiler -fPIC -shared "
         f"-I{py_inc} -I{C_SRC_DIR} "
-        f"{C_SRC_DIR}/cpu_ops.c {TEN_SRC}/tensor.c "
+        f"{C_SRC_DIR}/cpu_ops.c {ENGINE_SRC}/tensor.c {ENGINE_SRC}/tt_memory.c "
         f"-lcudart -o {output_path}"
       )
     elif ext.name.endswith("functional_cpu"):
       cmd = (
         f"nvcc -O3 {GENCODE} -Xcompiler -fPIC -shared "
         f"-I{py_inc} -I{C_SRC_DIR} "
-        f"{C_SRC_DIR}/functional_cpu.c {TEN_SRC}/tensor.c "
+        f"{C_SRC_DIR}/functional_cpu.c {ENGINE_SRC}/tensor.c {ENGINE_SRC}/tt_memory.c "
         f"-o {output_path}"
       )
     elif ext.name.endswith("constants"):
       cmd = (
         f"nvcc -O3 {GENCODE} -Xcompiler -fPIC -shared "
         f"-I{py_inc} "
-        f"{TEN_SRC}/constants.c "
+        f"{ENGINE_SRC}/constants.c "
         f"-o {output_path}"
       )
     elif ext.name.endswith("cuda") and not ext.name.endswith("functional_cuda"):
       cmd = (
         f"nvcc -O3 {GENCODE} -Xcompiler -fPIC -shared "
         f"-I{py_inc} -I{CU_SRC_DIR} "
-        f"{CU_SRC_DIR}/cuda.cu {TEN_SRC}/tensor.c "
+        f"{CU_SRC_DIR}/cuda.cu {ENGINE_SRC}/tensor.c {ENGINE_SRC}/tt_memory.c "
         f"-lnvidia-ml -o {output_path}"
       )
     elif ext.name.endswith("cuda_ops"):
       cmd = (
         f"nvcc -O3 {GENCODE} -Xcompiler -fPIC -shared "
         f"-I{py_inc} -I{CU_SRC_DIR} "
-        f"{CU_SRC_DIR}/cuda_ops.cu {TEN_SRC}/tensor.c "
+        f"{CU_SRC_DIR}/cuda_ops.cu {ENGINE_SRC}/tensor.c {ENGINE_SRC}/tt_memory.c "
         f"-o {output_path}"
       )
     elif ext.name.endswith("functional_cuda"):
       cmd = (
         f"nvcc -O3 {GENCODE} -Xcompiler -fPIC -shared "
         f"-I{py_inc} -I{CU_SRC_DIR} "
-        f"{CU_SRC_DIR}/functional_cuda.cu {TEN_SRC}/tensor.c "
+        f"{CU_SRC_DIR}/functional_cuda.cu {ENGINE_SRC}/tensor.c {ENGINE_SRC}/tt_memory.c "
         f"-o {output_path}"
       )
     else:
