@@ -44,6 +44,7 @@ typedef enum {
   CMPX128
 } dtype_t;
 
+dtype_t getdtype(char fmt);
 size_t getsize(dtype_t dtype);
 
 typedef struct {

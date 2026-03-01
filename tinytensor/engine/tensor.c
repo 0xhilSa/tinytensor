@@ -45,6 +45,26 @@ typedef enum {
   CMPX128
 } dtype_t;
 
+dtype_t getdtype(char fmt){
+  switch(fmt){
+    case '?': return BOOL;
+    case 'b': return INT8;
+    case 'B': return UINT8;
+    case 'h': return INT16;
+    case 'H': return UINT16;
+    case 'i': return INT32;
+    case 'I': return UINT32;
+    case 'l': return INT64;
+    case 'L': return UINT64;
+    case 'e': return FP16;
+    case 'f': return FP32;
+    case 'd': return FP64;
+    case 'F': return CMPX64;
+    case 'D': return CMPX128;
+    default: return ERROR;
+  }
+}
+
 size_t getsize(dtype_t dtype){
   switch(dtype){
     case BOOL: return sizeof(bool);
@@ -61,7 +81,7 @@ size_t getsize(dtype_t dtype){
     case FP64: return sizeof(float64);
     case CMPX64: return sizeof(complex64);
     case CMPX128: return sizeof(complex128);
-    default: return 0;
+    default: return ERROR;
   }
 }
 
