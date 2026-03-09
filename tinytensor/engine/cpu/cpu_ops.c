@@ -85,7 +85,7 @@ static tensor_t *alloc_result_tensor(const tensor_t *t){
 }
 
 static PyObject *__add_tensor__(const tensor_t *tx, const tensor_t *ty, tensor_t *tz){
-  size_t length = tx->size;
+  size_t length = tz->size;
   dtype_t dtype = tx->dtype;
   char *px = (char *)tx->buf;
   char *py = (char *)ty->buf;
@@ -6350,23 +6350,23 @@ static PyObject *eye_(PyObject *self, PyObject *args){
   }
   t->stride[1] = 1;
   t->stride[0] = n;
-  storage_t *storage = tt_malloc(sizeof(storage_t));
-  if(!storage){
+  t->storage = tt_malloc(sizeof(storage_t));
+  if(!t->storage){
     destroy(t);
     return PyErr_NoMemory();
   }
-  storage->bytes = t->size * t->element_size;
-  storage->device = t->device;
-  storage->refcount = 1;
-  storage->ptr = tt_malloc(storage->bytes);
-  if(!storage->ptr){
-    free(storage);
+  t->storage->bytes = t->size * t->element_size;
+  t->storage->device = t->device;
+  t->storage->refcount = 1;
+  t->storage->ptr = tt_malloc(t->storage->bytes);
+  if(!t->storage->ptr){
+    free(t->storage);
     destroy(t);
     return PyErr_NoMemory();
   }
-  memset(storage->ptr, 0, storage->bytes);
-  t->storage = storage;
-  t->buf = storage->ptr;
+  memset(t->storage->ptr, 0, t->storage->bytes);
+  t->storage = t->storage;
+  t->buf = t->storage->ptr;
   size_t diag = (m < n) ? m : n;
   for(size_t i = 0; i < diag; i++){
     size_t idx = i * t->stride[0] + i * t->stride[1];
@@ -6390,6 +6390,134 @@ static PyObject *eye_(PyObject *self, PyObject *args){
     }
   }
   return PyCapsule_New(t, "tensor_t on CPU", capsule_destroyer);
+}
+
+static void arange_fill(void *buf, dtype_t dtype, double start, double step, size_t n) {
+  for (size_t i = 0; i < n; i++) {
+    double val = start + (double)i * step;
+    switch (dtype) {
+      case BOOL: ((bool *)buf)[i] = (bool)val; break;
+      case INT8: ((int8 *)buf)[i] = (int8)val; break;
+      case UINT8: ((uint8 *)buf)[i] = (uint8)val; break;
+      case INT16: ((int16 *)buf)[i] = (int16)val; break;
+      case UINT16: ((uint16 *)buf)[i] = (uint16)val; break;
+      case INT32: ((int32 *)buf)[i] = (int32)val; break;
+      case UINT32: ((uint32 *)buf)[i] = (uint32)val; break;
+      case INT64: ((int64 *)buf)[i] = (int64)val; break;
+      case UINT64: ((uint64 *)buf)[i] = (uint64)val; break;
+      case FP16: ((float16_t*)buf)[i] = float_to_fp16((float)val); break;
+      case FP32: ((float32 *)buf)[i] = (float32)val; break;
+      case FP64: ((float64 *)buf)[i] = (float64)val; break;
+      default: break;
+    }
+  }
+}
+
+PyObject *cpu_arange(double start, double stop, double step, dtype_t dtype){
+  if(step == 0.0){
+    PyErr_SetString(PyExc_ValueError, "arange: step must not be zero");
+    return NULL;
+  }
+  if(dtype == ERROR || dtype == CMPX64 || dtype == CMPX128){
+    PyErr_SetString(PyExc_TypeError, "arange: unsupported dtype");
+    return NULL;
+  }
+  size_t n = 0;
+  {
+    double v = start;
+    if(step > 0){ while (v < stop) { n++; v += step; } }
+    else{ while (v > stop) { n++; v += step; } }
+  }
+  size_t elem_size = getsize(dtype);
+  storage_t *storage = (storage_t *)malloc(sizeof(storage_t));
+  if (!storage) { PyErr_NoMemory(); return NULL; }
+  void *ptr = malloc(n * elem_size);
+  if (!ptr) { free(storage); PyErr_NoMemory(); return NULL; }
+  storage->ptr = ptr;
+  storage->bytes = n * elem_size;
+  storage->device.type = CPU;
+  storage->device.index = 0;
+  storage->refcount = 1;
+  arange_fill(ptr, dtype, start, step, n);
+  size_t *shape = (size_t *)malloc(sizeof(size_t));
+  size_t *stride = (size_t *)malloc(sizeof(size_t));
+  if (!shape || !stride) {
+    free(shape); free(stride); free(ptr); free(storage);
+    PyErr_NoMemory(); return NULL;
+  }
+  shape[0]  = n;
+  stride[0] = 1;
+  tensor_t *t = (tensor_t *)malloc(sizeof(tensor_t));
+  if(!t){
+    free(shape); free(stride); free(ptr); free(storage);
+    PyErr_NoMemory(); return NULL;
+  }
+  t->storage = storage;
+  t->buf = ptr;
+  t->dtype = dtype;
+  t->element_size = elem_size;
+  t->size = n;
+  t->ndim = 1;
+  t->shape = shape;
+  t->stride = stride;
+  t->offset = 0;
+  t->device.type = CPU;
+  t->device.index = 0;
+  PyObject *cap = PyCapsule_New(t, "tensor_t on CPU", capsule_destroyer);
+  if(!cap){
+    free(shape); free(stride); free(ptr); free(storage); free(t);
+    return NULL;
+  }
+  return cap;
+}
+
+static PyObject *arange(PyObject *self, PyObject *args, PyObject *kwargs) {
+  int64 start, stop, step = 1;
+  char *dtype_fmt = "l";
+  static char *kwlist[] = { "start", "stop", "step", "dtype", NULL };
+  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ll|ls", kwlist, &start, &stop, &step, &dtype_fmt)) return NULL;
+  if (step == 0) {
+    PyErr_SetString(PyExc_ValueError, "arange: step must not be zero");
+    return NULL;
+  }
+  dtype_t dtype = getdtype(dtype_fmt[0]);
+  if(dtype == ERROR){
+    PyErr_Format(PyExc_TypeError, "arange: unknown dtype format char '%c'", dtype_fmt[0]);
+    return NULL;
+  }
+  return cpu_arange((double)start, (double)stop, (double)step, dtype);
+}
+
+static tensor_t *create_output_like(const tensor_t *ref){
+  tensor_t *ta = tt_malloc(sizeof(tensor_t));
+  if (!ta) return NULL;
+  ta->dtype = ref->dtype;
+  ta->element_size = ref->element_size;
+  ta->device = ref->device;
+  ta->ndim = ref->ndim;
+  ta->size = ref->size;
+  ta->offset = 0;
+  if(ta->ndim > 0){
+    ta->shape = tt_malloc(sizeof(size_t) * ta->ndim);
+    ta->stride = tt_malloc(sizeof(size_t) * ta->ndim);
+    for (size_t i = 0; i < ta->ndim; i++){ ta->shape[i] = ref->shape[i]; }
+    size_t stride = 1;
+    for (int i = ta->ndim - 1; i >= 0; i--) {
+      ta->stride[i] = stride;
+      stride *= ta->shape[i];
+    }
+  }else{
+    ta->shape = NULL;
+    ta->stride = NULL;
+  }
+  ta->storage = tt_malloc(sizeof(storage_t));
+  if (!ta->storage) return NULL;
+  ta->storage->bytes = ta->size * ta->element_size;
+  ta->storage->device = ta->device;
+  ta->storage->refcount = 1;
+  ta->storage->ptr = tt_malloc(ta->storage->bytes);
+  if (!ta->storage->ptr) return NULL;
+  return ta;
 }
 
 static PyMethodDef methods[] = {
@@ -6452,6 +6580,7 @@ static PyMethodDef methods[] = {
   {"atanh", atanh_, METH_VARARGS, "computes are hyperbolic tangent of tensor"},
   {"sgn", sgn_, METH_VARARGS, "computes signum function on tensor"},
   {"eye", eye_, METH_VARARGS, "returns identity tensor"},
+  {"arange", (PyCFunction)arange, METH_VARARGS, "return a range of tensor"},
   {NULL, NULL, 0, NULL}
 };
 
