@@ -33,14 +33,14 @@ class BuildNVCC(build_ext):
 
     if ext.name.endswith("cpu"):
       cmd = (
-        f"nvcc -O3 {GENCODE} -Xcompiler -fPIC -shared "
+        f"nvcc -O3 {GENCODE} -Xcompiler \"-fopenmp -fPIC\" -shared "
         f"-I{py_inc} -I{C_SRC_DIR} "
         f"{C_SRC_DIR}/cpu.c {ENGINE_SRC}/tensor.c {ENGINE_SRC}/tt_memory.c "
         f"-lcudart -o {output_path}"
       )
     elif ext.name.endswith("cpu_ops"):
       cmd = (
-        f"nvcc -O3 {GENCODE} -Xcompiler -fPIC -shared "
+        f"nvcc -O3 {GENCODE} -Xcompiler \"-fopenmp -fPIC\" -shared "
         f"-I{py_inc} -I{C_SRC_DIR} "
         f"{C_SRC_DIR}/cpu_ops.c {ENGINE_SRC}/tensor.c {ENGINE_SRC}/tt_memory.c "
         f"-lcudart -o {output_path}"
