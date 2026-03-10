@@ -34,7 +34,10 @@ def arange(
   const:bool=False # type: ignore[valid-type]
 ):
   if step == 0: raise ValueError("step parameter cannot be 0")
-  return Tensor(list(range(start, stop, step)), dtype=dtype, device=device, requires_grad=requires_grad, const=const)
+  if device is None: device = Device("cpu")
+  elif not isinstance(device, Device): device = Device(device)
+  buf = cpu.arange(start, stop, step, float32.fmt) if device.type == "CPU" else cuda.arange(start, stop, step, float32.fmt)
+  return Tensor._from_backend(buf, dtype=dtype, device=device, requires_grad=requires_grad, const=const)
 
 def linspace(
   start:int, end:int, steps:int,
