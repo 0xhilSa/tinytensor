@@ -489,10 +489,6 @@ static PyObject *device_name(PyObject *self, PyObject *args){
   if(!PyArg_ParseTuple(args, "i", &device)) return NULL;
   int device_count = 0;
   CUDA_CHECK(cudaGetDeviceCount(&device_count));
-  if(device < 0 || device >= device_count){
-    PyErr_SetString(PyExc_ValueError, "Invalid CUDA device index");
-    return NULL;
-  }
   cudaDeviceProp prop;
   CUDA_CHECK(cudaGetDeviceProperties(&prop, device));
   return PyUnicode_FromString(prop.name);
