@@ -1,4 +1,5 @@
 #include <python3.10/Python.h>
+#include <cpuid.h>
 #include <cuda_runtime.h>
 #include "../tt_memory.h"
 #include "../tensor.h"
@@ -375,6 +376,25 @@ static PyObject *topyobj(PyObject *self, PyObject *args){
   return list;
 }
 
+static PyObject *device_name(PyObject *self, PyObject *args){
+  unsigned int eax, ebx, ecx, edx;
+  char name[49];
+  for(int i = 0; i < 3; i++){
+    __cpuid(0x80000002 + i, eax, ebx, ecx, edx);
+    memcpy(name + i * 16 + 0, &eax, 4);
+    memcpy(name + i * 16 + 4, &ebx, 4);
+    memcpy(name + i * 16 + 8, &ecx, 4);
+    memcpy(name + i * 16 + 12, &edx, 4);
+  }
+  name[48] = '\0';
+  int len = strlen(name);
+  while(len > 0 && isspace((unsigned char)name[len-1])){
+    name[len-1] = '\0';
+    len--;
+  }
+  return PyUnicode_FromString(name);
+}
+
 static PyObject *ndim(PyObject *self, PyObject *args){
   PyObject *x;
   if(!PyArg_ParseTuple(args, "O", &x)) return NULL;
@@ -667,6 +687,7 @@ static PyMethodDef methods[] = {
   {"tocpu", tocpu, METH_VARARGS, "store tensor in tensor_t"},
   {"ptr_tocpu", ptr_tocpu, METH_VARARGS, "copy from CUDA to HOST"},
   {"topyobj", topyobj, METH_VARARGS, "returns python list"},
+  {"device_name", device_name, METH_NOARGS, "returns device name"},
   {"ndim", ndim, METH_VARARGS, "returns tensor_t ndim"},
   {"shape", shape, METH_VARARGS, "returns tensor_t shape"},
   {"stride", stride, METH_VARARGS, "returns tensor_t stride"},

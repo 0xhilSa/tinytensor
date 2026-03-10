@@ -1,4 +1,4 @@
-from tinytensor.engine.cpu.cpu import tocpu, ptr_tocpu, topyobj, ndim, shape, stride, device, dtype, getitem, copy_scalar, setitem, empty
+from tinytensor.engine.cpu.cpu import tocpu, ptr_tocpu, topyobj, device_name, ndim, shape, stride, device, dtype, getitem, copy_scalar, setitem, empty
 from tinytensor.engine.cpu.cpu_ops import (add, sub, mul, tdiv, fdiv, pow, mod, floor, ceil, sqrt, cbrt, conj, real, imag,
                                            eq, ne, gt, ge, lt, le, neg, pos, abs,
                                            lshift, rshift,
@@ -14,6 +14,7 @@ __all__ = [
   "tocpu",
   "ptr_tocpu",
   "topyobj",
+  "device_name",
   "ndim",
   "shape",
   "stride",
