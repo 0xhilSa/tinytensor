@@ -1,5 +1,5 @@
 from __future__ import annotations
-from tinytensor.engine.cuda.cuda import device_count
+from tinytensor.engine import cuda, cpu
 from typing import Union, Tuple
 import functools
 import warnings
@@ -14,7 +14,7 @@ DeviceLike = Union[
 ]
 
 class Device:
-  __slots__ = ("type", "index")
+  __slots__ = ("type", "index", "name")
   _device_stack = []
 
   @staticmethod
@@ -52,10 +52,11 @@ class Device:
       if index != 0: warnings.warn(f"CPU device index must be 0 (got {index}); defaulting to 0")
       index = 0
     else:
-        count = device_count()
+        count = cuda.device_count()
         if index >= count: raise ValueError(f"invalid CUDA device index. Expected range [0, {count}), got {index}")
     self.type = dev_type
     self.index = index
+    self.name = cpu.device_name() if self.type == "CPU" else cuda.device_name(0)
   def __repr__(self):
     if self.type == "CUDA": return f"Device(type={self.type}, index={self.index})"
     return f"Device(type={self.type})"
