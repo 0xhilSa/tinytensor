@@ -32,7 +32,7 @@ CU_OUT_DIR=$CU_SRC_DIR
 
 # compile ./tinytensor/engine/cpu/cpu.c
 echo "compiling $C_SRC_DIR/cpu.c -> $C_SRC_DIR/cpu.so"
-run_with_spinner nvcc -gencode arch=compute_86,code=sm_86 -O3 -Xcompiler -fPIC -shared \
+run_with_spinner nvcc -gencode arch=compute_86,code=sm_86 -O3 -Xcompiler "-fopenmp -fPIC" -shared \
   -I"$PY_INC" \
   -I"$C_SRC_DIR" \
   "$C_SRC_DIR/cpu.c" \
@@ -50,7 +50,7 @@ run_with_spinner nvcc -gencode arch=compute_86,code=sm_86 -O3 -Xcompiler -fPIC -
 
 # compile ./tinytensor/engine/cpu/cpu_ops.c
 echo "compiling $C_SRC_DIR/cpu_ops.c -> $C_SRC_DIR/cpu_ops.so"
-run_with_spinner nvcc -gencode arch=compute_86,code=sm_86 -O3 -Xcompiler -fPIC -shared \
+run_with_spinner nvcc -gencode arch=compute_86,code=sm_86 -O3 -Xcompiler "-fopenmp -fPIC" -shared \
   -I"$PY_INC" \
   -I"$C_SRC_DIR" \
   "$C_SRC_DIR/cpu_ops.c" \
