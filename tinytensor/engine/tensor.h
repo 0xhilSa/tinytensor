@@ -49,7 +49,7 @@ size_t getsize(dtype_t dtype);
 
 typedef struct {
   DEVICES_t type;
-  unsigned short index;
+  int index;
 } device_t;
 
 typedef struct {
@@ -68,6 +68,7 @@ typedef struct {
   size_t ndim;
   size_t *shape;
   size_t *stride;
+  size_t offset;
   device_t device;
 } tensor_t;
 

@@ -106,6 +106,7 @@ typedef struct {
   size_t ndim;
   size_t *shape;
   size_t *stride;
+  size_t offset;
   device_t device;
 } tensor_t;
 
