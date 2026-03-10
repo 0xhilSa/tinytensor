@@ -55,11 +55,7 @@ static PyObject *__list__(PyObject *list, PyObject *shape, const char *fmt, int 
     return NULL;
   }
   int device_count;
-  cudaError_t err = cudaGetDeviceCount(&device_count);
-  if(err != cudaSuccess){
-    PyErr_Format(PyExc_RuntimeError, "CUDA error: %s", cudaGetErrorString(err));
-    return NULL;
-  }
+  CUDA_CHECK(cudaGetDeviceCount(&device_count));
   if(device_idx < 0 || device_idx >= device_count){
     PyErr_Format(PyExc_ValueError, "Invalid CUDA device index: %d (available: 0-%d)", device_idx, device_count - 1);
     return NULL;
@@ -117,7 +113,7 @@ static PyObject *__list__(PyObject *list, PyObject *shape, const char *fmt, int 
   t->storage->bytes = t->size * t->element_size;
   t->storage->device = t->device;
   t->storage->refcount = 1;
-  err = cudaMalloc(&t->storage->ptr, t->storage->bytes);
+  cudaError_t err = cudaMalloc(&t->storage->ptr, t->storage->bytes);
   if(err != cudaSuccess){
     free(t->storage);
     free(t->shape);
@@ -209,11 +205,7 @@ static PyObject *__scalar__(PyObject *scalar, const char *fmt, int device_idx){
     return NULL;
   }
   int device_count = 0;
-  cudaError_t err = cudaGetDeviceCount(&device_count);
-  if(err != cudaSuccess){
-    PyErr_Format(PyExc_RuntimeError, "CUDA error: %s", cudaGetErrorString(err));
-    return NULL;
-  }
+  CUDA_CHECK(cudaGetDeviceCount(&device_count));
   if(device_idx < 0 || device_idx >= device_count) {
     PyErr_Format(PyExc_ValueError, "Invalid CUDA device index: %d (available: 0-%d)", device_idx, device_count - 1);
     return NULL;
@@ -240,13 +232,7 @@ static PyObject *__scalar__(PyObject *scalar, const char *fmt, int device_idx){
   t->storage->bytes = t->element_size;
   t->storage->device = t->device;
   t->storage->refcount = 1;
-  err = cudaMalloc(&t->storage->ptr, t->storage->bytes);
-  if(err != cudaSuccess){
-    free(t->storage);
-    free(t);
-    PyErr_Format(PyExc_RuntimeError, "CUDA memory allocation failed: %s", cudaGetErrorString(err));
-    return NULL;
-  }
+  CUDA_CHECK(cudaMalloc(&t->storage->ptr, t->storage->bytes));
   t->buf = t->storage->ptr;
   void *host_buffer = tt_malloc(t->element_size);
   if(!host_buffer){
@@ -314,11 +300,7 @@ static PyObject *__scalar__(PyObject *scalar, const char *fmt, int device_idx){
       PyErr_SetString(PyExc_TypeError, "Unsupported dtype");
       goto fail;
   }
-  err = cudaMemcpy(t->storage->ptr, host_buffer, t->element_size, cudaMemcpyHostToDevice);
-  if(err != cudaSuccess){
-    PyErr_Format(PyExc_RuntimeError, "CUDA memcpy failed: %s", cudaGetErrorString(err));
-    goto fail;
-  }
+  CUDA_CHECK(cudaMemcpy(t->storage->ptr, host_buffer, t->element_size, cudaMemcpyHostToDevice));
   free(host_buffer);
   return PyCapsule_New(t, "tensor_t on CUDA", capsule_destroyer_cuda);
 fail:
@@ -342,6 +324,56 @@ static PyObject *tocuda(PyObject *self, PyObject *args){
   }
 }
 
+static PyObject *ptr_tocuda(PyObject *self, PyObject *args){
+  PyObject *capsule; // tensor_t on CPU (capsule)
+  int device_index;
+  if(!PyArg_ParseTuple(args, "Oi", &capsule, &device_index)) return NULL;
+  if(!PyCapsule_CheckExact(capsule)){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid capsule pointer");
+    return NULL;
+  }
+  tensor_t *t = (tensor_t *)PyCapsule_GetPointer(capsule, "tensor_t on CPU");
+  if(!t){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid tensor_t pointer");
+    return NULL;
+  }
+  tensor_t *tz = (tensor_t *)tt_malloc(sizeof(tensor_t));
+  if(!tz){
+    PyErr_SetString(PyExc_RuntimeError, "tensor_t allocation failed");
+    return NULL;
+  }
+  tz->dtype = t->dtype;
+  tz->element_size = getsize(t->dtype);
+  tz->size = t->size;
+  int count;
+  CUDA_CHECK(cudaGetDeviceCount(&count));
+  if(device_index >= count){
+    PyErr_SetString(PyExc_RuntimeError, "Invalid CUDA device index");
+    return NULL;
+  }
+  tz->device = (device_t){CUDA, (uint16)device_index};
+  tz->ndim = t->ndim;
+  tz->shape = NULL;
+  tz->stride = NULL;
+  if(tz->ndim != 0){
+    tz->shape = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
+    tz->stride = (size_t *)tt_malloc(sizeof(size_t) * tz->ndim);
+    for(size_t i = 0; i < tz->ndim; i++){
+      tz->shape[i] = t->shape[i];
+      tz->stride[i] = t->stride[i];
+    }
+  }
+  tz->storage = (storage_t *)tt_malloc(sizeof(storage_t));
+  tz->storage->bytes = tz->size * tz->element_size;
+  tz->storage->device = tz->device;
+  tz->storage->refcount = 1;
+  CUDA_CHECK(cudaSetDevice(device_index));
+  CUDA_CHECK(cudaMalloc(&tz->storage->ptr, tz->storage->bytes));
+  tz->buf = tz->storage->ptr;
+  CUDA_CHECK(cudaMemcpy(tz->storage->ptr, t->storage->ptr, tz->storage->bytes, cudaMemcpyHostToDevice));
+  return PyCapsule_New(tz, "tensor_t on CUDA", capsule_destroyer_cuda);
+}
+
 static PyObject *topyobj(PyObject *self, PyObject *args){
   PyObject *capsule;
   if(!PyArg_ParseTuple(args, "O", &capsule)) return NULL;
@@ -354,22 +386,13 @@ static PyObject *topyobj(PyObject *self, PyObject *args){
     PyErr_SetString(PyExc_TypeError, "Tensor is not on CUDA device");
     return NULL;
   }
-  cudaError_t err = cudaSetDevice(t->device.index);
-  if(err != cudaSuccess){
-    PyErr_Format(PyExc_RuntimeError, "Failed to set CUDA device: %s", cudaGetErrorString(err));
-    return NULL;
-  }
+  CUDA_CHECK(cudaSetDevice(t->device.index));
   void *host_buffer = tt_malloc(t->storage->bytes);
   if(!host_buffer){
     PyErr_NoMemory();
     return NULL;
   }
-  err = cudaMemcpy(host_buffer, t->storage->ptr, t->storage->bytes, cudaMemcpyDeviceToHost);
-  if(err != cudaSuccess){
-    free(host_buffer);
-    PyErr_Format(PyExc_RuntimeError, "CUDA memcpy failed: %s", cudaGetErrorString(err));
-    return NULL;
-  }
+  CUDA_CHECK(cudaMemcpy(host_buffer, t->storage->ptr, t->storage->bytes, cudaMemcpyDeviceToHost));
   // if its a scalar
   if(t->size == 1 && !t->shape){
     switch(t->dtype){
@@ -465,31 +488,19 @@ static PyObject *device_name(PyObject *self, PyObject *args){
   int device;
   if(!PyArg_ParseTuple(args, "i", &device)) return NULL;
   int device_count = 0;
-  cudaError_t err = cudaGetDeviceCount(&device_count);
-  if(err != cudaSuccess){
-    PyErr_SetString(PyExc_RuntimeError, cudaGetErrorString(err));
-    return NULL;
-  }
+  CUDA_CHECK(cudaGetDeviceCount(&device_count));
   if(device < 0 || device >= device_count){
     PyErr_SetString(PyExc_ValueError, "Invalid CUDA device index");
     return NULL;
   }
   cudaDeviceProp prop;
-  err = cudaGetDeviceProperties(&prop, device);
-  if(err != cudaSuccess){
-    PyErr_SetString(PyExc_RuntimeError, cudaGetErrorString(err));
-    return NULL;
-  }
+  CUDA_CHECK(cudaGetDeviceProperties(&prop, device));
   return PyUnicode_FromString(prop.name);
 }
 
 static PyObject *device_count(PyObject *self, PyObject *args){
   int count = 0;
-  cudaError_t err = cudaGetDeviceCount(&count);
-  if(err){
-    PyErr_SetString(PyExc_RuntimeError, cudaGetErrorString(err));
-    return NULL;
-  }
+  CUDA_CHECK(cudaGetDeviceCount(&count));
   return PyLong_FromLong(count);
 }
 
@@ -506,11 +517,7 @@ static PyObject *get_device_prop(PyObject *self, PyObject *args){
   int device;
   if(!PyArg_ParseTuple(args, "i", &device)) return NULL;
   cudaDeviceProp prop;
-  cudaError_t err = cudaGetDeviceProperties(&prop, device);
-  if(err != cudaSuccess){
-    PyErr_SetString(PyExc_RuntimeError, cudaGetErrorString(err));
-    return NULL;
-  }
+  CUDA_CHECK(cudaGetDeviceProperties(&prop, device));
   PyObject *dict = PyDict_New();
   if(!dict) return NULL;
   PyDict_SetItemString(dict, "name", PyUnicode_FromString(prop.name));
@@ -537,11 +544,7 @@ static PyObject *get_device_prop(PyObject *self, PyObject *args){
 
 static PyObject *runtime_version(PyObject *self, PyObject *args){
   int v = 0;
-  cudaError_t err = cudaRuntimeGetVersion(&v);
-  if(err != cudaSuccess){
-    PyErr_SetString(PyExc_RuntimeError, cudaGetErrorString(err));
-    return NULL;
-  }
+  CUDA_CHECK(cudaRuntimeGetVersion(&v));
   int major = v / 1000;
   int minor = (v % 1000) / 10;
   return Py_BuildValue("(ii)", major, minor);
@@ -549,11 +552,7 @@ static PyObject *runtime_version(PyObject *self, PyObject *args){
 
 static PyObject *driver_version(PyObject *self, PyObject *args){
   int v = 0;
-  cudaError_t err = cudaDriverGetVersion(&v);
-  if(err != cudaSuccess){
-    PyErr_SetString(PyExc_RuntimeError, cudaGetErrorString(err));
-    return NULL;
-  }
+  CUDA_CHECK(cudaDriverGetVersion(&v));
   int major = v / 1000;
   int minor = (v % 1000) / 10;
   return Py_BuildValue("(ii)", major, minor);
@@ -577,11 +576,7 @@ static PyObject *driver_package(PyObject *self, PyObject *args){
 
 static PyObject *get_device(PyObject *self, PyObject *args){
   int device = 0;
-  cudaError_t err = cudaGetDevice(&device);
-  if(err != cudaSuccess){
-    PyErr_SetString(PyExc_RuntimeError, cudaGetErrorString(err));
-    return NULL;
-  }
+  CUDA_CHECK(cudaGetDevice(&device));
   return PyLong_FromLong(device);
 }
 
@@ -659,7 +654,6 @@ static PyObject *device(PyObject *self, PyObject *args){
     return NULL;
   }
   const char *type = (t->device.type == CUDA) ? "CUDA" : "CPU";
-  printf("device: %s\n", type);
   return Py_BuildValue("(si)", type, t->device.index);
 }
 
@@ -779,11 +773,7 @@ static PyObject *copy_scalar(PyObject *self, PyObject *args){
   }
   copy_scalar_kernel<<<1,1>>>((char*)dst->buf, dst_index, (char*)src->buf, src_index, dst->element_size);
 
-  cudaError_t err = cudaDeviceSynchronize();
-  if(err != cudaSuccess){
-    PyErr_SetString(PyExc_RuntimeError, cudaGetErrorString(err));
-    return NULL;
-  }
+  CUDA_CHECK(cudaDeviceSynchronize());
   Py_RETURN_NONE;
 }
 
@@ -812,11 +802,7 @@ static PyObject *setitem(PyObject *self, PyObject *args){
   }
   char* dst_ptr = (char*)dst->buf + index * dst->element_size;
   char* src_ptr = (char*)src->buf;
-  cudaError_t err = cudaMemcpy(dst_ptr, src_ptr, dst->element_size, cudaMemcpyDeviceToDevice);
-  if(err != cudaSuccess){
-    PyErr_SetString(PyExc_RuntimeError, cudaGetErrorString(err));
-    return NULL;
-  }
+  CUDA_CHECK(cudaMemcpy(dst_ptr, src_ptr, dst->element_size, cudaMemcpyDeviceToDevice));
   Py_RETURN_NONE;
 }
 
@@ -835,11 +821,7 @@ static PyObject *empty(PyObject *self, PyObject *args){
     return NULL;
   }
   int device_count = 0;
-  cudaError_t err = cudaGetDeviceCount(&device_count);
-  if(err != cudaSuccess){
-    PyErr_SetString(PyExc_RuntimeError, cudaGetErrorString(err));
-    return NULL;
-  }
+  CUDA_CHECK(cudaGetDeviceCount(&device_count));
   if(device_idx < 0 || device_idx >= device_count){
     PyErr_Format(PyExc_ValueError, "Invalid CUDA device index: %d (available: 0-%d)", device_idx, device_count - 1);
     return NULL;
@@ -900,7 +882,7 @@ static PyObject *empty(PyObject *self, PyObject *args){
   t->storage->bytes = t->size * t->element_size;
   t->storage->device = t->device;
   t->storage->refcount = 1;
-  err = cudaMalloc(&t->storage->ptr, t->storage->bytes);
+  cudaError_t err = cudaMalloc(&t->storage->ptr, t->storage->bytes);
   if(err != cudaSuccess){
     free(t->storage);
     free(t->stride);
@@ -915,6 +897,7 @@ static PyObject *empty(PyObject *self, PyObject *args){
 
 static PyMethodDef methods[] = {
   {"tocuda", tocuda, METH_VARARGS, "returns CUDA tensor_t capsule"},
+  {"ptr_tocuda", ptr_tocuda, METH_VARARGS, "copy from HOST to CUDA"},
   {"topyobj", topyobj, METH_VARARGS, "returns CPU tensor_t capsule from CUDA tensor_t"},
   {"device_name", device_name, METH_VARARGS, "returns the device name"},
   {"device_count", device_count, METH_NOARGS, "returns the device count"},

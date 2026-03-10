@@ -6803,6 +6803,120 @@ static PyObject *eye_(PyObject *self, PyObject *args){
   return PyCapsule_New(t, "tensor_t on CUDA", capsule_destroyer);
 }
 
+template<typename T>
+__global__ void arange_tensor_kernel(T* out, long long start, long long step, size_t length){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  size_t stride = blockDim.x * gridDim.x;
+  for(size_t i = idx; i < length; i += stride){ out[i] = (T)(start + (long long)i * step); }
+}
+
+__global__ void arange_fp16_kernel(float16* out, float start, float step, size_t length){
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  size_t stride = blockDim.x * gridDim.x;
+  for(size_t i = idx; i < length; i += stride){
+    float v = start + (float)i * step;
+    out[i] = float_to_fp16(v);
+  }
+}
+
+static PyObject *arange(PyObject *self, PyObject *args){
+  int start, stop, step;
+  const char *fmt;
+  if(!PyArg_ParseTuple(args, "iiis", &start, &stop, &step, &fmt)) return NULL;
+  if(step == 0){
+    PyErr_SetString(PyExc_ValueError, "step cannot be zero");
+    return NULL;
+  }
+  dtype_t dtype = getdtype(*fmt);
+  if(dtype == ERROR){
+    PyErr_Format(PyExc_TypeError, "Invalid DType Fmt: %s", fmt);
+    return NULL;
+  }
+  size_t length = 0;
+  if(step > 0){
+    if(start < stop){ length = (stop - start + step - 1) / step; }
+  }else{
+    if(start > stop){ length = (start - stop - step - 1) / (-step); }
+  }
+  size_t elem_size = getsize(dtype);
+  if(length != 0 && elem_size > SIZE_MAX / length){
+    PyErr_SetString(PyExc_OverflowError, "arange size overflow");
+    return NULL;
+  }
+  size_t bytes = length * elem_size;
+  void *buf = NULL;
+  cudaError_t err = cudaMalloc(&buf, bytes);
+  if(err != cudaSuccess){
+    PyErr_SetString(PyExc_RuntimeError, cudaGetErrorString(err));
+    return NULL;
+  }
+  if(!buf){
+    PyErr_SetString(PyExc_RuntimeError, "buffer allocation failed");
+    return NULL;
+  }
+  if(length > 0){
+    const int threads = 256;
+    const int blocks = (length + threads - 1) / threads;
+    switch(dtype){
+      case BOOL: arange_tensor_kernel<bool><<<blocks, threads>>>((bool*)buf, start, step, length); break;
+      case INT8: arange_tensor_kernel<int8><<<blocks, threads>>>((int8*)buf, start, step, length); break;
+      case UINT8: arange_tensor_kernel<uint8><<<blocks, threads>>>((uint8*)buf, start, step, length); break;
+      case INT16: arange_tensor_kernel<int16><<<blocks, threads>>>((int16*)buf, start, step, length); break;
+      case UINT16: arange_tensor_kernel<uint16><<<blocks, threads>>>((uint16*)buf, start, step, length); break;
+      case INT32: arange_tensor_kernel<int32><<<blocks, threads>>>((int32*)buf, start, step, length); break;
+      case UINT32: arange_tensor_kernel<uint32><<<blocks, threads>>>((uint32*)buf, start, step, length); break;
+      case INT64: arange_tensor_kernel<int64><<<blocks, threads>>>((int64*)buf, start, step, length); break;
+      case UINT64: arange_tensor_kernel<uint64><<<blocks, threads>>>((uint64*)buf, start, step, length); break;
+      case FP16: arange_fp16_kernel<<<blocks, threads>>>((float16*)buf, (float)start, (float)step, length); break;
+      case FP32: arange_tensor_kernel<float32><<<blocks, threads>>>((float32*)buf, start, step, length); break;
+      case FP64: arange_tensor_kernel<float64><<<blocks, threads>>>((float64*)buf, start, step, length); break;
+      default:
+        cudaFree(buf);
+        PyErr_SetString(PyExc_TypeError, "Unsupported dtype in CUDA arange");
+        return NULL;
+    }
+    if(cudaGetLastError() != cudaSuccess){
+      cudaFree(buf);
+      PyErr_SetString(PyExc_RuntimeError, "CUDA kernel launch failed");
+      return NULL;
+    }
+    cudaDeviceSynchronize();
+  }
+  storage_t *storage = (storage_t *)tt_malloc(sizeof(storage_t));
+  if(!storage){
+    cudaFree(buf);
+    PyErr_NoMemory();
+    return NULL;
+  }
+  storage->ptr = buf;
+  storage->bytes = bytes;
+  storage->device = (device_t){CUDA,0};
+  storage->refcount = 1;
+  tensor_t *t = (tensor_t *)tt_malloc(sizeof(tensor_t));
+  if(!t){
+    cudaFree(buf);
+    free(storage);
+    PyErr_NoMemory();
+    return NULL;
+  }
+  t->storage = storage;
+  t->buf = buf;
+  t->dtype = dtype;
+  t->element_size = elem_size;
+  t->size = length;
+  t->ndim = 1;
+  t->device = storage->device;
+  t->shape = (size_t *)tt_malloc(sizeof(size_t));
+  t->stride = (size_t *)tt_malloc(sizeof(size_t));
+  if(!t->shape || !t->stride){
+    PyErr_SetString(PyExc_RuntimeError, "shape/stride allocation failed");
+    return NULL;
+  }
+  t->shape[0] = length;
+  t->stride[0] = 1;
+  return PyCapsule_New(t, "tensor_t on CUDA", capsule_destroyer);
+}
+
 static PyMethodDef methods[] = {
   {"add", add, METH_VARARGS, "element-wise 'add' operation on CUDA tensor"},
   {"sub", sub, METH_VARARGS, "element-wise 'sub' operation on CUDA tensor"},
@@ -6863,6 +6977,7 @@ static PyMethodDef methods[] = {
   {"atanh", atanh_, METH_VARARGS, "computes are hyperbolic tangent of tensor on CUDA"},
   {"sgn", sgn_, METH_VARARGS, "computes signum of a tensor on CUDA"},
   {"eye", eye_, METH_VARARGS, "returns identity of a tensor on CUDA"},
+  {"arange", arange, METH_VARARGS, "return a range of tensor on CUDA"},
   {NULL, NULL, 0, NULL}
 };
 

@@ -1,5 +1,5 @@
 from tinytensor.engine.cuda.cuda import (device_count, get_device_prop, device_name, is_available, get_device,
-                                         topyobj, tocuda, runtime_version, driver_version, driver_package,
+                                         topyobj, tocuda, ptr_tocuda, runtime_version, driver_version, driver_package,
                                          shape, ndim, stride, device, dtype, getitem, copy_scalar, setitem, empty)
 from tinytensor.engine.cuda.cuda_ops import (add, sub, mul, tdiv, fdiv, pow, mod, sqrt, cbrt, floor, ceil, conj, real, imag,
                                              eq, ne, gt, ge, lt, le, neg, pos, abs,
@@ -8,7 +8,7 @@ from tinytensor.engine.cuda.cuda_ops import (add, sub, mul, tdiv, fdiv, pow, mod
                                              logical_and, logical_or, logical_xor, logical_nand, logical_nor, logical_xnor, logical_not,
                                              sum, bmm, exp, log, log2, log10,
                                              sin, cos, tan, asin, acos, atan,
-                                             sinh, cosh, tanh, asinh, acosh, atanh, sgn, eye)
+                                             sinh, cosh, tanh, asinh, acosh, atanh, sgn, eye, arange)
 
 __all__ = [
   "shape",
@@ -29,6 +29,7 @@ __all__ = [
   "is_available",
   "get_device",
   "tocuda",
+  "ptr_tocuda",
   "topyobj",
   "add",
   "sub",
@@ -89,4 +90,5 @@ __all__ = [
   "atanh",
   "sgn",
   "eye",
+  "arange",
 ]
