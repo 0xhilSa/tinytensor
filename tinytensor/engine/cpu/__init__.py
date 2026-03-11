@@ -7,7 +7,7 @@ from tinytensor.engine.cpu.cpu_ops import (add, sub, mul, tdiv, fdiv, pow, mod, 
                                            sum, bmm, exp, log, log2, log10,
                                            sin, cos, tan, asin, acos, atan,
                                            sinh, cosh, tanh, asinh, acosh, atanh, sgn, eye, arange)
-
+from tinytensor.engine.cpu.random import rand, manual_seed
 
 
 __all__ = [
@@ -84,4 +84,6 @@ __all__ = [
   "sgn",
   "eye",
   "arange",
+  "rand",
+  "manual_seed",
 ]
