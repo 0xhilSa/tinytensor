@@ -599,17 +599,17 @@ static PyObject *shape(PyObject *self, PyObject *args){
     return NULL;
   }
   tensor_t *t = (tensor_t *)PyCapsule_GetPointer(x, "tensor_t on CUDA");
-  if(!t){
-    PyErr_SetString(PyExc_RuntimeError, "invalid tensor capsule");
-    return NULL;
-  }
+  if(!t) return NULL;
+  if(!t->shape){ return PyTuple_New(0); }
   PyObject *shape_tuple = PyTuple_New(t->ndim);
-  if(!shape_tuple){
-    PyErr_SetString(PyExc_RuntimeError, "tuple allocation failed");
-    return NULL;
-  }
+  if(!shape_tuple){ return NULL; }
   for(int i = 0; i < t->ndim; i++){
-    PyTuple_SetItem(shape_tuple, i, PyLong_FromSize_t(t->shape[i]));
+    PyObject *dim = PyLong_FromSize_t(t->shape[i]);
+    if(!dim){
+      Py_DECREF(shape_tuple);
+      return NULL;
+    }
+    PyTuple_SetItem(shape_tuple, i, dim);
   }
   return shape_tuple;
 }
