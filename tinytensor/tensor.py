@@ -66,8 +66,8 @@ class Tensor:
   def offset(self) -> int: return self.__offset
   def is_const(self): return self.__const
 
-  def cuda(self, device_index:int=0) -> Tensor: return Tensor._from_backend(cuda.ptr_tocuda(self.buf, device_index), dtype=self.dtype, device=f"cuda:{device_index}", requires_grad=self.requires_grad, const=self.__const) if self.device.type == "CPU" else self
-  def cpu(self) -> Tensor: return Tensor._from_backend(cpu.ptr_tocpu(self.buf), dtype=self.dtype, device="cpu", requires_grad=self.requires_grad, const=self.__const) if self.device.type == "CUDA" else self
+  def cuda(self, device_index:int=0) -> Tensor: return Tensor._from_backend(cuda.ptr_tocuda(self.buf, device_index), dtype=self.dtype, shape=self.shape , device=f"cuda:{device_index}", requires_grad=self.requires_grad, const=self.__const) if self.device.type == "CPU" else self
+  def cpu(self) -> Tensor: return Tensor._from_backend(cpu.ptr_tocpu(self.buf), dtype=self.dtype, device="cpu", shape=self.shape, requires_grad=self.requires_grad, const=self.__const) if self.device.type == "CUDA" else self
 
   @staticmethod
   def _format_number(x):
@@ -362,7 +362,7 @@ class Tensor:
     return obj
 
   @classmethod
-  def _from_backend(cls, buf, dtype, device, requires_grad=False, const=False):
+  def _from_backend(cls, buf, dtype, device, shape=None, requires_grad=False, const=False):
     obj = cls.__new__(cls)
     obj.__buf = buf
     obj.__dtype = dtype
@@ -370,16 +370,19 @@ class Tensor:
     obj._requires_grad = requires_grad
     obj.__const = const
     obj.__offset = 0
-    if obj.__device.type == "CPU":
-      shp = cpu.shape(buf)
-      obj.__shape = Shape(shp)
-      obj.__stride = cpu.stride(buf)
-      obj.__ndim = cpu.ndim(buf)
+    if shape is not None:
+      obj.__shape = Shape(shape) if not isinstance(shape, Shape) else shape
+      obj.__stride = obj.__shape.stride
+      obj.__ndim = obj.__shape.ndim
     else:
-      shp = cuda.shape(buf)
-      obj.__shape = Shape(shp)
-      obj.__stride = cuda.stride(buf)
-      obj.__ndim = cuda.ndim(buf)
+      if obj.__device.type == "CPU":
+        obj.__shape = Shape(cpu.shape(buf))
+        obj.__stride = cpu.stride(buf)
+        obj.__ndim = cpu.ndim(buf)
+      else:
+        obj.__shape = Shape(cuda.shape(buf))
+        obj.__stride = cuda.stride(buf)
+        obj.__ndim = cuda.ndim(buf)
     obj._grad = None
     obj._grad_fxn = None
     obj._parents = ()
