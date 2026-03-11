@@ -100,6 +100,21 @@ run_with_spinner nvcc -gencode arch=compute_86,code=sm_86 -O3 -Xcompiler -fPIC -
   "$ENGINE_SRC/tt_memory.c" \
   -o "$C_OUT_DIR/functional_cpu.so"
 
+echo "compiling $CU_SRC_DIR/random.cu -> $CU_SRC_DIR/random.so"
+run_with_spinner nvcc -gencode arch=compute_86,code=sm_86 -O3 -Xcompiler -fPIC -shared \
+  -I"$PY_INC" \
+  -I"$CU_SRC_DIR" \
+  "$CU_SRC_DIR/random.cu" \
+  "$ENGINE_SRC/tensor.c" \
+  -o "$CU_OUT_DIR/random.so"
+
+echo "compiling $C_SRC_DIR/random.c -> $C_SRC_DIR/random.so"
+run_with_spinner nvcc -gencode arch=compute_86,code=sm_86 -O3 -Xcompiler -fPIC -shared \
+  -I"$PY_INC" \
+  -I"$C_SRC_DIR" \
+  "$C_SRC_DIR/random.c" \
+  "$ENGINE_SRC/tensor.c" \
+  -o "$C_OUT_DIR/random.so"
 
 # versions
 VERSION="0.3.0"
