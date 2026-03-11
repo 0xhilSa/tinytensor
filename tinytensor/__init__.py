@@ -26,9 +26,14 @@ def tensor(
   const:bool=False # type: ignore[valid-type]
 ): return Tensor(buf=buf, dtype=dtype, device=device, requires_grad=requires_grad, const=const)
 
+def rand(*shape, seed:int|None=None, device:Device|str="cpu"):
+  if not isinstance(device, Device): device = Device(device)
+  buf = cuda.rand(shape, seed) if device.type == "CUDA" else cpu.rand(shape, seed)
+  return Tensor._from_backend(buf, dtype=float32, device=device, shape=shape)
+
 def arange(
   start:int=0, stop:int=0, step:int=1,
-  dtype:Union[dtypes.ConstType,dtypes.DType]=int64,
+  dtype:Union[dtypes.ConstType,dtypes.DType]=float32,
   device:Union[str,Device,None]=None,
   requires_grad:bool=False, # type: ignore[valid-type]
   const:bool=False # type: ignore[valid-type]
@@ -58,6 +63,7 @@ def linspace(
     data = [start + i * step for i in range(steps)]
   return Tensor(data, dtype=dtype, device=device, requires_grad=requires_grad, const=const)
 
+# needs to be done at the backend C/CUDA
 def ones(
   *shape,
   dtype:Union[dtypes.DType,dtypes.ConstType]=dtypes.float32,
@@ -70,6 +76,7 @@ def ones(
   for x in shape: length *= x
   return Tensor(reshape([1] * length, shape), dtype=dtype, device=device, requires_grad=requires_grad, const=const)
 
+# needs to be done at the backend C/CUDA
 def zeros(
   *shape,
   dtype:Union[dtypes.DType,dtypes.ConstType]=dtypes.float32,
@@ -82,6 +89,7 @@ def zeros(
   for x in shape: length *= x
   return Tensor(reshape([0] * length, shape), dtype=dtype, device=device, requires_grad=requires_grad, const=const)
 
+# needs to be done at the backend C/CUDA
 def fill(
   value,
   *shape,
