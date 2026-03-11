@@ -8,10 +8,12 @@ ext_modules = [
   Extension("tinytensor.engine.cpu.cpu", sources=[]),
   Extension("tinytensor.engine.cpu.cpu_ops", sources=[]),
   Extension("tinytensor.engine.cpu.functional_cpu", sources=[]),
+  Extension("tinytensor.engine.cpu.random", sources=[]),
   Extension("tinytensor.engine.constants", sources=[]),
   Extension("tinytensor.engine.cuda.cuda", sources=[]),
   Extension("tinytensor.engine.cuda.cuda_ops", sources=[]),
   Extension("tinytensor.engine.cuda.functional_cuda", sources=[]),
+  Extension("tinytensor.engine.cuda.random", sources=[])
 ]
 
 
@@ -52,6 +54,13 @@ class BuildNVCC(build_ext):
         f"{C_SRC_DIR}/functional_cpu.c {ENGINE_SRC}/tensor.c {ENGINE_SRC}/tt_memory.c "
         f"-o {output_path}"
       )
+    elif ext.name.endswith("random"):
+      cmd = (
+        f"nvcc -O3 {GENCODE} -Xcompiler -fPIC -shared "
+        f"-I{py_inc} -I{C_SRC_DIR} "
+        f"{C_SRC_DIR}/random.c {ENGINE_SRC}/tensor.c {ENGINE_SRC}/tt_memory.c "
+        f"-o {output_path}"
+      )
     elif ext.name.endswith("constants"):
       cmd = (
         f"nvcc -O3 {GENCODE} -Xcompiler -fPIC -shared "
@@ -78,6 +87,13 @@ class BuildNVCC(build_ext):
         f"nvcc -O3 {GENCODE} -Xcompiler -fPIC -shared "
         f"-I{py_inc} -I{CU_SRC_DIR} "
         f"{CU_SRC_DIR}/functional_cuda.cu {ENGINE_SRC}/tensor.c {ENGINE_SRC}/tt_memory.c "
+        f"-o {output_path}"
+      )
+    elif ext.name.endswith("random"):
+      cmd = (
+        f"nvcc -O3 {GENCODE} -Xcompiler -fPIC -shared "
+        f"-I{py_inc} -I{CU_SRC_DIR} "
+        f"{CU_SRC_DIR}/random.cu {ENGINE_SRC}/tensor.c {ENGINE_SRC}/tt_memory.c "
         f"-o {output_path}"
       )
     else:
