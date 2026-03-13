@@ -78,9 +78,9 @@ float64:Final = DType.new("d", "double", 8, None, "float")
 complex64:Final = DType.new("F", "float _Complex", 8, None, "complex")
 complex128:Final = DType.new("D", "double _Complex", 16, None, "complex")
 
-BOOLEAN = [bool]
-INT = [int8, int16, int32, int64]
-UINT = [uint8, uint16, uint32, uint64]
-FLOAT = [float16, float32, float64]
-COMPLEX = [complex64, complex128]
-ALL = BOOLEAN + INT + UINT + FLOAT + COMPLEX
+BOOLEAN = (bool,)
+SINT = (int8, int16, int32, int64,)
+UINT = (uint8, uint16, uint32, uint64,)
+FLOAT = (float16, float32, float64,)
+COMPLEX = (complex64, complex128,)
+ALL = BOOLEAN + SINT + UINT + FLOAT + COMPLEX
