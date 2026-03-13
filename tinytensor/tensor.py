@@ -119,7 +119,7 @@ class Tensor:
     return tuple(expected) == self.__stride
 
   def conj(self) -> Tensor:
-    if self.dtype == dtypes.complex64 or self.dtype == dtypes.complex128:
+    if self.dtype in dtypes.COMPLEX:
       out = cpu.conj(self.buf) if self.device.type == "CPU" else cuda.conj(self.buf)
       return Tensor._from_backend(buf=out, dtype=self.dtype, device=self.device)
     return self
@@ -503,7 +503,7 @@ class Tensor:
     if x.device != y.device: raise RuntimeError("Tensors must be on same device")
     allowed = (
       dtypes.BOOLEAN +
-      dtypes.INT +
+      dtypes.SINT +
       dtypes.UINT +
       dtypes.FLOAT +
       dtypes.COMPLEX
