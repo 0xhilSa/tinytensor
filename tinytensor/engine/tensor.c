@@ -1,9 +1,3 @@
-// ======================================================
-//
-// trying to implement the tinytensor engine from scratch
-//
-// ======================================================
-
 #include <cuda_runtime.h>
 #include <stdlib.h>
 #include <string.h>
