@@ -255,14 +255,14 @@ class Tensor:
     return bool(self.item())
 
   def any(self) -> Tensor:
-    if self.size == 0: return Tensor(False, dtype=dtypes.bool)
-    if self.ndim == 0: return Tensor(bool(self.item() != 0), dtype=dtypes.bool)
-    return Tensor(bool((self != 0).sum().item()), dtype=dtypes.bool)
+    if self.size == 0: return Tensor(False, dtype=dtypes.boolean)
+    if self.ndim == 0: return Tensor(bool(self.item() != 0), dtype=dtypes.boolean)
+    return Tensor(bool((self != 0).sum().item()), dtype=dtypes.boolean)
 
   def all(self) -> Tensor:
-    if self.size == 0: return Tensor(True, dtype=dtypes.bool)
-    if self.ndim == 0: return Tensor(bool(self.item() != 0), dtype=dtypes.bool)
-    return Tensor(bool((self != 0).sum().item() == self.size), dtype=dtypes.bool)
+    if self.size == 0: return Tensor(True, dtype=dtypes.boolean)
+    if self.ndim == 0: return Tensor(bool(self.item() != 0), dtype=dtypes.boolean)
+    return Tensor(bool((self != 0).sum().item() == self.size), dtype=dtypes.boolean)
 
   @staticmethod
   def empty(*shape, dtype:dtypes.DType=dtypes.float32, device:Union[str,Device]="cpu", requires_grad:bool=False, const:bool=False) -> Tensor:
@@ -276,7 +276,6 @@ class Tensor:
     caps = cpu.empty(shape, dtype.fmt) if device.type == "CPU" else cuda.empty(shape, dtype.fmt, device_index=device.index)
     return Tensor._from_backend(caps, dtype=dtype, device=device, requires_grad=requires_grad, const=const)
 
-  # needs to be done at the backend C/CUDA
   @staticmethod
   def ones(*shape, dtype:Union[dtypes.DType,dtypes.ConstType]=dtypes.float32, device:Union[str,Device,None]=None, requires_grad:bool=False, const:bool=False) -> Tensor:
     if len(shape) == 1 and isinstance(shape[0], (list, tuple)): shape = shape[0]
@@ -284,7 +283,6 @@ class Tensor:
     for x in shape: length *= x
     return Tensor(reshape([1] * length, shape), dtype=dtype, device=device, requires_grad=requires_grad, const=const) # type: ignore
 
-  # needs to be done at the backend C/CUDA
   @staticmethod
   def zeros(*shape, dtype:Union[dtypes.DType,dtypes.ConstType]=dtypes.float32, device:Union[str,Device,None]=None, requires_grad:bool=False, const:bool=False) -> Tensor:
     if len(shape) == 1 and isinstance(shape[0], (list, tuple)): shape = shape[0]
@@ -292,7 +290,6 @@ class Tensor:
     for x in shape: length *= x
     return Tensor(reshape([0] * length, shape), dtype=dtype, device=device, requires_grad=requires_grad, const=const) # type: ignore
 
-  # needs to be done at the backend C/CUDA
   @staticmethod
   def fill(value, *shape, dtype:Union[dtypes.DType,dtypes.ConstType]=dtypes.float32, device:Union[str,Device,None]=None, requires_grad:bool=False, const:bool=False) -> Tensor:
     if len(shape) == 1 and isinstance(shape[0], (list, tuple)): shape = shape[0]
@@ -307,12 +304,10 @@ class Tensor:
     buf = cpu.eye(m, n, dtype.fmt) if device.type == "CPU" else cuda.eye(m, n, dtype.fmt)
     return Tensor._from_backend(buf, dtype=dtype, device=device, requires_grad=requires_grad, const=const)
 
-  # this needs to be done at the backend C/CUDA
   def astype(self, dtype:Union[dtypes.DType,dtypes.ConstType]) -> Tensor:
     x = reshape(cuda.topyobj(self.__buf), self.shape.shape) if self.__device.type == "CUDA" else reshape(cpu.topyobj(self.__buf), self.shape.shape) # type: ignore
     return Tensor(x, dtype=dtype, device=f"{self.__device.type}:{self.__device.index}") # type: ignore
 
-  # this needs to be done at the backend C/CUDA
   def to(self, device:Union[str,Device]) -> Tensor:
     if not isinstance(device, Device): device = Device(device)
     if device == self.device: return self
@@ -488,7 +483,7 @@ class Tensor:
     if x.device != y.device: raise RuntimeError("Tensors must be on same device")
     dx, dy = x.dtype, y.dtype
     ints = {
-      dtypes.bool: -1,
+      dtypes.boolean: -1,
       dtypes.int8: 0,  dtypes.uint8: 0,
       dtypes.int16: 1, dtypes.uint16: 1,
       dtypes.int32: 2, dtypes.uint32: 2,
@@ -552,7 +547,7 @@ class Tensor:
       "logical_nand", "logical_nor", "logical_xnor"
     }:
       x, y = Tensor._promote_logical(self, other)
-      res_dtype = dtypes.bool
+      res_dtype = dtypes.boolean
     elif promote == "tdiv": x, y = Tensor._promote_tdiv(self, other)
     elif promote == "fdiv": x, y = Tensor._promote_fdiv(self, other)
     else: x, y = Tensor._promote_binary(self, other)
@@ -690,13 +685,13 @@ class Tensor:
   def bitwise_xnor(self, other:Union[dtypes.ConstType,Tensor,List]) -> Tensor: return self.binop(other, "bitwise_xnor")
   def bitwise_not(self) -> Tensor: return self.uop("bitwise_not")
 
-  def logical_and(self, other:Union[dtypes.ConstType,Tensor,List]) -> Tensor: return self.binop(other, "logical_and", res_dtype=dtypes.bool)
-  def logical_nand(self, other:Union[dtypes.ConstType,Tensor,List]) -> Tensor: return self.binop(other, "logical_nand", res_dtype=dtypes.bool)
-  def logical_or(self, other:Union[dtypes.ConstType,Tensor,List]) -> Tensor: return self.binop(other, "logical_or", res_dtype=dtypes.bool)
-  def logical_nor(self, other:Union[dtypes.ConstType,Tensor,List]) -> Tensor: return self.binop(other, "logical_nor", res_dtype=dtypes.bool)
-  def logical_xor(self, other:Union[dtypes.ConstType,Tensor,List]) -> Tensor: return self.binop(other, "logical_xor", res_dtype=dtypes.bool)
-  def logical_xnor(self, other:Union[dtypes.ConstType,Tensor,List]) -> Tensor: return self.binop(other, "logical_xnor", res_dtype=dtypes.bool)
-  def logical_not(self) -> Tensor: return self.uop("logical_not", res_dtype=dtypes.bool)
+  def logical_and(self, other:Union[dtypes.ConstType,Tensor,List]) -> Tensor: return self.binop(other, "logical_and", res_dtype=dtypes.boolean)
+  def logical_nand(self, other:Union[dtypes.ConstType,Tensor,List]) -> Tensor: return self.binop(other, "logical_nand", res_dtype=dtypes.boolean)
+  def logical_or(self, other:Union[dtypes.ConstType,Tensor,List]) -> Tensor: return self.binop(other, "logical_or", res_dtype=dtypes.boolean)
+  def logical_nor(self, other:Union[dtypes.ConstType,Tensor,List]) -> Tensor: return self.binop(other, "logical_nor", res_dtype=dtypes.boolean)
+  def logical_xor(self, other:Union[dtypes.ConstType,Tensor,List]) -> Tensor: return self.binop(other, "logical_xor", res_dtype=dtypes.boolean)
+  def logical_xnor(self, other:Union[dtypes.ConstType,Tensor,List]) -> Tensor: return self.binop(other, "logical_xnor", res_dtype=dtypes.boolean)
+  def logical_not(self) -> Tensor: return self.uop("logical_not", res_dtype=dtypes.boolean)
 
   def __rshift__(self, other:Union[dtypes.ConstType,Tensor,List]) -> Tensor: return self.binop(other, "rshift")
   def __rrshift__(self, other:Union[dtypes.ConstType,Tensor,List]) -> Tensor: return self.binop(other, "rshift", reverse=True)
@@ -786,7 +781,7 @@ class Tensor:
   def pow(self, exponent:Union[dtypes.ConstType,Tensor]): return self ** exponent
 
   def bmm(self, other:Tensor):
-    if not isinstance(other, Tensor): raise ValueError(f"given value must be the Tensor object")
+    if not isinstance(other, Tensor): other = Tensor(other, dtype=self.dtype, device=self.device, requires_grad=self.requires_grad, const=self.__const)
     out = cpu.topyobj(cpu.bmm(self.buf, other.buf)) if self.__device.type == "CPU" else cuda.topyobj(cuda.bmm(self.buf, other.buf))
     batch_dims = self.shape.shape[:-2]
     m = self.shape.shape[-2]

@@ -1,7 +1,7 @@
 from tinytensor import dtypes
 
 _CAST = {
-  dtypes.bool: bool,
+  dtypes.boolean: bool,
   dtypes.int8: int,
   dtypes.int16: int,
   dtypes.int32: int,
@@ -30,7 +30,7 @@ def dtype_of(buf, dtype=None):
         break
       elif isinstance(x, float): inferred = dtypes.float32
       elif isinstance(x, bool):
-        if inferred is None: inferred = dtypes.bool
+        if inferred is None: inferred = dtypes.boolean
       elif isinstance(x, int):
         if inferred not in (dtypes.float32, dtypes.complex64): inferred = dtypes.int32
       else: raise TypeError("Unsupported buffer element types")
@@ -40,7 +40,7 @@ def dtype_of(buf, dtype=None):
       int: dtypes.int32,
       float: dtypes.float32,
       complex: dtypes.complex64,
-      bool: dtypes.bool
+      bool: dtypes.boolean
     }[dtype]
   if not isinstance(dtype, dtypes.DType): raise TypeError("dtype must be DType")
   caster = _CAST[dtype]

@@ -22,14 +22,14 @@ class DType:
   @property
   def kind(self):
     if self in BOOLEAN: return "bool"
-    if self in INT: return "int"
+    if self in SINT: return "int"
     if self in UINT: return "uint"
     if self in FLOAT: return "float"
     if self in COMPLEX: return "complex"
     raise RuntimeError("Unknown dtype")
   @staticmethod
   def from_ctype(ctype:str):
-    if ctype == "bool": return bool
+    if ctype == "bool": return boolean
     elif ctype == "char": return int8
     elif ctype == "unsigned char": return uint8
     elif ctype == "short": return int16
@@ -63,7 +63,7 @@ class DType:
     if self.kind == "float" and dst.kind == "complex": return True
     return False
 
-bool:Final = DType("?", "bool", 1, False, "bool")
+boolean:Final = DType("?", "bool", 1, False, "bool")
 int8:Final = DType.new("b", "char", 1, True, "int")
 uint8:Final = DType.new("B", "unsigned char", 1, False, "uint")
 int16:Final = DType.new("h", "short", 2, True, "int")
@@ -78,9 +78,18 @@ float64:Final = DType.new("d", "double", 8, None, "float")
 complex64:Final = DType.new("F", "float _Complex", 8, None, "complex")
 complex128:Final = DType.new("D", "double _Complex", 16, None, "complex")
 
-BOOLEAN = (bool,)
+BOOLEAN = (boolean,)
 SINT = (int8, int16, int32, int64,)
 UINT = (uint8, uint16, uint32, uint64,)
 FLOAT = (float16, float32, float64,)
 COMPLEX = (complex64, complex128,)
 ALL = BOOLEAN + SINT + UINT + FLOAT + COMPLEX
+
+def from_pyconst(consttype:ConstType|DType):
+  if isinstance(consttype, DType): return consttype
+  if consttype == int: return int32
+  elif consttype == float: return float32
+  elif consttype == complex: return complex64
+  elif consttype == bool: return boolean
+  else: TypeError(f"Invalid constant dtype")
+
