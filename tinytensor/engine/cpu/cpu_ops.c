@@ -9,6 +9,26 @@ void capsule_destroyer(PyObject *capsule){
   }
 }
 
+dtype_t get_dtype(const char fmt){
+  switch(fmt){
+    case '?': return BOOL;
+    case 'b': return INT8;
+    case 'B': return UINT8;
+    case 'h': return INT16;
+    case 'H': return UINT16;
+    case 'i': return INT32;
+    case 'I': return UINT32;
+    case 'q': return INT64;
+    case 'Q': return UINT64;
+    case 'e': return FP16;
+    case 'f': return FP32;
+    case 'd': return FP64;
+    case 'F': return CMPX64;
+    case 'D': return CMPX128;
+    default: return ERROR;
+  }
+}
+
 tensor_t *tensor_empty_scalar_like(tensor_t *tx){
   tensor_t *tz = tt_malloc(sizeof(tensor_t));
   if(!tz) return NULL;
