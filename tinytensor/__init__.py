@@ -8,7 +8,7 @@ from tinytensor.engine.constants import pi, e, euler_gamma, inf, nan
 from tinytensor.helpers import reshape
 from tinytensor.device import Device, DeviceLike
 from tinytensor import version
-from tinytensor.dtypes import (bool, int8, uint8, int16, uint16,
+from tinytensor.dtypes import (boolean, int8, uint8, int16, uint16,
                                int32, uint32, int64, uint64,
                                float16, float32, float64,
                                complex64, complex128)
@@ -63,7 +63,6 @@ def linspace(
     data = [start + i * step for i in range(steps)]
   return Tensor(data, dtype=dtype, device=device, requires_grad=requires_grad, const=const)
 
-# needs to be done at the backend C/CUDA
 def ones(
   *shape,
   dtype:Union[dtypes.DType,dtypes.ConstType]=dtypes.float32,
@@ -76,7 +75,6 @@ def ones(
   for x in shape: length *= x
   return Tensor(reshape([1] * length, shape), dtype=dtype, device=device, requires_grad=requires_grad, const=const)
 
-# needs to be done at the backend C/CUDA
 def zeros(
   *shape,
   dtype:Union[dtypes.DType,dtypes.ConstType]=dtypes.float32,
@@ -89,7 +87,6 @@ def zeros(
   for x in shape: length *= x
   return Tensor(reshape([0] * length, shape), dtype=dtype, device=device, requires_grad=requires_grad, const=const)
 
-# needs to be done at the backend C/CUDA
 def fill(
   value,
   *shape,
@@ -173,37 +170,37 @@ def bitwise_xnor(x:Union[Tensor,List,dtypes.ConstType], y:Union[Tensor,List,dtyp
 def logical_and(x:Union[Tensor,List,dtypes.ConstType], y:Union[Tensor,List,dtypes.DType]) -> Tensor:
   x, y = __ensure_tensor(x), __ensure_tensor(y)
   out = cpu.logical_and(x.buf, y.buf) if x.device.type == "CPU" else cuda.logical_and(x.buf, y.buf)
-  return Tensor._from_backend(out, dtype=dtypes.bool, device=x.device)
+  return Tensor._from_backend(out, dtype=dtypes.boolean, device=x.device)
 
 def logical_or(x:Union[Tensor,List,dtypes.ConstType], y:Union[Tensor,List,dtypes.DType]) -> Tensor:
   x, y = __ensure_tensor(x), __ensure_tensor(y)
   out = cpu.logical_or(x.buf, y.buf) if x.device.type == "CPU" else cuda.logical_or(x.buf, y.buf)
-  return Tensor._from_backend(out, dtype=dtypes.bool, device=x.device)
+  return Tensor._from_backend(out, dtype=dtypes.boolean, device=x.device)
 
 def logical_xor(x:Union[Tensor,List,dtypes.ConstType], y:Union[Tensor,List,dtypes.DType]) -> Tensor:
   x, y = __ensure_tensor(x), __ensure_tensor(y)
   out = cpu.logical_xor(x.buf, y.buf) if x.device.type == "CPU" else cuda.logical_xor(x.buf, y.buf)
-  return Tensor._from_backend(out, dtype=dtypes.bool, device=x.device)
+  return Tensor._from_backend(out, dtype=dtypes.boolean, device=x.device)
 
 def logical_not(x:Union[Tensor,List,dtypes.ConstType]) -> Tensor:
   x = __ensure_tensor(x)
   out = cpu.logical_not(x.buf) if x.device.type == "CPU" else cuda.logical_not(x.buf)
-  return Tensor._from_backend(out, dtype=dtypes.bool, device=x.device)
+  return Tensor._from_backend(out, dtype=dtypes.boolean, device=x.device)
 
 def logical_nand(x:Union[Tensor,List,dtypes.ConstType], y:Union[Tensor,List,dtypes.DType]) -> Tensor:
   x, y = __ensure_tensor(x), __ensure_tensor(y)
   out = cpu.logical_nand(x.buf, y.buf) if x.device.type == "CPU" else cuda.logical_nand(x.buf, y.buf)
-  return Tensor._from_backend(out, dtype=dtypes.bool, device=x.device)
+  return Tensor._from_backend(out, dtype=dtypes.boolean, device=x.device)
 
 def logical_nor(x:Union[Tensor,List,dtypes.ConstType], y:Union[Tensor,List,dtypes.DType]) -> Tensor:
   x, y = __ensure_tensor(x), __ensure_tensor(y)
   out = cpu.logical_nor(x.buf, y.buf) if x.device.type == "CPU" else cuda.logical_nor(x.buf, y.buf)
-  return Tensor._from_backend(out, dtype=dtypes.bool, device=x.device)
+  return Tensor._from_backend(out, dtype=dtypes.boolean, device=x.device)
 
 def logical_xnor(x:Union[Tensor,List,dtypes.ConstType], y:Union[Tensor,List,dtypes.DType]) -> Tensor:
   x, y = __ensure_tensor(x), __ensure_tensor(y)
   out = cpu.logical_xnor(x.buf, y.buf) if x.device.type == "CPU" else cuda.logical_xnor(x.buf, y.buf)
-  return Tensor._from_backend(out, dtype=dtypes.bool, device=x.device)
+  return Tensor._from_backend(out, dtype=dtypes.boolean, device=x.device)
 
 def exp(x:Union[Tensor,List,dtypes.ConstType], requires_grad:bool=False, const:bool=False) -> Tensor: return __unary_backend(cpu.exp, cuda.exp, x, requires_grad, const) # type: ignore[type-valid]
 def log(x:Union[Tensor,List,dtypes.ConstType], requires_grad:bool=False, const:bool=False) -> Tensor: return __unary_backend(cpu.log, cuda.log, x, requires_grad, const) # type: ignore[type-valid]
