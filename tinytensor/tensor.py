@@ -1,4 +1,5 @@
 from __future__ import annotations
+from graphviz import Digraph
 import ctypes
 from typing import List, Optional, Tuple, Union, TYPE_CHECKING
 if TYPE_CHECKING: import numpy
@@ -7,6 +8,7 @@ from tinytensor.shape import Shape
 from tinytensor.engine import cpu, cuda
 from tinytensor.helpers import dtype_of, shape_of, flatten, reshape
 from tinytensor.device import Device
+from tinytensor.graph import Node, topo_sort
 from tinytensor.autograd import (
   AddBackward, SubBackward, MulBackward, TDivBackward, PowBackward,
   ExpBackward, LogBackward, Log2Backward, Log10Backward
@@ -40,6 +42,7 @@ class Tensor:
     self._grad:Optional[Tensor] = None
     self._grad_fxn = None
     self._parents:Tuple[Tensor,...] = ()
+    self._node = Node(value=self)
 
   def __repr__(self) -> str: return f"Tensor(shape={self.shape}, dtype='{self.__dtype.ctype}', device={self.__device}, requires_grad={self._requires_grad}, const={self.__const})"
   @property
@@ -354,6 +357,7 @@ class Tensor:
     obj._grad_fxn = None
     obj._parents = ()
     obj._is_leaf = requires_grad
+    obj._node = Node(value=obj)
     return obj
 
   @classmethod
@@ -382,6 +386,7 @@ class Tensor:
     obj._grad_fxn = None
     obj._parents = ()
     obj._is_leaf = requires_grad
+    obj._node = Node(value=obj)
     return obj
 
   @staticmethod
@@ -573,6 +578,27 @@ class Tensor:
       elif op == "fdiv": raise RuntimeError("derivative of floor division isn't implemented")
       elif op == "pow": out_tensor._grad_fxn = PowBackward(self,other)
       else: out_tensor._grad_fxn = None
+    lhs = self._node
+    rhs = other._node
+    if op == "add": out_tensor._node = lhs + rhs
+    elif op == "sub": out_tensor._node = lhs - rhs
+    elif op == "mul": out_tensor._node = lhs * rhs
+    elif op == "tdiv": out_tensor._node = lhs / rhs
+    elif op == "fdiv": out_tensor._node = lhs // rhs
+    elif op == "pow": out_tensor._node = lhs ** rhs
+    elif op == "mod": out_tensor._node = lhs % rhs
+    elif op == "bitwise_and": out_tensor._node = lhs & rhs
+    elif op == "bitwise_or": out_tensor._node = lhs | rhs
+    elif op == "bitwise_xor": out_tensor._node = lhs ^ rhs
+    elif op == "lshift": out_tensor._node = lhs << rhs
+    elif op == "rshift": out_tensor._node = lhs >> rhs
+    elif op == "eq": out_tensor._node = lhs == rhs
+    elif op == "ne": out_tensor._node = lhs != rhs
+    elif op == "gt": out_tensor._node = lhs > rhs
+    elif op == "ge": out_tensor._node = lhs >= rhs
+    elif op == "lt": out_tensor._node = lhs < rhs
+    elif op == "le": out_tensor._node = lhs <= rhs
+    else: out_tensor._node = Node(lhs, rhs)
     return out_tensor
 
   def uop(self, op:str, promote:bool=False, res_dtype:dtypes.DType|None=None):
@@ -594,6 +620,26 @@ class Tensor:
       elif op == "log2": out_tensor._grad_fxn = Log2Backward(self)
       elif op == "log10": out_tensor._grad_fxn = Log10Backward(self)
       else: out_tensor._grad_fxn = None
+
+    inp = self._node
+    if op == "neg": out_tensor._node = -inp
+    elif op == "pos": out_tensor._node = +inp
+    elif op == "abs": out_tensor._node = inp.abs()
+    elif op == "exp": out_tensor._node = inp.exp()
+    elif op == "log": out_tensor._node = inp.log()
+    elif op == "log2": out_tensor._node = inp.log2()
+    elif op == "log10": out_tensor._node = inp.log10()
+    elif op == "sin": out_tensor._node = inp.sin()
+    elif op == "cos": out_tensor._node = inp.cos()
+    elif op == "tan": out_tensor._node = inp.tan()
+    elif op == "floor": out_tensor._node = inp.floor()
+    elif op == "ceil": out_tensor._node = inp.ceil()
+    elif op == "bitwise_not": out_tensor._node = ~inp
+    elif op == "logical_not": out_tensor._node = inp.logical_not()
+    else:
+      # fallback generic node
+      out_tensor._node = Node(inp)
+
     return out_tensor
 
   def detach(self):
@@ -817,3 +863,51 @@ class Tensor:
 
   def floor(self) -> Tensor: return self.uop("floor", promote=True)
   def ceil(self) -> Tensor: return self.uop("ceil", promote=True)
+
+  def viz(self, filename="graph", view=True):
+    dot = Digraph(format="png", graph_attr={"rankdir": "LR"})
+    nodes = topo_sort(self._node)
+    def nid(x): return str(id(x))
+    for n in nodes:
+      tid = nid(n)
+      if hasattr(n, "value") and n.value is not None:
+        val = n.value
+        label = f"""
+  shape={val.shape.shape}
+  dtype={val.dtype.ctype}
+  {val.device}"""
+        if val.requires_grad: label += "\nrequires_grad=True"
+        dot.node(
+          tid,
+          label.strip(),
+          shape="rectangle",
+          style="filled",
+          fillcolor="lightblue"
+        )
+        continue
+      op_id = tid + "_op"
+      dot.node(
+        op_id,
+        str(n.op),
+        shape="oval",
+        style="filled",
+        fillcolor="lightgray"
+      )
+      for s in n.srcs: dot.edge(nid(s), op_id)
+      if hasattr(n, "shape") and hasattr(n, "dtype"):
+        label = f"""
+  shape={n.shape}
+  dtype={n.dtype.ctype}
+  {n.device}"""
+      else:
+        label = "Tensor"
+      dot.node(
+        tid,
+        label.strip(),
+        shape="rectangle",
+        style="filled",
+        fillcolor="lightyellow"
+      )
+      dot.edge(op_id, tid)
+    dot.render(filename, view=view)
+
